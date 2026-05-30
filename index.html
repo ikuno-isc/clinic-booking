@@ -168,6 +168,7 @@
   <div class="done-icon">✅</div>
   <div class="done-title">ご予約を承りました</div>
   <div class="done-msg">確認のメッセージをLINEにお送りします。<br>お会いできるのを楽しみにしております。</div>
+  <button class="btn btn-p" id="backBtn" onclick="backToTalk()" style="display:inline-block;margin-top:28px;padding-left:40px;padding-right:40px;">LINEのトークに戻る</button>
 </div>
 
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
@@ -455,7 +456,7 @@ function doSub(){
     if(err||!res){subFail(btn,'送信に失敗しました。電波の良い場所で再度お試しください。');return;}
     if(res.ok){
       showScr('s-done');
-      if(LIFF_ID&&typeof liff!=='undefined'&&liff.isInClient&&liff.isInClient())setTimeout(function(){liff.closeWindow();},2000);
+      setTimeout(backToTalk,1200); // 予約後はLINEのトークへ自動で戻る（戻れない端末向けにボタンも用意）
       return;
     }
     subFail(btn,errR(res.reason));
@@ -467,6 +468,10 @@ function subFail(btn,msg){
 }
 function errR(r){
   return({conflict:'その時間帯はすでにご予約が入っております。別の日時でお試しください。',invalid_uid:'お客様情報が取得できませんでした。LINEアプリ内から開き直してください。',no_duration:'この担当・メニューの所要時間が未設定です。トーク画面からお問い合わせください。',no_store_calendar:'ただいま予約を受け付けられません。トーク画面からお問い合わせください。',bad_datetime:'日時が正しく選択されていません。もう一度ご指定ください。'})[r]||'申し訳ございません、ただいまご予約をお受けできませんでした。折り返しご連絡いたします。';
+}
+// LIFFウィンドウを閉じてLINEのトークへ戻す。LINEアプリ外（通常ブラウザ）では何も起きない。
+function backToTalk(){
+  try{ if(typeof liff!=='undefined'&&liff.closeWindow){ liff.closeWindow(); } }catch(e){}
 }
 
 // ===== 利用規約 =====
