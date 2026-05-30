@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<!--
+  web/index.html — 外部ホスト用の予約ページ（Netlify等の静的ホスティングに置く）。
+  GASのHtmlServiceは必ずサンドボックスiframe内で配信されるため liff.init() が固まる。
+  そこでページ本体を外部ホストの「トップ文書」として配信し、LIFFを正常動作させる。
+  ・liff.init → getProfile でお客様のUID/お名前を自動取得（入力不要）。
+  ・メニュー取得は GAS の ?action=options を JSONP で呼ぶ（CORS完全回避）。
+  ・予約送信は GAS の ?action=book へ fetch POST（Content-Type: text/plain＝プリフライト無し）。
+  店舗は URL の ?store= で切替（既定 kurume）。全店舗この1ファイルで賄う。
+-->
+<html lang="ja">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>ご予約</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+      margin: 0; padding: 16px; color: #222; background: #fafafa; line-height: 1.6;
+    }
+    h1 { font-size: 18px; margin: 0 0 4px; }
+    .store { color: #666; font-size: 13px; margin-bottom: 16px; }
+    .field { margin-bottom: 18px; }
+    label.q { display: block; font-weight: 600; margin-bottom: 6px; font-size: 14px; }
+    select, input[type="datetime-local"] {
+      width: 100%; padding: 12px; font-size: 16px; border: 1px solid #ccc; border-radius: 8px; background: #fff;
+    }
+    .radios { display: flex; gap: 8px; }
+    .radios label {
+      flex: 1; text-align: center; padding: 10px; border: 1px solid #ccc; border-radius: 8px; background: #fff; font-size: 14px;
+    }
+    .radios input { display: none; }
+    .radios input:checked + span { font-weight: 700; }
+    .radios label:has(input:checked) { border-color: #06c755; background: #eafaf0; }
+    .price { font-size: 13px; color: #06845a; margin-top: 6px; min-height: 18px; }
+    .agree { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: #444; }
+    .agree input { margin-top: 4px; }
+    button {
+      width: 100%; padding: 15px; font-size: 16px; font-weight: 700; color: #fff;
+      background: #06c755; border: none; border-radius: 10px; margin-top: 4px;
+    }
+    button:disabled { background: #b9d9c6; }
+    .msg { padding: 12px; border-radius: 8px; font-size: 14px; margin-bottom: 14px; display: none; }
+    .msg.err { background: #fdecea; color: #b3261e; display: block; }
+    .msg.ok { background: #eafaf0; color: #06845a; display: block; }
+    .loading { text-align: center; color: #888; padding: 40px 0; }
+    #form { display: none; }
+    .hint { font-size: 12px; color: #999; margin-top: 4px; }
+    /* 診断表示（?debug=1 のときだけ出す。本番URLには付けない） */
+    #diag { display: none; white-space: pre-wrap; font-family: ui-monospace, Menlo, monospace;
+      font-size: 11px; color: #555; background: #f0f0f0; border: 1px solid #ddd;
+      border-radius: 6px; padding: 8px; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <h1>ご予約</h1>
+  <div class="store" id="storeName">　</div>
+
+  <div id="loading" class="loading">読み込み中…</div>
+  <div id="diag"></div>
+  <div id="banner" class="msg"></div>
+
+  <div id="form">
+    <div class="field">
+      <label class="q" for="menu">メニュー</label>
+      <select id="menu"></select>
+      <div class="price" id="priceHint"></div>
+    </div>
+
+    <div class="field">
+      <label class="q">施術の種類</label>
+      <div class="radios" id="treatment">
+        <label><input type="radio" name="treatment" value="new" autocomplete="off" checked><span>新規（初めて）</span></label>
+        <label><input type="radio" name="treatment" value="retouch" autocomplete="off"><span>リタッチ</span></label>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="q">ご予約区分</label>
+      <div class="radios" id="resvType">
+        <label><input type="radio" name="resvType" value="monitor" autocomplete="off" checked><span>モニター</span></label>
+        <label><input type="radio" name="resvType" value="normal" autocomplete="off"><span>通常</span></label>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="q" for="nurse">担当看護師</label>
+      <select id="nurse"></select>
+      <div class="hint" id="nurseHint"></div>
+    </div>
+
+    <div class="field">
+      <label class="q" for="datetime">ご希望の日時</label>
+      <input type="datetime-local" id="datetime" autocomplete="off">
+    </div>
+
+    <div class="field">
+      <label class="agree">
+        <input type="checkbox" id="agree">
+        <span>施術内容・注意事項を確認しました。妊娠中・授乳中・重い持病など、施術を受けられない場合があることを理解しています。</span>
+      </label>
+    </div>
+
+    <button id="submit" disabled>この内容で予約する</button>
+  </div>
+
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script>
+    // ===== 環境設定（ここだけ案件ごとに差し替える）=====
+    var LIFF_ID = "2010236479-4ANlMg3d"; // LINEログインチャネル「クリニック予約」のLIFF ID（公開値）
+    var GAS_EXEC = "https://script.google.com/macros/s/AKfycbxmo7Pp8TDkgtSHeYYUfBwUD3pOc-bcBOfWNhcyNGQMPCkWjYHLFBIZ6obExLbY0lzK/exec";
+
+    var qs = new URLSearchParams(location.search);
+    var STORE = qs.get('store') || 'kurume';
+    var DEBUG = qs.get('debug') === '1';
+
+    var profile = { userId: '', displayName: '' };
+    var options = null; // 予約オプション（メニュー・看護師・認定済み組合せ）
+
+    // シートのTRUE/FALSEが boolean でも文字列でも正しく真偽判定する（is_certified対策）。
+    function isTrue(v) {
+      if (v === true) return true;
+      if (typeof v === 'number') return v === 1;
+      if (typeof v === 'string') { var s = v.trim().toLowerCase(); return s === 'true' || s === '1'; }
+      return false;
+    }
+    function banner(text, kind) {
+      var b = document.getElementById('banner');
+      b.textContent = text;
+      b.className = 'msg ' + (kind || 'err');
+    }
+    function clearBanner() {
+      var b = document.getElementById('banner');
+      b.className = 'msg'; b.textContent = '';
+    }
+
+    // 診断表示（?debug=1 のときだけ）。どこまで進んだか画面に出す。
+    var diagLines = [];
+    function setStatus(msg) {
+      if (!DEBUG) return;
+      diagLines.push(msg);
+      var el = document.getElementById('diag');
+      if (el) { el.textContent = diagLines.join('\n'); el.style.display = 'block'; }
+    }
+
+    // ===== GAS呼び出し：メニュー取得（JSONP＝CORS回避）=====
+    function fetchOptions(cb) {
+      var cbName = '__bk_cb_' + Date.now();
+      var done = false;
+      var s = document.createElement('script');
+      function cleanup() {
+        try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
+        if (s.parentNode) s.parentNode.removeChild(s);
+      }
+      var timer = setTimeout(function () {
+        if (done) return; done = true; cleanup(); cb(new Error('timeout'));
+      }, 12000);
+      window[cbName] = function (data) {
+        if (done) return; done = true; clearTimeout(timer); cleanup(); cb(null, data);
+      };
+      s.onerror = function () {
+        if (done) return; done = true; clearTimeout(timer); cleanup(); cb(new Error('network'));
+      };
+      s.src = GAS_EXEC + '?action=options&store=' + encodeURIComponent(STORE) + '&callback=' + cbName;
+      document.head.appendChild(s);
+    }
+
+    // ===== GAS呼び出し：予約送信（fetch POST／text/plain＝プリフライト無し）=====
+    function postBooking(payload, cb) {
+      fetch(GAS_EXEC + '?action=book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload),
+      }).then(function (r) { return r.json(); })
+        .then(function (res) { cb(null, res); })
+        .catch(function (err) { cb(err); });
+    }
+
+    // --- 起動：LIFF初期化 → プロフィール取得 → 予約オプション取得 ---
+    // 外部ホスト＝トップ文書なので liff.init は正常動作する想定。
+    // 念のためタイムアウトを残し、未ログインでも自動loginせず続行（無限ループ防止）。
+    function boot() {
+      setStatus('1. 起動 / store=' + STORE + ' / LIFF_ID=' + (LIFF_ID ? 'あり' : 'なし'));
+      if (!LIFF_ID) { setStatus('LIFF未設定→フォームのみ'); afterProfile(); return; }
+      if (typeof liff === 'undefined') { setStatus('LIFF SDK読込失敗→フォームのみ'); afterProfile(); return; }
+
+      var done = false;
+      var timer = setTimeout(function () {
+        if (done) return; done = true;
+        setStatus('2. LIFF初期化タイムアウト(8秒)→フォームのみ表示');
+        afterProfile();
+      }, 8000);
+
+      liff.init({ liffId: LIFF_ID }).then(function () {
+        if (done) return; done = true; clearTimeout(timer);
+        var inClient = (liff.isInClient ? liff.isInClient() : '?');
+        var loggedIn = (liff.isLoggedIn ? liff.isLoggedIn() : '?');
+        setStatus('2. LIFF初期化:成功 / アプリ内=' + inClient + ' / ログイン=' + loggedIn);
+        if (!liff.isLoggedIn()) {
+          // LINEアプリ外（PCブラウザ等）で開いた場合はここに来る。LINE内なら通常ログイン済み。
+          setStatus('3. 未ログインのため続行（UIDなし）。');
+          afterProfile();
+          return;
+        }
+        setStatus('3. プロフィール取得中…');
+        liff.getProfile().then(function (p) {
+          profile.userId = p.userId || '';
+          profile.displayName = p.displayName || '';
+          setStatus('4. プロフィール取得:成功 / ' + (profile.displayName || '(名前なし)'));
+          afterProfile();
+        }).catch(function (e) {
+          setStatus('4. プロフィール取得:失敗 / ' + (e && (e.message || e)));
+          afterProfile();
+        });
+      }).catch(function (err) {
+        if (done) return; done = true; clearTimeout(timer);
+        setStatus('2. LIFF初期化:エラー / ' + (err && (err.message || err.code || err)));
+        afterProfile();
+      });
+    }
+
+    function afterProfile() {
+      fetchOptions(function (err, opt) {
+        if (err) {
+          document.getElementById('loading').style.display = 'none';
+          banner('予約情報の取得に失敗しました。時間をおいて再度お試しください。', 'err');
+          setStatus('5. options取得:失敗 / ' + (err.message || err));
+          return;
+        }
+        setStatus('5. options取得:成功 / メニュー' + ((opt.menus || []).length) + '件');
+        onOptions(opt);
+      });
+    }
+
+    function onOptions(opt) {
+      options = opt;
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('form').style.display = 'block';
+      document.getElementById('storeName').textContent =
+        (opt.store_name || '') + (profile.displayName ? '　' + profile.displayName + ' 様' : '');
+
+      if (!opt.menus || opt.menus.length === 0) {
+        banner('ただいま予約メニューを準備中です。お手数ですがトーク画面からお問い合わせください。', 'err');
+        document.getElementById('form').style.display = 'none';
+        return;
+      }
+      renderMenus();
+      bindEvents();
+      refreshNurses();
+      updatePrice();
+    }
+
+    function renderMenus() {
+      var sel = document.getElementById('menu');
+      sel.innerHTML = '';
+      options.menus.forEach(function (m) {
+        var o = document.createElement('option');
+        o.value = m.menu_id;
+        o.textContent = m.menu_name;
+        sel.appendChild(o);
+      });
+    }
+
+    function selectedMenuId() { return document.getElementById('menu').value; }
+    function selectedTreatment() {
+      var r = document.querySelector('input[name="treatment"]:checked');
+      return r ? r.value : 'new';
+    }
+    function selectedResvType() {
+      var r = document.querySelector('input[name="resvType"]:checked');
+      return r ? r.value : 'monitor';
+    }
+
+    // 選んだメニュー×施術種別で「担当できる看護師だけ」を出す。
+    // 認定済み(is_certified)かつ、その施術種別の所要時間が登録されている看護師に絞る。
+    function refreshNurses() {
+      var menuId = selectedMenuId();
+      var treatment = selectedTreatment();
+      var durKey = treatment === 'retouch' ? 'duration_retouch_min' : 'duration_new_min';
+
+      var okNurseIds = {};
+      (options.certified || []).forEach(function (c) {
+        if (String(c.menu_id) !== String(menuId)) return;
+        if (!isTrue(c.is_certified)) return;
+        var dur = c[durKey];
+        var n = (typeof dur === 'string') ? parseInt(dur, 10) : dur;
+        if (!(n > 0)) return; // 所要時間未登録は予約不可
+        okNurseIds[String(c.nurse_id)] = true;
+      });
+
+      var sel = document.getElementById('nurse');
+      sel.innerHTML = '';
+      var avail = (options.nurses || []).filter(function (n) { return okNurseIds[String(n.nurse_id)]; });
+
+      var hint = document.getElementById('nurseHint');
+      if (avail.length === 0) {
+        var o = document.createElement('option');
+        o.value = ''; o.textContent = '担当できる看護師がいません';
+        sel.appendChild(o);
+        hint.textContent = 'このメニュー・施術種別を担当できる看護師が登録されていません。';
+      } else {
+        avail.forEach(function (n) {
+          var o = document.createElement('option');
+          o.value = n.nurse_id;
+          o.textContent = n.name + (n.qualification ? '（' + n.qualification + '）' : '');
+          sel.appendChild(o);
+        });
+        hint.textContent = '';
+      }
+      validate();
+    }
+
+    function updatePrice() {
+      var menuId = selectedMenuId();
+      var m = (options.menus || []).find(function (x) { return String(x.menu_id) === String(menuId); });
+      var hint = document.getElementById('priceHint');
+      if (!m) { hint.textContent = ''; return; }
+      var price = selectedResvType() === 'monitor' ? m.monitor_price : m.normal_price;
+      hint.textContent = (price !== '' && price !== null && price !== undefined) ? ('料金：¥' + price) : '';
+    }
+
+    function bindEvents() {
+      document.getElementById('menu').addEventListener('change', function () { refreshNurses(); updatePrice(); });
+      Array.prototype.forEach.call(document.querySelectorAll('input[name="treatment"]'), function (el) {
+        el.addEventListener('change', function () { refreshNurses(); });
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('input[name="resvType"]'), function (el) {
+        el.addEventListener('change', updatePrice);
+      });
+      document.getElementById('nurse').addEventListener('change', validate);
+      document.getElementById('datetime').addEventListener('change', validate);
+      document.getElementById('agree').addEventListener('change', validate);
+      document.getElementById('submit').addEventListener('click', submit);
+    }
+
+    function validate() {
+      var ok = selectedMenuId() &&
+        document.getElementById('nurse').value &&
+        document.getElementById('datetime').value &&
+        document.getElementById('agree').checked;
+      document.getElementById('submit').disabled = !ok;
+      return ok;
+    }
+
+    function submit() {
+      if (!validate()) return;
+      clearBanner();
+      var btn = document.getElementById('submit');
+      btn.disabled = true; btn.textContent = '送信中…';
+
+      var payload = {
+        line_uid: profile.userId,
+        store: STORE,
+        menu_id: selectedMenuId(),
+        nurse_id: document.getElementById('nurse').value,
+        treatment_type: selectedTreatment(),
+        reservation_type: selectedResvType(),
+        reservation_datetime: document.getElementById('datetime').value,
+      };
+
+      postBooking(payload, function (err, res) {
+        if (err) {
+          btn.disabled = false; btn.textContent = 'この内容で予約する';
+          banner('送信に失敗しました。電波の良い場所で再度お試しください。', 'err');
+          return;
+        }
+        onSubmitDone(res);
+      });
+    }
+
+    function onSubmitDone(res) {
+      var btn = document.getElementById('submit');
+      if (res && res.ok) {
+        document.getElementById('form').style.display = 'none';
+        banner('ご予約を承りました。確認のメッセージをLINEにお送りします。', 'ok');
+        if (LIFF_ID && typeof liff !== 'undefined' && liff.isInClient && liff.isInClient()) {
+          setTimeout(function () { liff.closeWindow(); }, 1800);
+        }
+        return;
+      }
+      btn.disabled = false; btn.textContent = 'この内容で予約する';
+      banner(reasonToMessage(res && res.reason), 'err');
+    }
+
+    // エンジンが返す reason をお客様向けの言葉にする。
+    function reasonToMessage(reason) {
+      switch (reason) {
+        case 'conflict': return '申し訳ございません、その時間帯は埋まっております。別の日時でお試しください。';
+        case 'invalid_uid': return 'お客様情報が取得できませんでした。LINEアプリ内から開き直してお試しください。';
+        case 'no_duration': return 'この担当・メニューの所要時間が未設定です。お手数ですがトーク画面からお問い合わせください。';
+        case 'no_store_calendar': return 'ただいま予約を受け付けられません。お手数ですがトーク画面からお問い合わせください。';
+        case 'bad_datetime': return '日時が正しく選択されていません。もう一度ご指定ください。';
+        default: return '申し訳ございません、ただいま予約をお受けできませんでした。折り返しご連絡いたします。';
+      }
+    }
+
+    boot();
+  </script>
+</body>
+</html>
