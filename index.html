@@ -143,6 +143,24 @@
     .spinner { display:inline-block; width:26px; height:26px; border:3px solid #e0e0e0; border-top-color:#06c755; border-radius:50%; animation:spin .8s linear infinite; vertical-align:middle; margin-right:6px; }
     @keyframes spin { to { transform:rotate(360deg); } }
     .msg-err { background:#fdecea; color:#c00; padding:12px; border-radius:8px; font-size:13px; }
+
+    /* ===== Cancel ===== */
+    #s-cancel { display:none; }
+    #s-cancel .step-wrap { min-height:60vh; }
+    .resv-card { background:#fff; border:1px solid #e0e0e0; border-radius:12px; padding:16px; margin-bottom:14px; }
+    .resv-when { font-size:15px; font-weight:700; line-height:1.5; }
+    .resv-menu { font-size:13px; color:#333; margin-top:6px; }
+    .resv-nurse { font-size:12px; color:#888; margin-top:3px; }
+    .resv-note { font-size:12px; color:#a06000; background:#fff7e6; border-radius:8px; padding:10px 12px; margin-top:12px; line-height:1.6; }
+    .btn-cancel { display:block; width:100%; margin-top:14px; padding:12px; font-size:14px; font-weight:700; border-radius:8px; border:1px solid #e08; color:#d11a6b; background:#fff; cursor:pointer; }
+    .btn-cancel:active { background:#fdeef4; }
+    .cancel-empty { text-align:center; color:#888; font-size:14px; padding:40px 0; }
+    .cancel-warn { font-size:13px; color:#c00; line-height:1.7; margin-bottom:8px; }
+    .cancel-nav { display:flex; gap:10px; margin-top:18px; }
+    .btn-bk2 { background:#f5f5f5; color:#555; border:1px solid #ddd; width:90px; flex-shrink:0; font-size:14px; }
+    .btn-danger { flex:1; background:#e8366f; color:#fff; }
+    .btn-danger:disabled { background:#f0a8c2; }
+    .cancel-done { text-align:center; padding:48px 16px; }
   </style>
 </head>
 <body>
@@ -171,12 +189,22 @@
   <button class="btn btn-p" id="backBtn" onclick="backToTalk()" style="display:inline-block;margin-top:28px;padding-left:40px;padding-right:40px;">LINEのトークに戻る</button>
 </div>
 
+<div id="s-cancel">
+  <div class="app-hd">
+    <h1>ご予約のキャンセル</h1>
+    <div class="sub" id="cSub"></div>
+  </div>
+  <div class="step-wrap" id="cc"></div>
+</div>
+
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script>
 // ===== 設定 =====
 var LIFF_ID  = "2010236479-4ANlMg3d";
 var GAS_EXEC = "https://script.google.com/macros/s/AKfycbxmo7Pp8TDkgtSHeYYUfBwUD3pOc-bcBOfWNhcyNGQMPCkWjYHLFBIZ6obExLbY0lzK/exec";
 var STORE    = (new URLSearchParams(location.search)).get('store') || 'kurume';
+var MODE     = (new URLSearchParams(location.search)).get('mode') || 'book'; // 'book'（予約）/ 'cancel'（キャンセル）
+var cancelList = [];  // キャンセル画面で表示中の自分の予約一覧
 
 // ===== 状態 =====
 var st = {
@@ -199,7 +227,7 @@ function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').rep
 function isT(v){ if(v===true||v===1)return true; if(typeof v==='string'){var t=v.trim().toLowerCase();return t==='true'||t==='1';}return false; }
 function okPhone(v){ return /^0\d{9,10}$/.test(v.replace(/[-\s]/g,'')); }
 function showScr(id){
-  ['s-loading','s-wizard','s-done'].forEach(function(s){ document.getElementById(s).style.display='none'; });
+  ['s-loading','s-wizard','s-done','s-cancel'].forEach(function(s){ document.getElementById(s).style.display='none'; });
   document.getElementById(id).style.display='block';
 }
 
@@ -217,10 +245,12 @@ function gasGet(p,cb){
   var url=GAS_EXEC+'?'+Object.keys(p).map(function(k){return k+'='+encodeURIComponent(p[k]);}).join('&');
   jsonp(url,cb);
 }
-function postBook(payload,cb){
-  fetch(GAS_EXEC+'?action=book',{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)})
+// GASへ fetch POST（Content-Type: text/plain＝CORSプリフライト回避）。UIDをURLに出さず本文で送る。
+function postAction(action,payload,cb){
+  fetch(GAS_EXEC+'?action='+action,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)})
     .then(function(r){return r.json();}).then(function(d){cb(null,d);}).catch(cb);
 }
+function postBook(payload,cb){ postAction('book',payload,cb); }
 
 // ===== プログレスバー =====
 var SN = ['アーティスト','コース','日付','時間','お客様情報','確認・同意'];
@@ -524,6 +554,79 @@ var TERMS='<p>ご予約の前に、以下の項目について必ずご確認い
   +'<li>濃く残っている場合は担当者の判断で見送る可能性があります。</li>'
   +'</ul>';
 
+// ===== キャンセルモード（?mode=cancel） =====
+// LIFFで取得したUIDをPOST本文で送り、自分の予約だけを一覧→選択→確認→確定する。
+function startCancel(){
+  showScr('s-cancel');
+  document.getElementById('cSub').textContent=(st.options&&st.options.store_name?st.options.store_name:STORE)+(st.displayName?'　'+st.displayName+' 様':'');
+  loadMyResv();
+}
+function loadMyResv(){
+  document.getElementById('cc').innerHTML='<div class="ld-box"><span class="spinner"></span>ご予約を確認中…</div>';
+  if(!st.uid){ renderCancelMsg('お客様情報が取得できませんでした。LINEアプリ内から開き直してください。'); return; }
+  postAction('my_reservations',{line_uid:st.uid,store:STORE},function(err,res){
+    if(err||!res||!res.ok){ renderCancelMsg('ご予約の取得に失敗しました。時間をおいて再度お試しください。'); return; }
+    cancelList=res.reservations||[];
+    renderResvList();
+  });
+}
+function renderCancelMsg(msg){ document.getElementById('cc').innerHTML='<div class="msg-err">'+esc(msg)+'</div>'; }
+function renderResvList(){
+  if(!cancelList.length){
+    document.getElementById('cc').innerHTML='<div class="s-title">キャンセルするご予約</div><div class="cancel-empty">現在、キャンセルできるご予約はありません。</div>';
+    return;
+  }
+  var h='<div class="s-title">キャンセルするご予約</div><div class="s-sub">キャンセルしたいご予約をお選びください。</div>';
+  cancelList.forEach(function(r,i){
+    h+='<div class="resv-card">';
+    h+='<div class="resv-when">'+esc(r.when).replace(/\n/g,'<br>')+'</div>';
+    h+='<div class="resv-menu">'+esc(r.menu_name)+'</div>';
+    if(r.nurse_name) h+='<div class="resv-nurse">担当：'+esc(r.nurse_name)+'</div>';
+    if(r.self_cancelable){
+      h+='<button class="btn-cancel" onclick="confirmCancel('+i+')">このご予約をキャンセル</button>';
+    }else{
+      h+='<div class="resv-note">ご予約の3日前を過ぎているため、こちらからはキャンセルできません。お手数ですが、トーク画面からご連絡ください。</div>';
+    }
+    h+='</div>';
+  });
+  document.getElementById('cc').innerHTML=h;
+}
+function confirmCancel(i){
+  var r=cancelList[i]; if(!r)return;
+  st.cancelTarget=r;
+  var h='<div class="s-title">本当にキャンセルしますか？</div>';
+  h+='<div class="sum-box">';
+  h+=sr('日時',esc(r.when).replace(/\n/g,'　'));
+  h+=sr('コース',esc(r.menu_name));
+  if(r.nurse_name) h+=sr('担当',esc(r.nurse_name));
+  h+='</div>';
+  h+='<p class="cancel-warn">キャンセルすると元に戻せません。<br>よろしければ下のボタンを押してください。</p>';
+  h+='<div id="cerr"></div>';
+  h+='<div class="cancel-nav"><button class="btn btn-bk2" onclick="renderResvList()">戻る</button><button class="btn btn-danger" id="cbtn" onclick="doCancel()">キャンセルを確定する</button></div>';
+  document.getElementById('cc').innerHTML=h;
+}
+function doCancel(){
+  var r=st.cancelTarget; if(!r)return;
+  var btn=document.getElementById('cbtn');
+  if(btn){btn.disabled=true;btn.textContent='処理中…';}
+  postAction('cancel',{line_uid:st.uid,reservation_id:r.reservation_id,store:STORE},function(err,res){
+    if(err||!res){ cancelFail(btn,'通信に失敗しました。電波の良い場所で再度お試しください。'); return; }
+    if(res.ok){ showCancelDone(); return; }
+    cancelFail(btn,cancelErr(res.reason));
+  });
+}
+function cancelFail(btn,msg){
+  if(btn){btn.disabled=false;btn.textContent='キャンセルを確定する';}
+  var e=document.getElementById('cerr'); if(e){e.className='msg-err';e.style.marginTop='12px';e.textContent=msg;}
+}
+function cancelErr(r){
+  return({too_late:'ご予約の3日前を過ぎているため、こちらからはキャンセルできません。トーク画面からご連絡ください。',already_cancelled:'このご予約はすでにキャンセル済みです。',not_found:'ご予約が見つかりませんでした。画面を開き直してください。',forbidden:'このご予約をキャンセルする権限がありません。',invalid_uid:'お客様情報が取得できませんでした。LINEアプリ内から開き直してください。'})[r]||'キャンセル手続きに失敗しました。お手数ですがトーク画面からご連絡ください。';
+}
+function showCancelDone(){
+  document.getElementById('cc').innerHTML='<div class="cancel-done"><div class="done-icon">✅</div><div class="done-title">キャンセルを承りました</div><div class="done-msg">確認のメッセージをLINEにお送りします。</div><button class="btn btn-p" onclick="backToTalk()" style="display:inline-block;margin-top:24px;padding-left:36px;padding-right:36px;">LINEのトークに戻る</button></div>';
+  setTimeout(backToTalk,1500);
+}
+
 // ===== 起動 =====
 (function boot(){
   if(!LIFF_ID||typeof liff==='undefined'){afterL();return;}
@@ -539,10 +642,11 @@ var TERMS='<p>ご予約の前に、以下の項目について必ずご確認い
 function afterL(){
   gasGet({action:'options',store:STORE},function(err,opt){
     if(err||!opt){
-      document.getElementById('s-loading').innerHTML='<div class="msg-err" style="margin:40px 24px">予約情報の取得に失敗しました。<br>時間をおいて再度お試しください。</div>';
+      document.getElementById('s-loading').innerHTML='<div class="msg-err" style="margin:40px 24px">情報の取得に失敗しました。<br>時間をおいて再度お試しください。</div>';
       return;
     }
     st.options=opt;
+    if(MODE==='cancel'){ startCancel(); return; }   // キャンセルモードは予約一覧へ
     document.getElementById('hSub').textContent=(opt.store_name||STORE)+(st.displayName?'　'+st.displayName+' 様':'');
     showScr('s-wizard');
     render();
