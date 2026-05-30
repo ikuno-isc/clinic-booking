@@ -67,8 +67,8 @@
     .c-dot { width:7px; height:7px; border-radius:50%; background:#fff; }
     .c-body { flex:1; }
     .c-nm { font-size:14px; font-weight:600; line-height:1.4; }
-    .c-pr { font-size:13px; color:#06845a; margin-top:3px; }
-    .c-dur { font-size:11px; color:#999; margin-top:2px; }
+    .c-pr { font-size:15px; font-weight:700; color:#06845a; margin-top:6px; }
+    .c-dur { font-size:11px; color:#999; margin-top:3px; }
 
     /* ===== Artist accordion (STEP 1) ===== */
     .art-acc { display:flex; flex-direction:column; gap:12px; }
@@ -82,13 +82,16 @@
     .art-pr { font-size:12px; color:#06845a; margin-top:3px; }
     .art-chev { font-size:15px; color:#bbb; transition:transform .2s,color .2s; flex-shrink:0; }
     .art-card.open .art-chev { transform:rotate(180deg); color:#06c755; }
-    .art-panel { border-top:1px solid #eee; padding:12px 14px 14px; background:#fafafa; }
-    .art-hint { font-size:11px; color:#999; margin-bottom:10px; }
-    .ac-item { background:#fff; border:1px solid #e0e0e0; border-radius:10px; padding:12px 14px; cursor:pointer; display:flex; align-items:center; gap:10px; margin-bottom:8px; }
-    .ac-item:last-child { margin-bottom:0; }
+    .art-panel { border-top:1px solid #eee; padding:12px 0 14px; background:#fafafa; }
+    .art-hint { font-size:11px; color:#999; margin:0 14px 10px; }
+    /* コースは横スクロール（カルーセル）。次のカードが少し見えることで「横に動かせる」と伝える。 */
+    .ac-list { display:flex; gap:10px; overflow-x:auto; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain; padding:2px 14px 10px; scroll-padding-left:14px; }
+    .ac-list::-webkit-scrollbar { height:4px; }
+    .ac-list::-webkit-scrollbar-thumb { background:#d0d0d0; border-radius:2px; }
+    .ac-item { scroll-snap-align:start; flex:0 0 76%; box-sizing:border-box; background:#fff; border:1px solid #e0e0e0; border-radius:12px; padding:14px; cursor:pointer; display:flex; flex-direction:column; }
     .ac-item:active { background:#f0fdf5; border-color:#06c755; }
-    .ac-body { flex:1; }
-    .ac-go { font-size:20px; color:#06c755; flex-shrink:0; line-height:1; }
+    .ac-top { flex:1; }
+    .ac-cta { margin-top:12px; text-align:center; font-size:13px; font-weight:700; color:#06845a; background:#eafaf0; border:1px solid #b6e7c9; border-radius:8px; padding:9px 4px; }
     .s1-hint { flex:1; text-align:center; font-size:12px; color:#999; padding:4px 0; }
 
     /* ===== Calendar ===== */
@@ -334,7 +337,8 @@ function s1(){
     if(minP)h+='<div class="art-pr">¥'+minP.toLocaleString()+'〜</div>';
     h+='</div><div class="art-chev">&#9660;</div></div>';
     if(open){
-      h+='<div class="art-panel"><div class="art-hint">コースをタップすると、日時の選択へ進みます。</div>';
+      h+='<div class="art-panel"><div class="art-hint">コースを横にスライドして選べます。タップすると日時の選択へ進みます。</div>';
+      h+='<div class="ac-list">';
       menus.forEach(function(m){
         var c=cm[String(m.menu_id)];
         var isRet=m.menu_name&&m.menu_name.indexOf('再来')>=0;
@@ -343,12 +347,12 @@ function s1(){
         var p=parseInt(m.normal_price,10);
         var pt=(!isNaN(p)&&p>0)?'¥'+p.toLocaleString()+'（税込）':'';
         h+='<div class="ac-item" onclick="pickCourse(\''+esc(n.nurse_id)+'\',\''+esc(n.name)+'\',\''+esc(m.menu_id)+'\',\''+esc(m.menu_name)+'\','+(p||0)+','+(dm||0)+')">';
-        h+='<div class="ac-body"><div class="c-nm">'+esc(m.menu_name)+'</div>';
+        h+='<div class="ac-top"><div class="c-nm">'+esc(m.menu_name)+'</div>';
         if(pt)h+='<div class="c-pr">'+pt+'</div>';
         if(dt)h+='<div class="c-dur">施術時間：'+dt+'</div>';
-        h+='</div><div class="ac-go">&#8250;</div></div>';
+        h+='</div><div class="ac-cta">このコースで予約 →</div></div>';
       });
-      h+='</div>';
+      h+='</div></div>';
     }
     h+='</div>';
   });
