@@ -240,6 +240,8 @@ var st = {
   calYear:new Date().getFullYear(), calMonth:new Date().getMonth()+1,
   availDates:null,  // null=未取得、Set=取得済み
   slots:null,       // null=未取得、配列=取得済み
+  adCache:{},       // 空き日キャッシュ（nurse|menu|year|month → Set）。同一セッション内の再取得を回避。
+  slCache:{},       // 空き枠キャッシュ（nurse|menu|date → 配列）。日付タップ時の先読みもここへ保存。
   furigana:'', custName:'', phone:'',
   coupon:'none', artExp:'', memo:'', agreed:false,
 };
@@ -418,12 +420,22 @@ function calMv(dir){
   st.availDates=null; s3();
 }
 function loadAD(){
-  gasGet({action:'avail_days',store:STORE,nurse_id:st.nurseId,year:st.calYear,month:st.calMonth,menu_id:st.menuId},function(err,data){
-    st.availDates=(!err&&data&&data.ok)?new Set(data.available_dates||[]):new Set();
-    if(st.step===2)s3();
+  // セッション内キャッシュを優先（「戻る」や月移動の往復を一瞬にする）。
+  var ck=st.nurseId+'|'+st.menuId+'|'+st.calYear+'|'+st.calMonth;
+  if(st.adCache[ck]){ st.availDates=st.adCache[ck]; if(st.step===2)s3(); return; }
+  // 取得時点のパラメータを覚えておき、古い応答が新しい選択を上書きしないようにする。
+  var reqN=st.nurseId, reqM=st.menuId, reqY=st.calYear, reqMo=st.calMonth;
+  gasGet({action:'avail_days',store:STORE,nurse_id:reqN,year:reqY,month:reqMo,menu_id:reqM},function(err,data){
+    var set=(!err&&data&&data.ok)?new Set(data.available_dates||[]):new Set();
+    if(!err&&data&&data.ok) st.adCache[reqN+'|'+reqM+'|'+reqY+'|'+reqMo]=set;
+    // 表示中の月・担当・コースが取得時と同じときだけ反映。
+    if(String(st.nurseId)===String(reqN)&&String(st.menuId)===String(reqM)&&st.calYear===reqY&&st.calMonth===reqMo){
+      st.availDates=set;
+      if(st.step===2)s3();
+    }
   });
 }
-function pickD(ds){ st.date=ds; st.time=null; st.slots=null; s3(); }
+function pickD(ds){ st.date=ds; st.time=null; st.slots=null; s3(); prefetchSl(); }
 
 // ===== STEP 4: 時間選択 =====
 function s4(){
@@ -454,9 +466,33 @@ function s4(){
   document.getElementById('sn').innerHTML='<button class="btn btn-bk" onclick="go(2)">戻る</button><button class="btn btn-p" onclick="st.time&&go(4)" '+(st.time?'':'disabled')+'>次へ</button>';
 }
 function loadSl(){
-  gasGet({action:'slots',store:STORE,nurse_id:st.nurseId,date:st.date,menu_id:st.menuId},function(err,data){
-    st.slots=(!err&&data&&data.ok)?(data.slots||[]):[];
-    if(st.step===3)s4();
+  // セッション内キャッシュを優先。
+  var ck=st.nurseId+'|'+st.menuId+'|'+st.date;
+  if(st.slCache[ck]){ st.slots=st.slCache[ck]; if(st.step===3)s4(); return; }
+  var reqN=st.nurseId, reqMn=st.menuId, reqD=st.date;
+  gasGet({action:'slots',store:STORE,nurse_id:reqN,date:reqD,menu_id:reqMn},function(err,data){
+    var arr=(!err&&data&&data.ok)?(data.slots||[]):[];
+    if(!err&&data&&data.ok) st.slCache[reqN+'|'+reqMn+'|'+reqD]=arr;
+    // 表示中の担当・コース・日付が取得時と同じときだけ反映。
+    if(String(st.nurseId)===String(reqN)&&String(st.menuId)===String(reqMn)&&String(st.date)===String(reqD)){
+      st.slots=arr;
+      if(st.step===3)s4();
+    }
+  });
+}
+// 日付タップ時に裏で空き枠を先読みしておく（「次へ」を押す頃には表示済みにする）。
+function prefetchSl(){
+  if(!st.date) return;
+  var ck=st.nurseId+'|'+st.menuId+'|'+st.date;
+  if(st.slCache[ck]) return;  // 取得済みなら何もしない
+  var reqN=st.nurseId, reqMn=st.menuId, reqD=st.date;
+  gasGet({action:'slots',store:STORE,nurse_id:reqN,date:reqD,menu_id:reqMn},function(err,data){
+    if(!err&&data&&data.ok){
+      var arr=data.slots||[];
+      st.slCache[reqN+'|'+reqMn+'|'+reqD]=arr;
+      // まだ同じ日付を選んでいて、時間画面で待っている最中なら即反映。
+      if(String(st.date)===String(reqD)&&st.slots===null&&st.step===3){ st.slots=arr; s4(); }
+    }
   });
 }
 function pickT(t){ st.time=t; s4(); }
@@ -676,30 +712,44 @@ function showCancelDone(){
 }
 
 // ===== 起動 =====
-(function boot(){
-  if(!LIFF_ID||typeof liff==='undefined'){afterL();return;}
-  var done=false, tid=setTimeout(function(){if(!done){done=true;afterL();}},8000);
-  liff.init({liffId:LIFF_ID}).then(function(){
-    if(done)return; done=true; clearTimeout(tid);
-    if(!liff.isLoggedIn||!liff.isLoggedIn()){afterL();return;}
-    liff.getProfile().then(function(p){st.uid=p.userId||'';st.displayName=p.displayName||'';afterL();})
-                     .catch(function(){afterL();});
-  }).catch(function(){if(!done){done=true;clearTimeout(tid);afterL();}});
-})();
+// オプション取得とLIFF初期化を「並行」で走らせ、待ち時間の積み上げをなくす。
+// 予約モードはオプションが届いた時点で即表示（UIDはLIFFから遅れて届いても、予約送信時には間に合う）。
+// キャンセルモードだけは自分の予約取得にUIDが要るのでプロフィール完了を待つ。
+var bootOpt=null, bootOptDone=false, bootProfDone=false, wizardShown=false;
 
-function afterL(){
-  gasGet({action:'options',store:STORE},function(err,opt){
-    if(err||!opt){
-      document.getElementById('s-loading').innerHTML='<div class="msg-err" style="margin:40px 24px">情報の取得に失敗しました。<br>時間をおいて再度お試しください。</div>';
-      return;
-    }
-    st.options=opt;
-    if(MODE==='cancel'){ startCancel(); return; }   // キャンセルモードは予約一覧へ
-    document.getElementById('hSub').textContent=(opt.store_name||STORE)+(st.displayName?'　'+st.displayName+' 様':'');
-    showScr('s-wizard');
-    render();
-  });
+function updHeader(){
+  var el=document.getElementById('hSub');
+  if(el&&bootOpt) el.textContent=(bootOpt.store_name||STORE)+(st.displayName?'　'+st.displayName+' 様':'');
 }
+function showWizardIfReady(){
+  if(wizardShown||!bootOptDone) return;
+  if(!bootOpt){
+    wizardShown=true;
+    document.getElementById('s-loading').innerHTML='<div class="msg-err" style="margin:40px 24px">情報の取得に失敗しました。<br>時間をおいて再度お試しください。</div>';
+    return;
+  }
+  if(MODE==='cancel'){ if(!bootProfDone) return; st.options=bootOpt; wizardShown=true; startCancel(); return; }
+  st.options=bootOpt; wizardShown=true; updHeader(); showScr('s-wizard'); render();
+}
+function profileDone(){ bootProfDone=true; updHeader(); showWizardIfReady(); }
+
+(function boot(){
+  // ① オプション取得を今すぐ開始（UID不要なのでLIFFを待たない）。
+  gasGet({action:'options',store:STORE},function(err,opt){
+    bootOpt=(err||!opt)?null:opt; bootOptDone=true; showWizardIfReady();
+  });
+  // ② 並行してLIFFでUID・表示名を取得（取得できなくても予約は続行）。
+  if(!LIFF_ID||typeof liff==='undefined'){ profileDone(); return; }
+  var done=false, tid=setTimeout(function(){ if(!done){ done=true; profileDone(); } },8000);
+  function fin(){ if(done)return; done=true; clearTimeout(tid); profileDone(); }
+  liff.init({liffId:LIFF_ID}).then(function(){
+    if(done)return;
+    if(!liff.isLoggedIn||!liff.isLoggedIn()){ fin(); return; }
+    liff.getProfile().then(function(p){ st.uid=p.userId||''; st.displayName=p.displayName||''; })
+                     .catch(function(){})
+                     .then(fin);
+  }).catch(function(){ fin(); });
+})();
 </script>
 </body>
 </html>
