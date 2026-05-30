@@ -490,8 +490,9 @@ function prefetchSl(){
     if(!err&&data&&data.ok){
       var arr=data.slots||[];
       st.slCache[reqN+'|'+reqMn+'|'+reqD]=arr;
-      // まだ同じ日付を選んでいて、時間画面で待っている最中なら即反映。
-      if(String(st.date)===String(reqD)&&st.slots===null&&st.step===3){ st.slots=arr; s4(); }
+      // アーティスト・コース・日付の3つが取得開始時と同じで、時間画面で待っている最中なら即反映。
+      // （途中でアーティストやコースを変えていたら、古い条件の枠を出さないよう反映しない）
+      if(String(st.nurseId)===String(reqN)&&String(st.menuId)===String(reqMn)&&String(st.date)===String(reqD)&&st.slots===null&&st.step===3){ st.slots=arr; s4(); }
     }
   });
 }
@@ -740,15 +741,27 @@ function profileDone(){ bootProfDone=true; updHeader(); showWizardIfReady(); }
   });
   // ② 並行してLIFFでUID・表示名を取得（取得できなくても予約は続行）。
   if(!LIFF_ID||typeof liff==='undefined'){ profileDone(); return; }
-  var done=false, tid=setTimeout(function(){ if(!done){ done=true; profileDone(); } },8000);
-  function fin(){ if(done)return; done=true; clearTimeout(tid); profileDone(); }
+  // 8秒待っても返らなければ、いったんウィザードを表示してお客様を待たせない（＝advance）。
+  // ただしLIFFのPromiseは止めない。遅れて成功したら applyLateProfile でUID・名前を後から反映する。
+  var advanced=false;
+  var tid=setTimeout(function(){ if(!advanced){ advanced=true; profileDone(); } },8000);
+  function advance(){ if(advanced)return; advanced=true; clearTimeout(tid); profileDone(); }
+  function applyLateProfile(p){
+    if(!p) return;
+    var hadUid=!!st.uid;
+    if(p.userId)      st.uid=p.userId;
+    if(p.displayName) st.displayName=p.displayName;
+    updHeader();
+    // キャンセル画面を既に表示済みで、さっきまでUIDが無く読み込めなかった場合は、
+    // UIDが届いた今、もう一度ご予約一覧を取得し直す。
+    if(MODE==='cancel' && wizardShown && !hadUid && st.uid){ loadMyResv(); }
+  }
   liff.init({liffId:LIFF_ID}).then(function(){
-    if(done)return;
-    if(!liff.isLoggedIn||!liff.isLoggedIn()){ fin(); return; }
-    liff.getProfile().then(function(p){ st.uid=p.userId||''; st.displayName=p.displayName||''; })
+    if(!liff.isLoggedIn||!liff.isLoggedIn()){ advance(); return; }
+    liff.getProfile().then(function(p){ applyLateProfile(p); })
                      .catch(function(){})
-                     .then(fin);
-  }).catch(function(){ fin(); });
+                     .then(advance);
+  }).catch(function(){ advance(); });
 })();
 </script>
 </body>
