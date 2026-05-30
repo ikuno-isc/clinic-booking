@@ -765,10 +765,50 @@ function showWizardIfReady(){
 }
 function profileDone(){ bootProfDone=true; updHeader(); showWizardIfReady(); }
 
+// オプション（担当・メニュー）の端末内キャッシュ。2回目以降は「読み込み中」を見せず即描画する。
+// 鮮度は24時間。中身（担当）が入っているものだけ保存し、空データを焼き付けない。
+var OPT_LS_KEY='clinic_opt_'+STORE;
+function readOptLS(){
+  try{
+    var raw=localStorage.getItem(OPT_LS_KEY);
+    if(!raw) return null;
+    var o=JSON.parse(raw);
+    if(!o||!o.t||!o.v) return null;
+    if(Date.now()-o.t>86400000) return null;          // 24時間で失効
+    if(!o.v.nurses||!o.v.nurses.length) return null;   // 中身が無いものは使わない
+    return o.v;
+  }catch(e){ return null; }
+}
+function writeOptLS(v){
+  try{
+    if(!v||!v.nurses||!v.nurses.length) return;
+    localStorage.setItem(OPT_LS_KEY,JSON.stringify({t:Date.now(),v:v}));
+  }catch(e){}
+}
+
 (function boot(){
-  // ① オプション取得を今すぐ開始（UID不要なのでLIFFを待たない）。
+  // ⓪ 前回のオプションが端末に残っていれば即描画（2回目以降は待ち時間ゼロ）。
+  //    予約モードのみ即描画。キャンセルはUID必須なので従来どおりプロフィール完了を待つ。
+  var cachedOpt=readOptLS();
+  if(cachedOpt && MODE!=='cancel'){ bootOpt=cachedOpt; bootOptDone=true; showWizardIfReady(); }
+  // ① オプション取得を今すぐ開始（UID不要なのでLIFFを待たない）。最新を取り直してキャッシュ更新。
   gasGet({action:'options',store:STORE},function(err,opt){
-    bootOpt=(err||!opt)?null:opt; bootOptDone=true; showWizardIfReady();
+    if(!err && opt){
+      writeOptLS(opt);
+      var changed=JSON.stringify(opt)!==JSON.stringify(bootOpt);
+      bootOpt=opt; bootOptDone=true;
+      if(wizardShown){
+        // 既にキャッシュで表示済み：最新に差し替え。手順1（担当・コース選択）表示中で内容が変われば描き直す。
+        st.options=bootOpt; updHeader();
+        if(MODE!=='cancel' && st.step===1 && changed){ render(); }
+      }else{
+        showWizardIfReady();
+      }
+    }else{
+      // 取得失敗：キャッシュで表示済みならそのまま。未表示なら従来どおり失敗案内へ。
+      bootOptDone=true;
+      if(!wizardShown) showWizardIfReady();
+    }
   });
   // ② 並行してLIFFでUID・表示名を取得（取得できなくても予約は続行）。
   if(!LIFF_ID||typeof liff==='undefined'){ profileDone(); return; }
