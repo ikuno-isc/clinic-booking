@@ -227,8 +227,24 @@
 // ===== 設定 =====
 var LIFF_ID  = "2010236479-4ANlMg3d";
 var GAS_EXEC = "https://script.google.com/macros/s/AKfycbxmo7Pp8TDkgtSHeYYUfBwUD3pOc-bcBOfWNhcyNGQMPCkWjYHLFBIZ6obExLbY0lzK/exec";
-var STORE    = (new URLSearchParams(location.search)).get('store') || 'kurume';
-var MODE     = (new URLSearchParams(location.search)).get('mode') || 'book'; // 'book'（予約）/ 'cancel'（キャンセル）
+// LIFFは元のクエリ(?mode=cancel)を、環境によって location.search に直接、または
+// ?liff.state=... に包んで渡す。両方を見て確実に取り出す（取りこぼすと予約画面が一瞬出てしまう）。
+function getQueryParam(name){
+  try{
+    var sp = new URLSearchParams(location.search);
+    var v = sp.get(name);
+    if(v) return v;
+    var ls = sp.get('liff.state');
+    if(ls){
+      var inner = new URLSearchParams(ls.charAt(0)==='?' ? ls.slice(1) : ls);
+      var v2 = inner.get(name);
+      if(v2) return v2;
+    }
+  }catch(e){}
+  return null;
+}
+var STORE    = getQueryParam('store') || 'kurume';
+var MODE     = getQueryParam('mode')  || 'book'; // 'book'（予約）/ 'cancel'（キャンセル）
 var cancelList = [];  // キャンセル画面で表示中の自分の予約一覧
 
 // ===== 状態 =====
