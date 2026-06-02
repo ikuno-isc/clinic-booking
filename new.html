@@ -89,7 +89,7 @@ function sbRpc(fn, args){
   var t0 = performance.now();
   return fetch(SB_URL + "/rest/v1/rpc/" + fn, {
     method:"POST", headers: Object.assign({ "Content-Type":"application/json" }, H), body: JSON.stringify(args||{})
-  }).then(function(r){ return r.json().then(function(j){ return { ok:r.ok, data:j, ms: Math.round(performance.now()-t0) }; }); });
+  }).then(function(r){ return r.json().then(function(j){ return { ok:r.ok, status:r.status, data:j, ms: Math.round(performance.now()-t0) }; }); });
 }
 
 var ST = { artists:[], menus:[], pairs:[], artist:null, menu:null, date:null, slot:null, dayResv:[] };
@@ -204,21 +204,25 @@ function submitBooking(){
   var phone=(document.getElementById("cp")||{}).value||"";
   var m=document.getElementById("m");
   if(!name){ m.className="msg ng"; m.textContent="お名前を入力してください。"; return; }
-  var dur = ST.menu._dur || 60;
   var s = ST.date+"T"+ST.slot+":00+09:00";
-  var e = new Date(new Date(s).getTime() + dur*60000).toISOString();
   var btn=document.getElementById("sub"); btn.disabled=true; btn.textContent="送信中…"; m.textContent="";
-  sbInsert("reservations", {
-    tenant_id:TENANT_ID, store_id:STORE_ID, artist_id:ST.artist.id, menu_id:ST.menu.id,
-    customer_name:name, phone:phone, start_at:s, end_at:e
+  // 予約確定は create_public_reservation RPC に集約。匿名の直 insert は廃止済み（tenant_id/store_id を
+  // クライアントが偽装できないよう、店舗・担当・メニューの正当性／席数／重複をすべてDB側(security definer)で検証する）。
+  sbRpc("create_public_reservation", {
+    p_store: STORE_ID, p_artist: ST.artist.id, p_menu: ST.menu.id,
+    p_customer_name: name, p_start: s,
+    p_treatment_type: "new", p_reservation_type: "normal",
+    p_line_uid: (LINE_UID || null), p_phone: (phone || null)
   }).then(function(r){
     if(r.ok){ fireNotify(name); showDone(r.ms); return; }
     btn.disabled=false; btn.textContent="この内容で予約する";
-    if(String(r.status)==="409" || (r.data && String(r.data.code)==="23P01")){
+    var code=(r.data&&r.data.code)||"", msg=(r.data&&r.data.message)||"";
+    // 重複（排他制約 no_overlap_per_artist=23P01）・満席（seat_full）は「埋まりました」案内＋枠再読込
+    if(String(r.status)==="409" || code==="23P01" || msg==="seat_full" || /no_overlap|overlap|exclusion/i.test(msg)){
       m.className="msg ng"; m.textContent="申し訳ありません、その時間はちょうど埋まりました。別の時間をお選びください。";
       loadSlots();
     }else{
-      m.className="msg ng"; m.textContent="送信に失敗しました："+esc((r.data&&r.data.message)||r.status);
+      m.className="msg ng"; m.textContent="送信に失敗しました："+esc(msg||r.status);
     }
   }).catch(function(err){ btn.disabled=false; btn.textContent="この内容で予約する"; m.className="msg ng"; m.textContent="通信エラー："+esc(err&&err.message||err); });
 }
