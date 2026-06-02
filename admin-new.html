@@ -3,47 +3,142 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>予約管理（Supabase版・お試し）</title>
+<title>予約管理（スタッフ用・Supabase版）</title>
 <style>
+
   :root{ --g:#0b5c55; --line:#e6eceb; --sub:#889; }
   *{box-sizing:border-box}
   body{margin:0;background:#f4f6f8;color:#222;font-family:-apple-system,"Hiragino Sans","Yu Gothic",sans-serif;}
-  .wrap{max-width:720px;margin:0 auto;background:#fff;min-height:100vh;}
+  .wrap{max-width:760px;margin:0 auto;background:#fff;min-height:100vh;}
   .hd{background:var(--g);color:#fff;padding:16px 18px;}
   .hd h1{margin:0;font-size:18px;}
   .speed{display:inline-block;background:#063;color:#bff0d6;font-size:11px;font-weight:700;border-radius:999px;padding:2px 9px;margin-top:7px}
-  .tabs{display:flex;gap:6px;padding:12px 18px 0}
-  .tab{flex:1;text-align:center;padding:9px 0;border-radius:10px 10px 0 0;background:#eef2f1;color:#557;font-weight:700;font-size:13px;cursor:pointer}
-  .tab.on{background:#fff;color:var(--g);box-shadow:0 -1px 0 var(--g) inset}
-  .body{padding:14px 18px 40px}
-  .count{font-size:12px;color:var(--sub);margin:2px 2px 12px}
-  .grp{margin-bottom:16px}
-  .grp-d{font-size:13px;font-weight:800;color:var(--g);border-bottom:2px solid #d7ebe8;padding:4px 2px 8px;margin-bottom:8px}
-  .card{display:flex;gap:12px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 12px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
-  .t{flex:0 0 64px;font-weight:800;color:var(--g);font-size:14px;line-height:1.35}
-  .m{flex:1;min-width:0}
-  .nm{font-size:15px;font-weight:700;margin-bottom:3px}
-  .me{font-size:12.5px;color:#555;line-height:1.4}
-  .ph{color:var(--sub);font-size:13px;padding:24px 0;text-align:center}
-  .x{font-size:11px;background:#ffedd5;color:#c2410c;padding:1px 7px;border-radius:999px;font-weight:700}
-  .cbtn{margin-top:8px;font-size:11.5px;font-weight:700;padding:5px 10px;border-radius:8px;border:1px solid #f0c8c2;background:#fdf3f1;color:#c2410c;cursor:pointer}
-  .note{font-size:11px;color:#aab;margin-top:18px;line-height:1.6}
+
+/* ===== 予約管理タブ（移植）CSS ===== */
+/* ============================================================================
+   予約管理タブ（Supabase版）CSS — 元 src/admin.html #resvView の見た目を完全再現
+   ※ クラス名・配色・余白は原本そのまま。poc/admin.html の <head><style> 末尾に追記する。
+   ============================================================================ */
+#resvView{max-width:760px;margin:0 auto;padding:12px}
+.resv-tabs{display:flex;gap:6px;margin-bottom:10px}
+.rtab{flex:1;text-align:center;padding:9px 0;border-radius:10px;background:#eef2f1;color:#557;font-weight:700;font-size:14px;cursor:pointer}
+.rtab.active{background:#0b5c55;color:#fff}
+.resv-filters{display:flex;gap:8px;margin-bottom:8px}
+.resv-filters select{flex:1;padding:8px;border:1px solid #d4dbda;border-radius:8px;font-size:13px;background:#fff}
+.resv-count{font-size:12px;color:#888;margin:4px 2px 10px}
+.placeholder{font-size:13px;color:#889;padding:24px 0;text-align:center}
+.rgroup{margin-bottom:16px}
+.rgroup-date{font-size:13px;font-weight:800;color:#0b5c55;padding:4px 2px 8px;border-bottom:2px solid #d7ebe8;margin-bottom:8px}
+.rcard{display:flex;gap:10px;background:#fff;border:1px solid #e6eceb;border-radius:12px;padding:11px 12px;margin-bottom:8px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.rcard:active{background:#f6faf9}
+.rc-time{flex:0 0 62px;font-weight:800;color:#0b5c55;font-size:14px;line-height:1.35}
+.rc-main{flex:1;min-width:0}
+.rc-name{font-size:15px;font-weight:700;color:#222;margin-bottom:3px}
+.rc-menu{font-size:12.5px;color:#555;line-height:1.4}
+.rc-foot{margin-top:5px}
+.rb-new{font-size:11px;background:#e0f2fe;color:#0369a1;padding:1px 7px;border-radius:999px;font-weight:700}
+.rb-rep{font-size:11px;background:#f1f5f3;color:#4b6;padding:1px 7px;border-radius:999px;font-weight:700}
+.rb-qok{font-size:11px;color:#15803d;font-weight:700}
+.rb-qng{font-size:11px;color:#c2410c;font-weight:700}
+.rb-visited{font-size:11px;background:#dcfce7;color:#15803d;padding:1px 7px;border-radius:999px;font-weight:700}
+.rb-noshow{font-size:11px;background:#ffedd5;color:#c2410c;padding:1px 7px;border-radius:999px;font-weight:700}
+.rc-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.rbtn{font-size:11.5px;font-weight:700;padding:6px 10px;border-radius:8px;border:1px solid #cfe0dd;background:#f2f8f7;color:#0b5c55;cursor:pointer}
+.rbtn:active{background:#e2f0ee}
+.rbtn.danger{border-color:#f0c8c2;background:#fdf3f1;color:#c2410c}
+/* 手動予約（電話予約）フォーム — 元CSSそのまま */
+.mb-bar{margin:0 0 10px}
+.mb-open{width:100%;padding:11px 0;border-radius:10px;border:1px dashed #59a89c;background:#f1faf8;color:#0b5c55;font-size:14px;font-weight:800;cursor:pointer}
+.mb-open:active{background:#e2f0ee}
+.mb-form{background:#fff;border:1px solid #d7e6e3;border-radius:12px;padding:14px;margin-bottom:14px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.mb-form .mb-head{font-size:14px;font-weight:800;color:#0b5c55;margin-bottom:10px}
+.mb-l{display:block;font-size:12px;font-weight:700;color:#445;margin:10px 0 4px}
+.mb-req{font-size:10px;background:#fee2e2;color:#b91c1c;padding:1px 6px;border-radius:999px;margin-left:4px}
+.mb-form input,.mb-form select,.mb-form textarea{width:100%;box-sizing:border-box;padding:9px;border:1px solid #d4dbda;border-radius:8px;font-size:14px;background:#fff;font-family:inherit}
+.mb-form textarea{resize:vertical}
+.mb-msg{font-size:12.5px;font-weight:700;margin:10px 0 2px;min-height:16px}
+.mb-msg.ok{color:#15803d}.mb-msg.ng{color:#c2410c}
+.mb-btns{display:flex;gap:8px;margin-top:12px}
+.mb-cancel{flex:0 0 auto;padding:10px 16px;border-radius:9px;border:1px solid #d4dbda;background:#f4f6f5;color:#555;font-weight:700;font-size:13px;cursor:pointer}
+.mb-submit{flex:1;padding:10px 0;border-radius:9px;border:none;background:#0b5c55;color:#fff;font-weight:800;font-size:14px;cursor:pointer}
+.mb-submit:disabled{opacity:.55;cursor:default}
+/* 店舗セレクタ（任意：複数店スタッフ向け。1店舗運用なら非表示でOK） */
+.resv-storebar{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.resv-storebar label{font-size:12px;font-weight:700;color:#557}
+.resv-storebar select{flex:1;padding:8px;border:1px solid #d4dbda;border-radius:8px;font-size:13px;background:#fff}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="hd">
-    <h1>予約管理（スタッフ用）</h1>
-    <span class="speed" id="speed">読み込み中…</span>
+  <div class="hd"><h1>予約管理（スタッフ用）</h1></div>
+<!-- ============================================================================
+     予約管理タブ（Supabase版）HTML — 元 src/admin.html #resvView を忠実に移植
+     ・期間タブ（今日／今週／今後すべて）／絞り込み（アーティスト・問診ステータス）
+     ・電話予約フォーム（折りたたみ）／予約カード一覧（#resvBoard）
+     ・店舗セレクタ #resvStore を追加（owner/admin の全店・店舗切替用。staff は1店なら不要）
+     poc/admin.html の <div class="wrap"> 内、表示したい位置に挿入する。
+     ============================================================================ -->
+<div id="resvView" style="display:none">
+  <!-- 店舗切替（任意）。全店=owner/admin のみ。staff は自店に固定されるので隠してもよい -->
+  <div class="resv-storebar" id="resvStoreBar" style="display:none">
+    <label>店舗</label>
+    <select id="resvStore" onchange="loadBoard()">
+      <option value="all">🏢 全店まとめ</option>
+      <option value="kurume">久留米店</option>
+      <option value="hakata">博多店</option>
+    </select>
   </div>
-  <div class="tabs">
-    <span class="tab on" data-p="today" onclick="setP('today',this)">📅 今日</span>
-    <span class="tab" data-p="week" onclick="setP('week',this)">今週</span>
-    <span class="tab" data-p="all" onclick="setP('all',this)">今後すべて</span>
-  </div>
-  <div class="body" id="body"><div class="ph">ログインしてください。</div></div>
-</div>
 
+  <div class="resv-tabs">
+    <span class="rtab active" data-p="today" onclick="setPeriod('today')">📅 今日</span>
+    <span class="rtab" data-p="week" onclick="setPeriod('week')">今週</span>
+    <span class="rtab" data-p="upcoming" onclick="setPeriod('upcoming')">今後すべて</span>
+  </div>
+
+  <div class="resv-filters">
+    <select id="resvNurse" onchange="loadBoard()"><option value="">全アーティスト</option></select>
+    <select id="resvStatus" onchange="loadBoard()">
+      <option value="">問診：すべて</option>
+      <option value="q_pending">問診：未記入</option>
+      <option value="q_done">問診：済み</option>
+    </select>
+  </div>
+
+  <div class="mb-bar">
+    <button type="button" class="mb-open" id="mbOpenBtn" onclick="openManualBooking()">📞 ＋ 電話予約を登録する</button>
+  </div>
+
+  <div id="mbForm" class="mb-form" style="display:none">
+    <div class="mb-head">📞 電話予約の登録（スタッフ用）</div>
+    <label class="mb-l">お客様名<span class="mb-req">必須</span></label>
+    <input id="mbName" type="text" placeholder="例）山田 花子" autocomplete="off">
+    <label class="mb-l">フリガナ</label>
+    <input id="mbFurigana" type="text" placeholder="例）ヤマダ ハナコ" autocomplete="off">
+    <label class="mb-l">電話番号</label>
+    <input id="mbPhone" type="tel" placeholder="例）090-1234-5678" autocomplete="off">
+    <label class="mb-l">担当アーティスト<span class="mb-req">必須</span></label>
+    <select id="mbNurse" onchange="mbOnNurseChange()"><option value="">選択してください</option></select>
+    <label class="mb-l">メニュー<span class="mb-req">必須</span></label>
+    <select id="mbMenu"><option value="">先に担当アーティストを選んでください</option></select>
+    <label class="mb-l">区分</label>
+    <select id="mbTreatment"><option value="new">新規（はじめて）</option><option value="retouch">再来（2回目以降・リタッチ）</option></select>
+    <label class="mb-l">料金種別</label>
+    <select id="mbResvType"><option value="normal">通常料金</option><option value="monitor">モニター料金</option></select>
+    <label class="mb-l">日時<span class="mb-req">必須</span></label>
+    <input id="mbDatetime" type="datetime-local">
+    <label class="mb-l">メモ（任意）</label>
+    <textarea id="mbMemo" rows="2" placeholder="電話予約の補足など"></textarea>
+    <div class="mb-msg" id="mbMsg"></div>
+    <div class="mb-btns">
+      <button type="button" class="mb-cancel" onclick="closeManualBooking()">閉じる</button>
+      <button type="button" class="mb-submit" id="mbSubmit" onclick="submitManualBooking()">この内容で登録</button>
+    </div>
+  </div>
+
+  <div class="resv-count" id="resvCount"></div>
+  <div id="resvBoard"><div class="placeholder">読み込み中…</div></div>
+</div>
+</div>
 <div id="login" style="position:fixed;inset:0;background:#0b5c55;display:flex;align-items:center;justify-content:center;z-index:50;padding:24px">
   <div style="background:#fff;border-radius:14px;padding:24px;width:100%;max-width:340px;box-shadow:0 8px 30px rgba(0,0,0,.2)">
     <div style="font-size:16px;font-weight:800;color:#0b5c55;margin-bottom:14px">スタッフ ログイン</div>
@@ -53,63 +148,22 @@
     <button onclick="login()" style="width:100%;margin-top:10px;padding:12px;border:none;border-radius:9px;background:#0b5c55;color:#fff;font-weight:800;font-size:15px;cursor:pointer">ログイン</button>
   </div>
 </div>
-
 <script>
+// ===== 設定・認証（poc 既存を踏襲）=====
 var SB_URL = "https://stgarheuldubyrzdqzaq.supabase.co";
 var SB_KEY = "sb_publishable_e5A9MJzOCvzsfWXBd9DLzg_Wa_hJ0qb";
-var STORE_ID = "22222222-0000-0000-0000-000000000001";
-var TOKEN = ""; // ログイン後のアクセストークン。これが無いと予約は読めない（PII保護）。
+var TOKEN  = ""; // ログイン後のアクセストークン。これが無いと予約・お客様名は読めない（RLSでPII保護）。
 function hdr(){ return { "apikey": SB_KEY, "Authorization": "Bearer " + (TOKEN || SB_KEY) }; }
-var PERIOD = "today";
-var WD = ["日","月","火","水","木","金","土"];
-function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;"); }
 function ymd(d){ return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2); }
 function hhmm(iso){ var d=new Date(iso); return ("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2); }
 
-function rangeFor(p){
-  var now=new Date(), t0=new Date(now.getFullYear(),now.getMonth(),now.getDate());
-  if(p==="today"){ var e=new Date(t0); e.setDate(e.getDate()+1); return [t0,e]; }
-  if(p==="week"){ var e2=new Date(t0); e2.setDate(e2.getDate()+7); return [t0,e2]; }
-  var e3=new Date(t0); e3.setDate(e3.getDate()+400); return [t0,e3]; // 今後すべて（便宜上400日先まで）
+// ログイン画面の再表示（resv-tab.js のエラー時フックから呼ばれる）
+function showLogin(msg){
+  var ov=document.getElementById("login"); if(ov) ov.style.display="flex";
+  var e=document.getElementById("lerr"); if(e&&msg) e.textContent=msg;
 }
-function load(){
-  var t0=performance.now();
-  var r=rangeFor(PERIOD);
-  var from=encodeURIComponent(ymd(r[0])+"T00:00:00+09:00");
-  var to=encodeURIComponent(ymd(r[1])+"T00:00:00+09:00");
-  // PostgRESTの埋め込みで担当名・メニュー名も一発で取得
-  var path="reservations?select=id,start_at,end_at,customer_name,phone,status,artists(name),menus(name)"
-    +"&store_id=eq."+STORE_ID+"&status=neq.cancelled"
-    +"&start_at=gte."+from+"&start_at=lt."+to+"&order=start_at";
-  fetch(SB_URL+"/rest/v1/"+path,{headers:hdr()}).then(function(res){return res.json();}).then(function(rows){
-    var ms=Math.round(performance.now()-t0);
-    document.getElementById("speed").textContent="⚡ Supabase（東京）で "+ms+" ミリ秒で読み込み";
-    render(rows||[]);
-  }).catch(function(e){ document.getElementById("body").innerHTML='<div class="ph">取得に失敗しました：'+esc(e&&e.message||e)+'</div>'; });
-}
-function render(rows){
-  var b=document.getElementById("body");
-  if(!rows.length){ b.innerHTML='<div class="count">0件</div><div class="ph">該当する予約はありません</div>'; return; }
-  var byDate={}, order=[];
-  rows.forEach(function(r){ var d=ymd(new Date(r.start_at)); if(!byDate[d]){byDate[d]=[];order.push(d);} byDate[d].push(r); });
-  var h='<div class="count">'+rows.length+'件</div>';
-  order.forEach(function(d){
-    var dd=new Date(d+"T00:00:00+09:00");
-    h+='<div class="grp"><div class="grp-d">'+(dd.getMonth()+1)+'月'+dd.getDate()+'日（'+WD[dd.getDay()]+'）</div>';
-    byDate[d].forEach(function(r){
-      var art=r.artists&&r.artists.name||"—", menu=r.menus&&r.menus.name||"—";
-      h+='<div class="card"><div class="t">'+hhmm(r.start_at)+'<br>–'+hhmm(r.end_at)+'</div><div class="m">'
-        +'<div class="nm">'+esc(r.customer_name||"（名前なし）")+'</div>'
-        +'<div class="me">'+esc(menu)+' ／ 担当：'+esc(art)+(r.phone?'　'+esc(r.phone):'')+'</div>'
-        +'</div></div>';
-    });
-    h+='</div>';
-  });
-  h+='<div class="note">⚡ Supabase（東京）を直接読み込み。お客様の目の前でも一瞬で表示・操作できます。<br>※これはお試し版です。本番ではスタッフのログイン認証を付けます。</div>';
-  b.innerHTML=h;
-}
-function setP(p,el){ PERIOD=p; var ts=document.querySelectorAll(".tab"); for(var i=0;i<ts.length;i++)ts[i].classList.toggle("on",ts[i]===el); document.getElementById("body").innerHTML='<div class="ph">読み込み中…</div>'; load(); }
-// スタッフ ログイン（Supabase Auth・メール/パスワード）。成功でアクセストークンを得て予約を読む。
+// スタッフ ログイン（Supabase Auth・メール/パスワード）。成功で予約タブを表示して一覧を読む。
 function login(){
   var email=(document.getElementById("le").value||"").trim(), pw=document.getElementById("lp").value||"";
   var err=document.getElementById("lerr");
@@ -117,9 +171,421 @@ function login(){
   err.textContent="ログイン中…";
   fetch(SB_URL+"/auth/v1/token?grant_type=password",{ method:"POST", headers:{ "Content-Type":"application/json", "apikey":SB_KEY }, body:JSON.stringify({ email:email, password:pw }) })
     .then(function(r){ return r.json(); }).then(function(d){
-      if(d&&d.access_token){ TOKEN=d.access_token; document.getElementById("login").style.display="none"; load(); }
-      else{ err.textContent="ログインできませんでした（メール・パスワードをご確認ください）。"; }
+      if(d&&d.access_token){
+        TOKEN=d.access_token;
+        document.getElementById("login").style.display="none";
+        document.getElementById("resvView").style.display="";
+        if(typeof initResvStoreBar==="function") initResvStoreBar();
+        loadBoard();
+      } else { err.textContent="ログインできませんでした（メール・パスワードをご確認ください）。"; }
     }).catch(function(e){ err.textContent="通信エラー："+(e&&e.message||e); });
+}
+
+/* ===== 予約管理タブ（移植）JS ===== */
+/* ============================================================================
+   予約管理タブ（Supabase版）JS
+   ・google.script.run（GAS）を Supabase REST / RPC に置き換え。認証は poc/admin.html を踏襲。
+   ・前提グローバル（poc/admin.html に既存）：SB_URL, SB_KEY, TOKEN, hdr(), esc(), ymd(), hhmm()
+     ※ poc の hdr() は { apikey, Authorization: Bearer <TOKEN||SB_KEY> } を返す。
+       予約・PII は TOKEN（Supabase Auth ログイン）がある時だけ読める（RLS staff_read_resv）。
+   ・店舗 slug（all/kurume/hakata）→ stores.code → store_id へ橋渡し。owner/admin は all で全店。
+   ・元UIのデータ形（it.uid, it.reservation_id, it.source, it.isNew, it.visitNo,
+     it.questionnaireDone, it.outcome, it.time, it.name, it.menu, it.treatment, it.artist）を再現。
+   ============================================================================ */
+
+/* ---- 設定：店舗 slug → UUID キャッシュ（stores から1回だけ解決） ---- */
+var STORE_MAP = null;        // { kurume:{id,name}, hakata:{id,name}, ... }
+var BOARD_PERIOD = 'today';
+var WD = ['日','月','火','水','木','金','土'];
+
+/* poc に無ければ使う簡易ヘルパー（既にあれば重複定義は削ってよい） */
+if (typeof ymd !== 'function') {
+  window.ymd = function(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); };
+}
+if (typeof hhmm !== 'function') {
+  window.hhmm = function(iso){ var d=new Date(iso); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); };
+}
+
+/* 選択中の店舗 slug。#resvStore があればそれ、無ければ既定 'kurume'（1店舗運用） */
+function currentStoreSlug(){
+  var sel = document.getElementById('resvStore');
+  return (sel && sel.value) ? sel.value : 'kurume';
+}
+
+/* REST GET（PostgREST）。配列 JSON を返す */
+function sbGet(path){
+  return fetch(SB_URL + '/rest/v1/' + path, { headers: hdr() })
+    .then(function(res){ return res.json().then(function(j){ if(!res.ok) throw new Error((j&&j.message)||('HTTP '+res.status)); return j; }); });
+}
+/* RPC POST。bodyはJSON。戻りは関数の戻り値（jsonb/void/uuid 等） */
+function sbRpc(fn, body){
+  return fetch(SB_URL + '/rest/v1/rpc/' + fn, {
+    method:'POST',
+    headers: Object.assign({ 'Content-Type':'application/json' }, hdr()),
+    body: JSON.stringify(body || {})
+  }).then(function(res){ return res.json().then(function(j){ if(!res.ok) throw new Error((j&&j.message)||('HTTP '+res.status)); return j; }); });
+}
+
+/* stores（code→id）を1回ロードしてキャッシュ。store セレクタの店舗名も補完 */
+function ensureStoreMap(){
+  if (STORE_MAP) return Promise.resolve(STORE_MAP);
+  return sbGet('stores?select=id,name,code').then(function(rows){
+    STORE_MAP = {};
+    (rows||[]).forEach(function(s){ if(s.code) STORE_MAP[s.code] = { id:s.id, name:s.name }; });
+    // 店舗セレクタの表示名を実データで上書き（任意）
+    var sel = document.getElementById('resvStore');
+    if (sel){
+      for (var i=0;i<sel.options.length;i++){
+        var v = sel.options[i].value;
+        if (STORE_MAP[v]) sel.options[i].textContent = STORE_MAP[v].name;
+      }
+    }
+    return STORE_MAP;
+  });
+}
+
+/* slug → store_id（all は null＝全店。owner/admin のみ RLS が許可） */
+function storeIdForSlug(slug){
+  if (!slug || slug === 'all') return null;
+  return (STORE_MAP && STORE_MAP[slug]) ? STORE_MAP[slug].id : null;
+}
+
+/* 期間 → [from, to)（JST境界）。元 rangeFor と同等 */
+function rangeFor(p){
+  var now = new Date(), t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (p === 'today'){ var e=new Date(t0); e.setDate(e.getDate()+1); return [t0,e]; }
+  if (p === 'week'){ var e2=new Date(t0); e2.setDate(e2.getDate()+7); return [t0,e2]; }
+  var e3=new Date(t0); e3.setDate(e3.getDate()+400); return [t0,e3]; // 今後すべて（便宜上400日先）
+}
+
+/* ===== 表示制御（poc 側に hideAllViews 等があればそれを使う） ===== */
+function showReservations(el){
+  if (typeof hideAllViews === 'function') hideAllViews();
+  if (el && typeof setActiveNav === 'function') setActiveNav(el);
+  document.getElementById('resvView').style.display = '';
+  loadBoard();
+  window.scrollTo({ top:0, behavior:'smooth' });
+}
+
+function setPeriod(p){
+  BOARD_PERIOD = p;
+  var ts = document.querySelectorAll('.rtab[data-p]');
+  for (var i=0;i<ts.length;i++) ts[i].classList.toggle('active', ts[i].getAttribute('data-p')===p);
+  loadBoard();
+}
+
+/* ===== 予約ボードの取得（GAS adminListReservations の置き換え） =====
+   reservations を PostgREST 埋め込みで artists(name,code)/menus(name) と一括取得。
+   担当絞り込み・問診ステータス絞り込み・店舗スコープは PostgREST フィルタで実現。
+   新規/N回目バッジは RPC visit_no を予約ごとに併走で算出。 */
+function loadBoard(){
+  var board = document.getElementById('resvBoard');
+  board.innerHTML = '<div class="placeholder">読み込み中…</div>';
+
+  ensureStoreMap().then(function(){
+    fillNurseFilterFromServer(); // 絞り込みのアーティスト候補を埋める（非同期・並行）
+
+    var slug   = currentStoreSlug();
+    var storeId = storeIdForSlug(slug);
+    var nurseId = document.getElementById('resvNurse').value;     // artists.id（uuid）
+    var qStatus = document.getElementById('resvStatus').value;    // '' | q_pending | q_done
+
+    var r = rangeFor(BOARD_PERIOD);
+    var from = encodeURIComponent(ymd(r[0]) + 'T00:00:00+09:00');
+    var to   = encodeURIComponent(ymd(r[1]) + 'T00:00:00+09:00');
+
+    var path = 'reservations?select=' +
+      'id,start_at,end_at,customer_name,phone,status,source,treatment_type,outcome,line_uid,' +
+      'artist_id,menu_id,artists(name,code),menus(name)' +
+      '&status=neq.cancelled' +
+      '&start_at=gte.' + from + '&start_at=lt.' + to +
+      '&order=start_at';
+
+    if (storeId) path += '&store_id=eq.' + storeId;            // all のときは付けない＝全店（owner/admin）
+    if (nurseId) path += '&artist_id=eq.' + nurseId;
+    // 問診ステータス：questionnaire_done か否かで絞る（GASの q_done/q_pending 相当）
+    if (qStatus === 'q_done')    path += '&status=eq.questionnaire_done';
+    if (qStatus === 'q_pending') path += '&status=in.(pending_questionnaire,questionnaire_reminded)';
+
+    sbGet(path).then(function(rows){
+      rows = rows || [];
+      // 新規/リピート判定（line_uid のある予約のみ RPC で来店回数を取る。電話予約は新規扱い）
+      var jobs = rows.map(function(row){
+        if (row.source === 'manual' || !row.line_uid) { row._visitNo = 1; return Promise.resolve(); }
+        return sbRpc('visit_no', { p_line_uid: row.line_uid, p_store: row.store_id || storeId, p_before: row.start_at })
+          .then(function(n){ row._visitNo = (typeof n === 'number') ? n : 1; })
+          .catch(function(){ row._visitNo = 1; });
+      });
+      return Promise.all(jobs).then(function(){ renderBoard(rows); });
+    }).catch(function(err){
+      if (!TOKEN){ if (typeof showLogin==='function') showLogin('もう一度ログインしてください。'); return; }
+      board.innerHTML = '<div class="placeholder">取得に失敗しました<br>'+esc(err&&err.message||err)+'</div>';
+    });
+  }).catch(function(err){
+    board.innerHTML = '<div class="placeholder">店舗情報を取得できませんでした<br>'+esc(err&&err.message||err)+'</div>';
+  });
+}
+
+/* GASの groups/items を作らず、取得行をクライアントで日付グルーピング＋カード描画。
+   元 onBoardLoaded のカードHTML・バッジを完全踏襲。 */
+function renderBoard(rows){
+  document.getElementById('resvCount').textContent = rows.length + '件';
+  var board = document.getElementById('resvBoard');
+  if (!rows.length){ board.innerHTML = '<div class="placeholder">該当する予約はありません</div>'; return; }
+
+  var byDate = {}, order = [];
+  rows.forEach(function(r){ var d = ymd(new Date(r.start_at)); if(!byDate[d]){ byDate[d]=[]; order.push(d); } byDate[d].push(r); });
+
+  board.innerHTML = order.map(function(d){
+    var dd = new Date(d + 'T00:00:00+09:00');
+    var label = (dd.getMonth()+1) + '月' + dd.getDate() + '日（' + WD[dd.getDay()] + '）';
+    return '<div class="rgroup"><div class="rgroup-date">' + esc(label) + '</div>' +
+      byDate[d].map(function(r){
+        var it = mapRow(r);
+        var manual = it.source === 'manual';
+        var badge = manual
+          ? '<span class="rb-rep">📞電話予約</span>'
+          : (it.isNew ? '<span class="rb-new">🆕新規</span>' : '<span class="rb-rep">🔁'+esc(it.visitNo)+'回目</span>');
+        var q = manual
+          ? '<span class="rb-qok">📞 電話予約（問診は来店時）</span>'
+          : (it.questionnaireDone ? '<span class="rb-qok">📋問診済み</span>' : '<span class="rb-qng">⏳問診 未記入</span>');
+        var out = it.outcome === 'visited' ? ' <span class="rb-visited">✅来店済み</span>'
+                : it.outcome === 'no_show' ? ' <span class="rb-noshow">⚠️無断キャンセル</span>' : '';
+        var rid = esc(it.reservation_id);
+        var acts = '<div class="rc-acts">' +
+          ((it.questionnaireDone || manual) ? '' : '<button type="button" class="rbtn" data-act="remind" data-rid="'+rid+'">📨 問診リマインド</button>') +
+          '<button type="button" class="rbtn" data-act="visited" data-rid="'+rid+'">✅ 来店済み</button>' +
+          '<button type="button" class="rbtn" data-act="noshow" data-rid="'+rid+'">⚠️ 無断</button>' +
+          '<button type="button" class="rbtn danger" data-act="cancel" data-rid="'+rid+'">❌ キャンセル</button>' +
+          '</div>';
+        return '<div class="rcard" data-uid="'+esc(it.uid)+'" data-rid="'+rid+'">' +
+          '<div class="rc-time">'+esc(it.time||'—')+'</div>' +
+          '<div class="rc-main">' +
+            '<div class="rc-name">'+esc(it.name)+' '+badge+out+'</div>' +
+            '<div class="rc-menu">'+esc(it.menu||'—')+(it.treatment?'（'+esc(it.treatment)+'）':'')+' ／ 担当：'+esc(it.artist||'—')+'</div>' +
+            '<div class="rc-foot">'+q+'</div>' +
+            acts +
+          '</div></div>';
+      }).join('') +
+    '</div>';
+  }).join('');
+}
+
+/* 1行の予約 → 元UIの item 形に正規化 */
+function mapRow(r){
+  return {
+    reservation_id: r.id,
+    uid: r.line_uid || '',                                  // カルテ遷移キー（無ければ遷移しない）
+    source: r.source || 'line',
+    time: hhmm(r.start_at) + '–' + hhmm(r.end_at),
+    name: r.customer_name || '（名前なし）',
+    menu: (r.menus && r.menus.name) || '—',
+    artist: (r.artists && r.artists.name) || '—',
+    treatment: r.treatment_type === 'retouch' ? 'リタッチ' : (r.treatment_type === 'new' ? '新規' : ''),
+    questionnaireDone: r.status === 'questionnaire_done',
+    outcome: r.outcome || '',
+    visitNo: r._visitNo || 1,
+    isNew: (r._visitNo || 1) <= 1
+  };
+}
+
+/* アーティスト絞り込みの選択肢（稼働中のみ）。選択値は維持。店舗で絞る（全店は店舗フィルタ無し） */
+function fillNurseFilterFromServer(){
+  var slug = currentStoreSlug();
+  var storeId = storeIdForSlug(slug);
+  var path = 'artists?select=id,name&is_active=eq.true&order=name';
+  if (storeId) path += '&store_id=eq.' + storeId;
+  sbGet(path).then(function(rows){
+    var sel = document.getElementById('resvNurse'); var cur = sel.value;
+    sel.innerHTML = '<option value="">全アーティスト</option>' +
+      (rows||[]).map(function(n){ return '<option value="'+esc(n.id)+'">'+esc(n.name)+'</option>'; }).join('');
+    sel.value = cur;
+  }).catch(function(){ /* 候補が取れなくても一覧は出す */ });
+}
+
+/* ===== 予約カードのクリック委譲（注入対策で data-* から取得） =====
+   ボタンなら操作、カード本体タップなら顧客カルテへ（uid があるときだけ） */
+document.getElementById('resvBoard').addEventListener('click', function(e){
+  var btn = e.target.closest('.rbtn');
+  if (btn){ handleBoardAction(btn.getAttribute('data-act'), btn.getAttribute('data-rid')); return; }
+  var card = e.target.closest('.rcard'); if (!card) return;
+  var uid = card.getAttribute('data-uid'); if (!uid) return;
+  // カルテタブが別担当で実装される場合のフック。get_customer(uid) を呼ぶ想定。
+  if (typeof showCustomers === 'function' && typeof selectCustomer === 'function'){
+    showCustomers(document.querySelector('nav a'));
+    selectCustomer(uid);
+  }
+});
+
+/* ===== 予約カードの操作（GAS の各 admin* を RPC に置換） =====
+   問診リマインド：set_status(reminded) ＋ LINE push（Edge Function）／
+   来店済み：set_outcome(visited)／無断：set_outcome(no_show)／キャンセル：staff_cancel_reservation */
+function handleBoardAction(act, rid){
+  if (!rid) return;
+  var plan = {
+    remind:  { q:'このお客様に「問診リマインド」をLINEで送信しますか？',
+               run:function(){ return sbRpc('set_status', { p_resv:rid, p_status:'questionnaire_reminded' })
+                                 .then(function(){ return pushQuestionnaireReminder(rid); }); } },
+    cancel:  { q:'この予約をキャンセルしますか？\nカレンダーの枠も解放します。\n（お客様への自動連絡はしません）',
+               run:function(){ return sbRpc('staff_cancel_reservation', { p_resv:rid, p_reason:'staff_admin' }); } },
+    visited: { q:'この予約を「来店済み」として記録しますか？',
+               run:function(){ return sbRpc('set_outcome', { p_resv:rid, p_outcome:'visited' }); } },
+    noshow:  { q:'この予約を「無断キャンセル」として記録しますか？',
+               run:function(){ return sbRpc('set_outcome', { p_resv:rid, p_outcome:'no_show' }); } }
+  };
+  var m = plan[act]; if (!m) return;
+  if (!window.confirm(m.q)) return;
+  m.run()
+    .then(function(){ loadBoard(); })
+    .catch(function(err){ window.alert('できませんでした：' + (err&&err.message||err)); });
+}
+
+/* 問診リマインドの LINE push は Edge Function 経由（任意・未デプロイなら no-op）。
+   Edge Function 名 'questionnaire-reminder' を Bearer(TOKEN) で叩く想定。 */
+function pushQuestionnaireReminder(rid){
+  return fetch(SB_URL + '/functions/v1/questionnaire-reminder', {
+    method:'POST',
+    headers: Object.assign({ 'Content-Type':'application/json' }, hdr()),
+    body: JSON.stringify({ reservation_id: rid })
+  }).then(function(res){ if(!res.ok){ /* Edge Function 未配備でも状態更新は成立させる */ } })
+    .catch(function(){ /* 通知失敗は致命でない（状態は reminded 済み） */ });
+}
+
+/* ============================================================================
+   電話予約（手動予約）— GAS adminBookingFormOptions / adminCreateManualReservation の置換
+   選択肢：artists（稼働中）／menus（稼働中）／artist_menus（担当可能ペア）を REST で取得。
+   登録：RPC create_manual_reservation（席数上限・no_overlap 排他制約・料金/時間算出はDB側）。
+   ============================================================================ */
+var MB_OPTS = null;     // { nurses:[{id,name}], menus:[{id,name}], certified:[{artist_id,menu_id}] }
+var MB_LOADING = false;
+
+function openManualBooking(){
+  var f = document.getElementById('mbForm');
+  var btn = document.getElementById('mbOpenBtn');
+  if (f.style.display !== 'none'){ closeManualBooking(); return; }
+  f.style.display = ''; btn.textContent = '✕ 入力をやめる';
+  mbSetMsg('');
+  if (!MB_OPTS && !MB_LOADING) loadManualOptions();
+}
+function closeManualBooking(){
+  document.getElementById('mbForm').style.display = 'none';
+  document.getElementById('mbOpenBtn').textContent = '📞 ＋ 電話予約を登録する';
+}
+function mbSetMsg(t, ok){
+  var el = document.getElementById('mbMsg');
+  el.textContent = t || ''; el.className = 'mb-msg' + (t ? (ok ? ' ok' : ' ng') : '');
+}
+
+/* 選択肢を Supabase から取得（店舗スコープで artists/artist_menus を絞る） */
+function loadManualOptions(){
+  MB_LOADING = true; mbSetMsg('選択肢を読み込み中…', true);
+  ensureStoreMap().then(function(){
+    var storeId = storeIdForSlug(currentStoreSlug());
+    var artistsPath = 'artists?select=id,name&is_active=eq.true&order=name' + (storeId ? '&store_id=eq.'+storeId : '');
+    var menusPath   = 'menus?select=id,name&is_active=eq.true&order=name';
+    var pairPath    = 'artist_menus?select=artist_id,menu_id&is_certified=eq.true';
+    return Promise.all([ sbGet(artistsPath), sbGet(menusPath), sbGet(pairPath) ]);
+  }).then(function(res){
+    MB_LOADING = false; mbSetMsg('');
+    MB_OPTS = {
+      nurses:    (res[0]||[]).map(function(a){ return { nurse_id:a.id, name:a.name }; }),
+      menus:     (res[1]||[]).map(function(m){ return { menu_id:m.id, name:m.name }; }),
+      certified: (res[2]||[]).map(function(p){ return { nurse_id:p.artist_id, menu_id:p.menu_id }; })
+    };
+    var ns = document.getElementById('mbNurse');
+    ns.innerHTML = '<option value="">選択してください</option>' +
+      MB_OPTS.nurses.map(function(n){ return '<option value="'+esc(n.nurse_id)+'">'+esc(n.name)+'</option>'; }).join('');
+    mbOnNurseChange();
+  }).catch(function(err){
+    MB_LOADING = false; mbSetMsg('選択肢を取得できませんでした：' + (err&&err.message||err));
+  });
+}
+
+/* 担当に応じてメニューを絞り込む（担当可能ペアが無ければ全メニュー） */
+function mbOnNurseChange(){
+  var nid = document.getElementById('mbNurse').value;
+  var ms = document.getElementById('mbMenu');
+  if (!MB_OPTS){ ms.innerHTML = '<option value="">先に担当アーティストを選んでください</option>'; return; }
+  var menus = MB_OPTS.menus || [];
+  if (nid){
+    var allowed = {}; (MB_OPTS.certified||[]).forEach(function(c){ if(c.nurse_id===nid) allowed[c.menu_id]=1; });
+    if (Object.keys(allowed).length > 0) menus = menus.filter(function(m){ return allowed[m.menu_id]; });
+  }
+  ms.innerHTML = '<option value="">選択してください</option>' +
+    menus.map(function(m){ return '<option value="'+esc(m.menu_id)+'">'+esc(m.name)+'</option>'; }).join('');
+}
+
+/* 登録 → 成功でフォームを閉じてボード再読込（GAS submit と同等のUX） */
+function submitManualBooking(){
+  var name     = document.getElementById('mbName').value.trim();
+  var nurseId  = document.getElementById('mbNurse').value;
+  var menuId   = document.getElementById('mbMenu').value;
+  var datetime = document.getElementById('mbDatetime').value;     // 'YYYY-MM-DDTHH:mm'（ローカル＝JST）
+  if (!name){ mbSetMsg('お客様名を入力してください。'); return; }
+  if (!nurseId){ mbSetMsg('担当アーティストを選んでください。'); return; }
+  if (!menuId){ mbSetMsg('メニューを選んでください。'); return; }
+  if (!datetime){ mbSetMsg('日時を入力してください。'); return; }
+
+  var storeId = storeIdForSlug(currentStoreSlug());
+  if (!storeId){ mbSetMsg('登録する店舗を選んでください（全店では登録できません）。'); return; }
+
+  var startISO = datetime + ':00+09:00';   // datetime-local は JST 前提。+09:00 を明示
+  var payload = {
+    p_store: storeId,
+    p_artist: nurseId,
+    p_menu: menuId,
+    p_customer_name: name,
+    p_start: startISO,
+    p_treatment_type: document.getElementById('mbTreatment').value,   // new / retouch
+    p_reservation_type: document.getElementById('mbResvType').value,  // normal / monitor
+    p_phone: document.getElementById('mbPhone').value.trim() || null,
+    p_furigana: document.getElementById('mbFurigana').value.trim() || null,
+    p_memo: document.getElementById('mbMemo').value.trim() || null
+  };
+
+  var btn = document.getElementById('mbSubmit');
+  btn.disabled = true; btn.textContent = '登録中…'; mbSetMsg('登録中…', true);
+  sbRpc('create_manual_reservation', payload)
+    .then(function(newId){
+      btn.disabled = false; btn.textContent = 'この内容で登録';
+      mbSetMsg('✅ 登録しました（予約番号 ' + esc(newId) + '）', true);
+      ['mbName','mbFurigana','mbPhone','mbDatetime','mbMemo'].forEach(function(id){ document.getElementById(id).value=''; });
+      ['mbMenu','mbTreatment','mbResvType'].forEach(function(id){ document.getElementById(id).selectedIndex=0; });
+      loadBoard();
+      setTimeout(closeManualBooking, 1200);
+    })
+    .catch(function(err){
+      btn.disabled = false; btn.textContent = 'この内容で登録';
+      mbSetMsg('登録できませんでした（' + mbReason(err&&err.message||'') + '）。');
+    });
+}
+
+/* DB の例外メッセージ（raise exception）を日本語に。 */
+function mbReason(r){
+  r = String(r||'');
+  var m = {
+    forbidden_store:'権限がありません（店舗スコープ外）',
+    seat_full:'その時間は満席です',
+    bad_outcome:'来店結果の値が不正です',
+    bad_status:'問診ステータスの値が不正です',
+    reservation_not_found:'予約が見つかりません'
+  };
+  // no_overlap_per_artist 排他制約違反（DB制約名を含む）
+  if (/no_overlap_per_artist|exclusion|overlap/i.test(r)) return '同じ担当の予約と重複しています';
+  for (var k in m){ if (r.indexOf(k) >= 0) return m[k]; }
+  return r || '登録処理に失敗しました';
+}
+
+/* オーナー/管理者なら店舗バーを表示（current_staff で role を確認）。staff は1店固定なので隠す。
+   showReservations の前後で1回呼べばよい。 */
+function initResvStoreBar(){
+  sbRpc('current_staff', {}).then(function(rows){
+    var me = (rows && rows[0]) || null;
+    var bar = document.getElementById('resvStoreBar');
+    if (!bar) return;
+    if (me && (me.role === 'owner' || me.role === 'admin')) bar.style.display = '';
+    else bar.style.display = 'none';   // staff：自店固定（RLSが自店だけを返す）
+  }).catch(function(){ /* 取れなければ非表示のまま＝自店運用 */ });
 }
 </script>
 </body>
