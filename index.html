@@ -192,6 +192,38 @@
     .btn-danger { flex:1; background:#e8366f; color:#fff; }
     .btn-danger:disabled { background:#f0a8c2; }
     .cancel-done { text-align:center; padding:48px 16px; }
+
+    /* ===== 同意書（?mode=consent） ===== */
+    #s-consent { display:none; }
+    #s-consent .step-wrap { min-height:50vh; }
+    .cs-doc { max-height:320px; overflow-y:auto; -webkit-overflow-scrolling:touch; border:1px solid #ddd; border-radius:10px; padding:14px 16px; background:#fff; font-size:12px; line-height:1.75; color:#333; }
+    .cs-doc h3 { font-size:13px; margin:14px 0 4px; border-left:4px solid #06c755; padding-left:7px; }
+    .cs-doc h3:first-child { margin-top:0; }
+    .cs-doc p { margin:0 0 7px; }
+    .cs-doc ul { margin:3px 0 8px 18px; padding:0; }
+    .cs-doc li { margin-bottom:3px; }
+    .cs-doc .cs-sub { font-weight:700; margin:8px 0 2px; }
+    .cs-doc .cs-agree { font-weight:700; color:#222; margin:12px 0 2px; }
+    .cs-scroll-hint { font-size:11px; color:#999; text-align:center; margin:6px 0 0; }
+    .cs-photo-box { margin-top:18px; background:#f7faf9; border:1px solid #dfeae8; border-radius:10px; padding:12px 14px; }
+    .cs-sec { font-size:13.5px; font-weight:800; color:#0b5c55; margin-bottom:4px; }
+    .cs-photo-note { font-size:11.5px; color:#777; margin:0 0 10px; line-height:1.6; }
+    .cs-pq { display:flex; align-items:center; gap:8px; padding:7px 0; border-top:1px solid #e8eeec; }
+    .cs-pq:first-of-type { border-top:none; }
+    .cs-pq-l { flex:1; font-size:12.5px; color:#333; line-height:1.5; }
+    .cs-pq-r { flex:0 0 auto; display:flex; gap:6px; }
+    .cs-pq-r label { display:inline-flex; align-items:center; gap:3px; font-size:13px; padding:5px 9px; border:1px solid #cfe0dd; border-radius:8px; background:#fff; cursor:pointer; }
+    .cs-pq-r input { margin:0; }
+    .cs-field { margin-top:16px; }
+    .cs-l { display:block; font-size:12.5px; font-weight:700; color:#445; margin-bottom:6px; }
+    #csName { width:100%; box-sizing:border-box; padding:10px; border:1px solid #ccc; border-radius:8px; font-size:15px; }
+    .cs-date { font-size:14px; font-weight:700; color:#333; }
+    .cs-canvas { width:100%; height:180px; border:1.5px dashed #59a89c; border-radius:10px; background:#fff; touch-action:none; display:block; }
+    .cs-clear { margin-top:8px; padding:7px 16px; border:1px solid #d4dbda; border-radius:8px; background:#f4f6f5; color:#555; font-size:12.5px; font-weight:700; cursor:pointer; }
+    .cs-msg { font-size:12.5px; font-weight:700; color:#c2410c; min-height:16px; margin:12px 0 4px; }
+    #csSubmit { display:block; width:100%; margin-top:8px; }
+    #csSubmit:disabled { opacity:.5; }
+    .cs-done { text-align:center; padding:44px 16px; }
   </style>
 </head>
 <body>
@@ -228,6 +260,14 @@
   <div class="step-wrap" id="cc"></div>
 </div>
 
+<div id="s-consent">
+  <div class="app-hd">
+    <h1>アートメイク同意書</h1>
+    <div class="sub" id="csSub"></div>
+  </div>
+  <div class="step-wrap" id="cc2"></div>
+</div>
+
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script>
 // ===== 設定 =====
@@ -250,8 +290,9 @@ function getQueryParam(name){
   return null;
 }
 var STORE    = getQueryParam('store') || 'kurume';
-var MODE     = getQueryParam('mode')  || 'book'; // 'book'（予約）/ 'cancel'（キャンセル）
+var MODE     = getQueryParam('mode')  || 'book'; // 'book'（予約）/ 'cancel'（キャンセル）/ 'consent'（同意書）
 var REF      = getQueryParam('ref')   || '';     // 流入元タグ（集客：?ref= で来た予約に記録）
+var CONSENT_TOKEN = getQueryParam('t') || '';    // 同意書セッショントークン（本人確認用・スタッフ送信時に発行）
 var cancelList = [];  // キャンセル画面で表示中の自分の予約一覧
 
 // ===== 状態 =====
@@ -280,7 +321,7 @@ function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').rep
 function isT(v){ if(v===true||v===1)return true; if(typeof v==='string'){var t=v.trim().toLowerCase();return t==='true'||t==='1';}return false; }
 function okPhone(v){ return /^0\d{9,10}$/.test(v.replace(/[-\s]/g,'')); }
 function showScr(id){
-  ['s-loading','s-wizard','s-done','s-cancel'].forEach(function(s){ document.getElementById(s).style.display='none'; });
+  ['s-loading','s-wizard','s-done','s-cancel','s-consent'].forEach(function(s){ document.getElementById(s).style.display='none'; });
   document.getElementById(id).style.display='block';
 }
 
@@ -785,7 +826,13 @@ function updHeader(){
   if(el&&bootOpt) el.textContent=(bootOpt.store_name||STORE)+(st.displayName?'　'+st.displayName+' 様':'');
 }
 function showWizardIfReady(){
-  if(wizardShown||!bootOptDone) return;
+  if(wizardShown) return;
+  // 同意書モードは UID（LIFF）だけで動く。メニュー等の店舗オプションは不要なので待たない。
+  if(MODE==='consent'){
+    if(!bootProfDone) return;     // 署名を本人に紐づけるためUID必須
+    wizardShown=true; startConsent(); return;
+  }
+  if(!bootOptDone) return;
   // キャンセルモードは UID と予約一覧があれば動く。店舗情報（メニュー等）が取れなくても画面は開く（店舗名だけ省略）。
   if(MODE==='cancel'){
     if(!bootProfDone) return;       // 自分の予約取得にUIDが要るのでプロフィール完了を待つ
@@ -823,11 +870,119 @@ function writeOptLS(v){
   }catch(e){}
 }
 
+// ===== 同意書モード（?mode=consent） =====
+// LIFFで取得したUIDで本人に紐づけ、本文を全文表示→写真使用Yes/No→指でサイン→送信。
+var CONSENT_INFO=null, CONSENT_PHOTO={};
+var sigCanvas=null, sigCtx=null, sigDrawing=false, sigHas=false;
+
+function startConsent(){
+  showScr('s-consent');
+  document.getElementById('csSub').textContent=(st.displayName?st.displayName+' 様':'');
+  if(!CONSENT_TOKEN){ document.getElementById('cc2').innerHTML='<div class="msg-err">リンクが正しくありません。お手数ですがスタッフに同意書の再送をご依頼ください。</div>'; return; }
+  document.getElementById('cc2').innerHTML='<div class="ld-box"><span class="spinner"></span>読み込み中…</div>';
+  postAction('consent_info',{line_uid:st.uid,store:STORE,token:CONSENT_TOKEN},function(err,res){
+    if(err||!res){ document.getElementById('cc2').innerHTML='<div class="msg-err">読み込みに失敗しました。電波の良い場所で再度お試しください。</div>'; return; }
+    if(!res.ok){ document.getElementById('cc2').innerHTML='<div class="msg-err">'+(res.reason==='invalid_token'?'リンクの有効期限が切れています（6時間）。お手数ですがスタッフに再送をご依頼ください。':'読み込みに失敗しました。')+'</div>'; return; }
+    renderConsentForm(res);
+  });
+}
+function consentTodayJa(){ var d=new Date(); return d.getFullYear()+'年'+('0'+(d.getMonth()+1)).slice(-2)+'月'+('0'+d.getDate()).slice(-2)+'日'; }
+function renderConsentForm(info){
+  CONSENT_INFO=info; CONSENT_PHOTO={};
+  var h='';
+  h+='<div class="cs-doc" id="csDoc">'+info.consent_html+'</div>';
+  h+='<div class="cs-scroll-hint">↑ 上の枠内をスクロールして全文をご確認ください</div>';
+  h+='<div class="cs-photo-box"><div class="cs-sec">施術写真の使用について</div>';
+  h+='<p class="cs-photo-note">※モニター・キャンペーンご利用の方は、お写真のご提供が必要となります。下記の可否をお選びください。</p>';
+  (info.photo_questions||[]).forEach(function(q,i){
+    var k=esc(q.key);
+    h+='<div class="cs-pq"><div class="cs-pq-l">'+(i+1)+'. '+esc(q.label)+'</div><div class="cs-pq-r">'
+      +'<label><input type="radio" name="pc_'+k+'" value="yes" onchange="onConsentPhoto(\''+k+'\',\'yes\')"><span>可</span></label>'
+      +'<label><input type="radio" name="pc_'+k+'" value="no" onchange="onConsentPhoto(\''+k+'\',\'no\')"><span>不可</span></label>'
+      +'</div></div>';
+  });
+  h+='</div>';
+  h+='<div class="cs-field"><label class="cs-l">お名前</label><input id="csName" type="text" value="'+esc(info.customer_name||'')+'" placeholder="お名前" autocomplete="off" oninput="updateConsentSubmit()"></div>';
+  h+='<div class="cs-field"><label class="cs-l">日付</label><div class="cs-date" id="csDate"></div></div>';
+  h+='<div class="cs-field"><label class="cs-l">ご署名（下の枠内に指でお書きください）</label>';
+  h+='<canvas id="sigCanvas" class="cs-canvas"></canvas>';
+  h+='<button type="button" class="cs-clear" onclick="clearConsentSig()">✕ 書き直す</button></div>';
+  h+='<div class="cs-msg" id="csMsg"></div>';
+  h+='<button type="button" class="btn btn-p" id="csSubmit" onclick="submitConsentForm()" disabled>この内容で同意して署名を送信</button>';
+  document.getElementById('cc2').innerHTML=h;
+  document.getElementById('csDate').textContent=consentTodayJa();
+  initConsentSig();
+  updateConsentSubmit();
+}
+function onConsentPhoto(key,val){ CONSENT_PHOTO[key]=val; updateConsentSubmit(); }
+function initConsentSig(){
+  sigCanvas=document.getElementById('sigCanvas'); if(!sigCanvas)return;
+  var rect=sigCanvas.getBoundingClientRect();
+  var ratio=window.devicePixelRatio||1;
+  sigCanvas.width=Math.round(rect.width*ratio);
+  sigCanvas.height=Math.round(rect.height*ratio);
+  sigCtx=sigCanvas.getContext('2d');
+  sigCtx.scale(ratio,ratio);
+  sigCtx.lineWidth=2.5; sigCtx.lineCap='round'; sigCtx.lineJoin='round'; sigCtx.strokeStyle='#1a1a1a';
+  sigHas=false;
+  function pos(e){ var r=sigCanvas.getBoundingClientRect(); return { x:e.clientX-r.left, y:e.clientY-r.top }; }
+  function down(e){ sigDrawing=true; var p=pos(e); sigCtx.beginPath(); sigCtx.moveTo(p.x,p.y); e.preventDefault(); }
+  function move(e){ if(!sigDrawing)return; var p=pos(e); sigCtx.lineTo(p.x,p.y); sigCtx.stroke(); if(!sigHas){sigHas=true;updateConsentSubmit();} e.preventDefault(); }
+  function up(){ sigDrawing=false; }
+  if(window.PointerEvent){
+    sigCanvas.addEventListener('pointerdown',down);
+    sigCanvas.addEventListener('pointermove',move);
+    window.addEventListener('pointerup',up);
+  }else{
+    sigCanvas.addEventListener('touchstart',function(e){ down(e.touches[0]); });
+    sigCanvas.addEventListener('touchmove',function(e){ move(e.touches[0]); });
+    window.addEventListener('touchend',up);
+    sigCanvas.addEventListener('mousedown',down);
+    sigCanvas.addEventListener('mousemove',move);
+    window.addEventListener('mouseup',up);
+  }
+}
+function clearConsentSig(){ if(sigCtx&&sigCanvas){ sigCtx.clearRect(0,0,sigCanvas.width,sigCanvas.height); } sigHas=false; updateConsentSubmit(); }
+function updateConsentSubmit(){
+  var nameEl=document.getElementById('csName');
+  var name=nameEl?nameEl.value.trim():'';
+  var qs=(CONSENT_INFO&&CONSENT_INFO.photo_questions)||[];
+  var allPhoto=qs.length>0&&qs.every(function(q){ return CONSENT_PHOTO[q.key]==='yes'||CONSENT_PHOTO[q.key]==='no'; });
+  var b=document.getElementById('csSubmit'); if(b)b.disabled=!(name&&allPhoto&&sigHas);
+}
+function setConsentMsg(t){ var el=document.getElementById('csMsg'); if(el)el.textContent=t||''; }
+function consentReason(r){
+  var m={empty_name:'お名前が空です',bad_signature:'署名が正しく取得できませんでした',empty_signature:'署名を書いてください',
+    signature_too_large:'署名データが大きすぎます',photo_consent_required:'写真使用の可否をすべてお選びください',
+    pdf_failed:'PDFの作成に失敗しました',bad_request:'送信内容に誤りがあります',
+    invalid_token:'リンクの有効期限が切れています。スタッフに再送をご依頼ください'};
+  return m[r]||r;
+}
+function submitConsentForm(){
+  var name=(document.getElementById('csName')||{}).value||''; name=name.trim();
+  if(!name||!sigHas)return;
+  var b=document.getElementById('csSubmit'); b.disabled=true; b.textContent='送信中…'; setConsentMsg('');
+  var sig=sigCanvas.toDataURL('image/png');
+  postAction('submit_consent',{line_uid:st.uid,store:STORE,customer_name:name,signature:sig,photo_consent:CONSENT_PHOTO,token:CONSENT_TOKEN},function(err,res){
+    if(err||!res){ b.disabled=false; b.textContent='この内容で同意して署名を送信'; setConsentMsg('送信に失敗しました。電波の良い場所で再度お試しください。'); return; }
+    if(res.ok){ showConsentDone(); return; }
+    b.disabled=false; b.textContent='この内容で同意して署名を送信';
+    setConsentMsg('送信できませんでした'+(res.reason?'（'+consentReason(res.reason)+'）':'')+'。');
+  });
+}
+function showConsentDone(){
+  document.getElementById('cc2').innerHTML='<div class="cs-done"><div class="done-icon">✅</div>'
+    +'<div class="done-title">ご署名ありがとうございました</div>'
+    +'<div class="done-msg">同意書を受け付けいたしました。<br>当日お会いできるのを楽しみにしております。</div>'
+    +'<button class="btn btn-p" onclick="backToTalk()" style="margin-top:24px;padding-left:36px;padding-right:36px">LINEのトークに戻る</button></div>';
+  try{ window.scrollTo(0,0); }catch(e){}
+}
+
 (function boot(){
   // ⓪ 前回のオプションが端末に残っていれば即描画（2回目以降は待ち時間ゼロ）。
   //    予約モードのみ即描画。キャンセルはUID必須なので従来どおりプロフィール完了を待つ。
   var cachedOpt=readOptLS();
-  if(cachedOpt && MODE!=='cancel'){ bootOpt=cachedOpt; bootOptDone=true; showWizardIfReady(); }
+  if(cachedOpt && MODE==='book'){ bootOpt=cachedOpt; bootOptDone=true; showWizardIfReady(); }
   // ① オプション取得を今すぐ開始（UID不要なのでLIFFを待たない）。最新を取り直してキャッシュ更新。
   gasGet({action:'options',store:STORE},function(err,opt){
     if(!err && opt){
