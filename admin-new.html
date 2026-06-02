@@ -273,6 +273,102 @@
 .set-ex-off{font-size:12px;color:#666;display:flex;align-items:center;gap:3px}
 .set-ex-off input{width:auto}
 .set-ex-x{padding:6px 10px;border:none;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;background:#eef2f1;color:#557}
+
+/* ===== acq タブ CSS ===== */
+/* ===== 集客（流入経路）タブ（接頭辞 .acq- 専用。既存 .resv-/.rev-/.rtab/.rcard/.mb-/.rbtn と非衝突）=====
+   元 src/admin.html #acqView を忠実に移植。owner/admin 専用タブ。 */
+#acqView{max-width:760px;margin:0 auto;padding:12px}
+#acqView h3{font-size:14px;font-weight:800;color:#0b5c55;margin:14px 4px 8px}
+.acq-card{background:#fff;border:1px solid #e6eceb;border-radius:12px;padding:12px 14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.acq-card .ac-label{font-weight:800;color:#1f2937;font-size:15px}
+.acq-card .ac-tag{display:inline-block;font-size:11px;color:#557;background:#eef2f1;border-radius:6px;padding:1px 7px;margin-left:6px}
+.acq-card.off{opacity:.55}
+.acq-url{display:flex;gap:6px;align-items:center;margin-top:8px}
+.acq-url input{flex:1;min-width:0;font-size:12px;padding:7px 9px;border:1px solid #cdd6d4;border-radius:8px;background:#f8fafa;color:#334}
+.acq-btn{padding:7px 10px;border:none;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap}
+.acq-btn.copy{background:#0b5c55;color:#fff}
+.acq-btn.ghost{background:#eef2f1;color:#557}
+.acq-actions{display:flex;gap:8px;margin-top:8px}
+.acq-add{background:#fff;border:1px solid #e6eceb;border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.acq-add label{display:block;font-size:12px;color:#666;margin:6px 0 3px}
+.acq-add input{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid #cdd6d4;border-radius:9px;font-size:14px}
+.acq-add .save{margin-top:10px;width:100%;padding:11px 0;border:none;border-radius:10px;background:#06c755;color:#fff;font-weight:700;font-size:14px;cursor:pointer}
+.acq-add .save:disabled{opacity:.55;cursor:default}
+.acq-hint{font-size:11.5px;color:#999;margin:8px 2px 0;line-height:1.5}
+.acq-msg{font-size:12px;font-weight:700;min-height:16px;margin:6px 2px 0}
+.acq-msg.ok{color:#15803d}.acq-msg.ng{color:#c2410c}
+.acq-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:0 2px 10px}
+.acq-tab{font-size:12.5px;padding:6px 12px;border:1px solid #d4dbda;border-radius:999px;background:#fff;color:#557;cursor:pointer;font-weight:700}
+.acq-tab.active{background:#0b5c55;color:#fff;border-color:#0b5c55}
+.acq-tbl{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e6eceb;border-radius:12px;overflow:hidden;font-size:13px}
+.acq-tbl th,.acq-tbl td{padding:9px 10px;border-bottom:1px solid #f0f0f0;text-align:right}
+.acq-tbl th:first-child,.acq-tbl td:first-child{text-align:left}
+.acq-tbl th{background:#f4f8f7;color:#557;font-weight:700;font-size:12px}
+.acq-tbl tr:last-child td{border-bottom:none}
+.acq-tbl tr.tot td{font-weight:800;background:#f9fbfb}
+.acq-bar-wrap{display:flex;align-items:center;gap:8px;margin:4px 2px}
+.acq-bar-name{flex:0 0 34%;min-width:0;font-size:12px;color:#334;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acq-bar-track{flex:1;height:14px;background:#eef2f1;border-radius:999px;overflow:hidden}
+.acq-bar-fill{height:100%;background:#0b5c55;border-radius:999px;min-width:2px}
+.acq-bar-val{flex:0 0 auto;font-size:11.5px;color:#557;font-weight:700;white-space:nowrap}
+
+/* ===== users タブ CSS ===== */
+/* ============================================================================
+   ユーザー管理タブ（接頭辞 .usr- で衝突回避。owner/admin 専用）
+   ============================================================================ */
+.usr-note{font-size:11.5px;color:#9ca3af;margin:2px 4px 14px;line-height:1.6}
+.usr-note b{color:#557}
+.usr-msg{font-size:12.5px;margin:8px 0;min-height:16px}
+.usr-msg.ok{color:#15803d}
+.usr-msg.ng{color:#c2410c}
+
+/* 新規追加カード */
+.usr-add{background:#fff;border:1px solid #e6eceb;border-radius:12px;padding:12px 14px 14px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.usr-add h3{font-size:13px;font-weight:800;color:#0b5c55;margin:6px 0 4px}
+.usr-add .usr-hint{font-size:11.5px;color:#9ca3af;margin:0 0 8px;line-height:1.6}
+.usr-add label{display:block;font-size:12px;color:#666;margin:8px 0 3px}
+.usr-add input,.usr-add select{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid #cdd6d4;border-radius:9px;font-size:14px;background:#fff;color:#1f2937}
+.usr-grid{display:flex;gap:8px;flex-wrap:wrap}
+.usr-grid>div{flex:1;min-width:130px}
+.usr-passrow{display:flex;gap:8px;align-items:stretch}
+.usr-passrow input{flex:1}
+.usr-gen{white-space:nowrap;padding:0 12px;border:none;border-radius:9px;background:#eef2f1;color:#0b5c55;font-weight:700;font-size:12.5px;cursor:pointer}
+.usr-shown{margin-top:6px;font-size:12px;color:#0b5c55;background:#ecfdf5;border:1px solid #bbf7d0;border-radius:8px;padding:8px 10px;line-height:1.6;display:none;word-break:break-all}
+.usr-shown.usr-open{display:block}
+.usr-shown code{font-weight:800;font-size:14px;background:#fff;border:1px solid #bbf7d0;border-radius:6px;padding:1px 6px}
+.usr-addbtn{width:100%;margin-top:12px;padding:11px 0;border:none;border-radius:9px;background:#0b5c55;color:#fff;font-weight:800;font-size:14px;cursor:pointer}
+.usr-addbtn:disabled{opacity:.6;cursor:default}
+
+/* 一覧 */
+.usr-count{font-size:12.5px;color:#557;margin:2px 4px 8px;font-weight:700}
+.usr-card{background:#fff;border:1px solid #e6eceb;border-radius:12px;padding:12px 14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.usr-card.usr-off{opacity:.6}
+.usr-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.usr-mail{font-weight:800;color:#1f2937;font-size:14.5px;word-break:break-all;flex:1 1 60%;min-width:0}
+.usr-name{font-size:12.5px;color:#666;margin-top:2px}
+.usr-badge{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:2px 9px}
+.usr-badge.usr-owner{background:#fef3c7;color:#92400e}
+.usr-badge.usr-admin{background:#dbeafe;color:#1e40af}
+.usr-badge.usr-staff{background:#eef2f1;color:#557}
+.usr-stat{font-size:11px;font-weight:700;border-radius:999px;padding:2px 9px}
+.usr-stat.on{background:#dcfce7;color:#15803d}
+.usr-stat.off{background:#fde2e1;color:#c0392b}
+.usr-store{font-size:11px;color:#557;background:#eef2f1;border-radius:6px;padding:2px 8px}
+.usr-self{font-size:11px;color:#9ca3af}
+
+.usr-edit{margin-top:10px;border-top:1px dashed #e0e8e6;padding-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+.usr-edit .usr-f{flex:1;min-width:120px}
+.usr-edit label{display:block;font-size:11.5px;color:#666;margin:0 0 3px}
+.usr-edit select{width:100%;box-sizing:border-box;padding:8px 9px;border:1px solid #cdd6d4;border-radius:9px;font-size:13.5px;background:#fff;color:#1f2937}
+.usr-acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.usr-btn{flex:1;min-width:90px;padding:9px 0;border:none;border-radius:9px;font-weight:700;font-size:13px;cursor:pointer}
+.usr-btn.usr-primary{background:#0b5c55;color:#fff}
+.usr-btn.usr-ghost{background:#eef2f1;color:#557}
+.usr-btn.usr-danger{background:#fdecea;color:#c0392b}
+.usr-btn:disabled{opacity:.55;cursor:default}
+.usr-rowmsg{font-size:12px;margin-top:8px;min-height:14px}
+.usr-rowmsg.ng{color:#c2410c}
+.usr-rowmsg.ok{color:#15803d}
 </style>
 </head>
 <body>
@@ -284,6 +380,8 @@
     <button data-v="cust"   onclick="showCustomers(this)">🗂 顧客カルテ</button>
     <button data-v="dash"   onclick="showDashboard(this)">📊 経営</button>
     <button data-v="review" onclick="showReviews(this)">⭐ 口コミ</button>
+    <button data-v="acq"    class="nav-mgr" style="display:none" onclick="showAcq(this)">📣 集客</button>
+    <button data-v="users"  class="nav-mgr" style="display:none" onclick="showUsers(this)">👥 ユーザー管理</button>
     <button data-v="set"    onclick="showSettings(this)">⚙️ 設定</button>
   </nav>
 
@@ -441,6 +539,94 @@
   </div>
   <div id="setBody"><div class="set-ph">読み込み中…</div></div>
 </div>
+
+  <!-- ===== acq ===== -->
+<!-- ============================================================================
+     集客（流入経路）タブ（Supabase版）HTML — 元 src/admin.html #acqView を忠実に移植
+     owner/admin 専用。3セクション：流入元リンク（発行・コピー）／流入元を追加／流入分析。
+     poc/admin.html の <div class="wrap"> 内、<script> ブロックより前に挿入する。
+     ============================================================================ -->
+<div id="acqView" style="display:none">
+  <h3>🔗 流入元リンク（発行・コピー）</h3>
+  <div id="acqList"><div class="placeholder">読み込み中…</div></div>
+
+  <h3>➕ 流入元を追加</h3>
+  <div class="acq-add">
+    <label>表示名（例：遠山Instagram、久留米チラシ、Google広告）</label>
+    <input type="text" id="acqLabel" maxlength="40" placeholder="表示名を入力" autocomplete="off">
+    <button type="button" class="save" id="acqAddBtn" onclick="addRefSource()">＋ 追加してリンク発行</button>
+    <div class="acq-msg" id="acqMsg"></div>
+    <div class="acq-hint">表示名から英数字のタグを自動生成し、予約リンクに <b>?ref=タグ</b> を付けます。お客様がそのリンクから予約すると流入元が記録されます。</div>
+  </div>
+
+  <h3>📊 流入分析（どこから予約が来たか）</h3>
+  <div class="acq-tabs">
+    <button type="button" class="acq-tab active" data-ap="this_month" onclick="setAcqPeriod('this_month')">今月</button>
+    <button type="button" class="acq-tab" data-ap="last_month" onclick="setAcqPeriod('last_month')">先月</button>
+    <button type="button" class="acq-tab" data-ap="this_year" onclick="setAcqPeriod('this_year')">今年</button>
+    <button type="button" class="acq-tab" data-ap="last_6m" onclick="setAcqPeriod('last_6m')">直近6ヶ月</button>
+  </div>
+  <div id="acqStats"><div class="placeholder">読み込み中…</div></div>
+</div>
+
+  <!-- ===== users ===== -->
+<!-- ============================================================================
+     ユーザー管理タブ（Supabase版）HTML — owner/admin 専用
+     ・新規スタッフ追加（ログイン発行：Edge Function manage-staff）
+     ・スタッフ一覧（役割・担当店舗・有効/無効を行内で編集 → RPC update_staff）
+     ・接頭辞 .usr- で既存CSSと非衝突。poc/admin.html の <div class="wrap"> 内に挿入。
+     ・nav に <button data-v="users" onclick="showUsers(this)">👥 ユーザー管理</button> を追加し、
+       hideAllViews の配列に "usersView" を加えること（owner/admin のみ表示推奨）。
+     ============================================================================ -->
+<div id="usersView" style="display:none">
+
+  <div class="usr-note">
+    ログイン情報の発行は<b>オーナー／管理者のみ</b>。発行した暗証番号（パスワード）は
+    画面に表示されるので、コピーして<b>本人へ安全に</b>お伝えください
+    （パスワードはどこにも保存されません）。
+  </div>
+
+  <!-- ＋ 新規スタッフ追加（ログイン発行） -->
+  <div class="usr-add">
+    <h3>＋ スタッフを追加（ログイン発行）</h3>
+    <p class="usr-hint">メールアドレスと暗証番号でログインできるアカウントを作成します。</p>
+
+    <label>メールアドレス<span style="color:#c2410c">（必須）</span></label>
+    <input id="usrEmail" type="email" placeholder="staff@example.com" autocomplete="off">
+
+    <div class="usr-grid" style="margin-top:6px">
+      <div>
+        <label>表示名（任意）</label>
+        <input id="usrName" type="text" placeholder="例）山田 花子" autocomplete="off">
+      </div>
+      <div>
+        <label>役割</label>
+        <select id="usrRole">
+          <option value="staff">スタッフ（閲覧のみ）</option>
+          <option value="admin">管理者（閲覧＋ユーザー管理）</option>
+          <option value="owner">オーナー（最上位）</option>
+        </select>
+      </div>
+    </div>
+
+    <label style="margin-top:8px">担当店舗</label>
+    <select id="usrStore"><option value="all">🏢 全店</option></select>
+
+    <label style="margin-top:8px">暗証番号（パスワード・8文字以上）<span style="color:#c2410c">（必須）</span></label>
+    <div class="usr-passrow">
+      <input id="usrPass" type="text" placeholder="例）Komiya-9xK2mZ" autocomplete="off">
+      <button type="button" class="usr-gen" onclick="usrGenPass()">🎲 自動発行</button>
+    </div>
+    <div class="usr-shown" id="usrShown"></div>
+
+    <div class="usr-msg" id="usrAddMsg"></div>
+    <button type="button" class="usr-addbtn" id="usrAddBtn" onclick="usrAddStaff()">＋ 追加してログインを発行</button>
+  </div>
+
+  <!-- 一覧 -->
+  <div class="usr-count" id="usrCount"></div>
+  <div id="usrList"><div class="placeholder">読み込み中…</div></div>
+</div>
 </div>
 <div id="login" style="position:fixed;inset:0;background:#0b5c55;display:flex;align-items:center;justify-content:center;z-index:50;padding:24px">
   <div style="background:#fff;border-radius:14px;padding:24px;width:100%;max-width:340px;box-shadow:0 8px 30px rgba(0,0,0,.2)">
@@ -479,8 +665,10 @@ function sbDelete(table, filter){
 }
 
 // ===== ビュー切替（全タブ共通）=====
-function hideAllViews(){ ["resvView","custView","dashView","reviewView","setView"].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display="none"; }); }
+function hideAllViews(){ ["resvView","custView","dashView","reviewView","setView","acqView","usersView"].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display="none"; }); }
 function setActiveNav(el){ var bs=document.querySelectorAll("#nav button"); for(var i=0;i<bs.length;i++) bs[i].classList.toggle("active", bs[i]===el); }
+// owner/admin のときだけ「📣集客」「👥ユーザー管理」ナビを出す（IS_MANAGER は initResvStoreBar が設定）
+function applyManagerNav(){ var bs=document.querySelectorAll(".nav-mgr"); for(var i=0;i<bs.length;i++) bs[i].style.display = window.IS_MANAGER ? "" : "none"; }
 
 // ===== ログイン画面の再表示（各タブのエラーフックから呼ばれる）=====
 function showLogin(msg){ var ov=document.getElementById("login"); if(ov) ov.style.display="flex"; var e=document.getElementById("lerr"); if(e&&msg) e.textContent=msg; }
@@ -912,6 +1100,7 @@ function initResvStoreBar(){
     var me = (rows && rows[0]) || null;
     // ★owner/admin か＝全タブ共通の編集権限フラグ（顧客カルテ等が参照）。
     window.IS_MANAGER = !!(me && (me.role === 'owner' || me.role === 'admin'));
+    if (typeof applyManagerNav === 'function') applyManagerNav();   // 集客/ユーザー管理ナビの出し分け
     var bar = document.getElementById('resvStoreBar');
     if (!bar) return;
     bar.style.display = window.IS_MANAGER ? '' : 'none';   // staff：自店固定（RLSが自店だけを返す）
@@ -1012,7 +1201,10 @@ function showCustomers(el){
 /* 顧客アイデンティティ：line_uid 優先、無ければ 名前+電話。 */
 function crmCKey(lineUid, name, phone){
   if (lineUid) return String(lineUid);
-  return 'nm:' + String(name||'') + '|' + String(phone||'');
+  // ★LINE未連携は「名前（全角/半角スペース除去）」でまとめる。
+  //   例：山田花子 の複数予約（電話番号が空/不一致でも）を1人に集約。
+  //   同名別人は稀なため許容（電話での厳密分離は将来対応）。
+  return 'nm:' + String(name||'').replace(/[\s　]+/g, '');
 }
 
 /* ===== 一覧の取得 =====
@@ -2166,6 +2358,7 @@ function setLoadMenus(){
           +   '<div class="set-acts">'
           +     '<button type="button" class="set-btn set-primary" data-act="msave" data-mid="'+mid+'">💾 保存</button>'
           +     '<button type="button" class="set-btn set-ghost" data-act="mcancel" data-mid="'+mid+'">やめる</button>'
+          +     '<button type="button" class="set-btn set-ghost" data-act="mdel" data-mid="'+mid+'" style="color:#c2410c">🗑 削除</button>'
           +   '</div>'
           + '</div></div>';
       });
@@ -2208,6 +2401,21 @@ function setAddMenu(){
     .catch(function(err){ if (setHandleAuth(err)) return; setMsg('set-menuMsg', setReason(err), false); });
 }
 
+/* メニュー削除。予約や担当割り当てで使われていると外部キー制約で削除不可→停止を案内。 */
+function setDeleteMenu(mid){
+  if (!window.confirm('このメニューを削除しますか？\n（予約や担当割り当てで使われている場合は削除できません。その場合は「停止」にしてください）')) return;
+  sbDelete('menus','id=eq.'+encodeURIComponent(mid))
+    .then(function(){ setMsg('set-menuMsg','✅ 削除しました。', true); setLoadMenus(); })
+    .catch(function(err){
+      if (setHandleAuth(err)) return;
+      var raw = String(err&&err.message||err);
+      var m = /foreign key|violates|23503/i.test(raw)
+        ? 'このメニューは予約や担当割り当てで使われているため削除できません。「停止」にしてください。'
+        : setReason(err);
+      setMsg('set-menuMsg', m, false);
+    });
+}
+
 /* ============================================================================
    3) アーティスト
    artists（name, qualification, specialty, career, nomination_fee, is_active）一覧→編集／停止トグル。
@@ -2222,7 +2430,22 @@ function setLoadArtists(){
   }).then(function(rows){
     rows = rows || [];
     var h = '';
-    if (!rows.length){ h += '<div class="set-ph">アーティストがまだいません。</div>'; }
+    // ★新規アーティスト追加フォーム（オーナー/管理者のみ。RLS manager_write_artists が権限判定）
+    h += '<div class="set-card set-addcard">'
+      + '<div class="set-acts"><button type="button" class="set-btn set-primary" data-act="aaddtoggle">＋ 新規アーティストを追加</button></div>'
+      + '<div class="set-edit" id="set-aaddform">'
+      +   '<label>名前（表示名・必須）</label><input type="text" id="set-aaname" placeholder="例）遠山（uta）">'
+      +   '<label>資格</label><input type="text" id="set-aaqual" placeholder="例）看護師">'
+      +   '<label>得意・専門</label><input type="text" id="set-aaspec" placeholder="例）眉・リップ">'
+      +   '<label>経歴</label><input type="text" id="set-aacareer" placeholder="">'
+      +   '<label>指名料（円・空欄で無し）</label><input type="number" inputmode="numeric" id="set-aafee" placeholder="">'
+      +   '<div class="set-acts">'
+      +     '<button type="button" class="set-btn set-primary" data-act="aaddsave">💾 追加する</button>'
+      +     '<button type="button" class="set-btn set-ghost" data-act="aaddcancel">やめる</button>'
+      +   '</div>'
+      +   '<div class="set-note" style="margin-top:6px">※ 追加後、予約ページに出すには「アーティスト × メニュー」の担当割り当て（施術時間）が必要です（次の改善で対応予定）。</div>'
+      + '</div></div>';
+    if (!rows.length){ h += '<div class="set-ph">登録済みアーティストはまだいません。</div>'; }
     rows.forEach(function(a){
       var aid = esc(a.id);
       h += '<div class="set-card'+(a.is_active?'':' set-off')+'" data-aid="'+aid+'">'
@@ -2278,6 +2501,28 @@ function setToggleArtist(aid, to){
   if (!active && !window.confirm('このアーティストを予約導線から外します（停止）。よろしいですか？\n※登録データは残ります。いつでも再稼働できます。')) return;
   sbUpdate('artists','id=eq.'+encodeURIComponent(aid), { is_active: active })
     .then(function(){ setLoadArtists(); })
+    .catch(function(err){ if (setHandleAuth(err)) return; setMsg('set-artistMsg', setReason(err), false); });
+}
+
+/* 新規アーティストを追加（artists に insert）。tenant_id=TENANT_ID／store_id=現在店舗。manager のみ RLS が許可。 */
+function setAddArtist(){
+  var name = (((document.getElementById('set-aaname')||{}).value)||'').trim();
+  if (!name){ setMsg('set-artistMsg','名前を入力してください。', false); return; }
+  var fee = (document.getElementById('set-aafee')||{}).value;
+  var nFee = (fee==='') ? null : parseInt(fee,10);
+  if (nFee!=null && (isNaN(nFee)||nFee<0)){ setMsg('set-artistMsg','指名料は0以上の半角数字で入力してください。', false); return; }
+  // 店舗を解決（設定タブに店舗セレクタが無いので現在slug→無ければ久留米店を既定）
+  var storeId = storeIdForSlug(currentStoreSlug());
+  if (!storeId && STORE_MAP && STORE_MAP.kurume) storeId = STORE_MAP.kurume.id;
+  var row = {
+    tenant_id: TENANT_ID, store_id: storeId || null, name: name,
+    qualification: (((document.getElementById('set-aaqual')||{}).value)||'').trim() || null,
+    specialty:     (((document.getElementById('set-aaspec')||{}).value)||'').trim() || null,
+    career:        (((document.getElementById('set-aacareer')||{}).value)||'').trim() || null,
+    nomination_fee: nFee, is_active: true
+  };
+  sbInsert('artists', row)
+    .then(function(){ setMsg('set-artistMsg','✅ アーティストを追加しました。', true); setLoadArtists(); })
     .catch(function(err){ if (setHandleAuth(err)) return; setMsg('set-artistMsg', setReason(err), false); });
 }
 
@@ -2515,10 +2760,14 @@ function setMsg(id, text, ok){
     if (act === 'maddtoggle'){ var maf = document.getElementById('set-maddform'); if (maf) maf.classList.toggle('set-open'); return; }
     if (act === 'maddcancel'){ var maf2 = document.getElementById('set-maddform'); if (maf2) maf2.classList.remove('set-open'); return; }
     if (act === 'maddsave'){ setAddMenu(); return; }
+    if (act === 'mdel'){ setDeleteMenu(b.getAttribute('data-mid')); return; }
     // アーティスト
     if (act === 'aedit'){ var ae = document.getElementById('set-aedit-'+b.getAttribute('data-aid')); if (ae) ae.classList.add('set-open'); return; }
     if (act === 'acancel'){ var ac = document.getElementById('set-aedit-'+b.getAttribute('data-aid')); if (ac) ac.classList.remove('set-open'); return; }
     if (act === 'asave'){ setSaveArtist(b.getAttribute('data-aid')); return; }
+    if (act === 'aaddtoggle'){ var aaf = document.getElementById('set-aaddform'); if (aaf) aaf.classList.toggle('set-open'); return; }
+    if (act === 'aaddcancel'){ var aaf2 = document.getElementById('set-aaddform'); if (aaf2) aaf2.classList.remove('set-open'); return; }
+    if (act === 'aaddsave'){ setAddArtist(); return; }
     if (act === 'atoggle'){ setToggleArtist(b.getAttribute('data-aid'), b.getAttribute('data-to')); return; }
     // 受付時間
     if (act === 'sedit'){ var se = document.getElementById('set-sedit-'+b.getAttribute('data-store')); if (se) se.classList.add('set-open'); return; }
@@ -2531,6 +2780,760 @@ function setMsg(id, text, ok){
     if (act === 'shdelex'){ var row = b.closest('.set-ex-row'); if (row) row.remove(); return; }
     if (act === 'shsave'){ setSaveShift(b.getAttribute('data-aid')); return; }
   });
+})();
+
+/* ===== acq タブ JS ===== */
+/* ============================================================================
+   集客（流入経路）タブ（Supabase版）JS — owner/admin 専用
+   ・GAS版 src/admin.html の集客(acqView)を踏襲。
+   ・共有グローバル（poc/admin.html に既存。再定義しない）：
+     SB_URL,SB_KEY,TENANT_ID,TOKEN,hdr(),sbGet,sbRpc,sbInsert,sbUpdate,sbDelete,
+     esc(),ymd(),hhmm(),currentStoreSlug,storeIdForSlug,ensureStoreMap,STORE_MAP,
+     hideAllViews(),setActiveNav(),showLogin(),window.IS_MANAGER。
+   ・スキーマ②：ref_sources（RLSが manager＋自テナントに絞る）／RPC add_ref_source・ref_stats。
+   ・XSS対策：innerHTML へ入れる値は必ず esc()。操作は data-* ＋イベント委譲（インライン
+     onclick に動的値を文字列連結しない）。
+   ・権限：RPC/RLS が forbidden を返したら「オーナー／管理者のみ利用できます」を日本語表示。
+     !TOKEN は showLogin()。null/空配列で落ちない。
+   ============================================================================ */
+
+/* 予約ページのベースURL（?ref=タグ を付けて配布する） */
+var BOOKING_URL = 'https://ikuno-isc.github.io/clinic-booking/new.html';
+var ACQ_PERIOD = 'this_month';
+
+/* ===== 表示切替（必須パターン）。hideAllViews → setActiveNav → 表示 → 読込 ===== */
+function showAcq(el){
+  hideAllViews();
+  if(el) setActiveNav(el);
+  var v = document.getElementById('acqView');
+  if(v) v.style.display = '';
+  acqSetMsg('');
+  loadAcqList();
+  loadAcqStats();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+/* hideAllViews() は acqView を知らない（共有定義は変更しない契約）。
+   他タブのナビが押されたら acqView を確実に隠す自己完結ガード。 */
+(function bindAcqNavHide(){
+  function onNavClick(e){
+    var btn = e.target.closest('#nav button');
+    if(!btn) return;
+    // 集客タブ自身のボタン（showAcq を呼ぶ）なら隠さない
+    var oc = btn.getAttribute('onclick') || '';
+    if(/showAcq/.test(oc)) return;
+    var v = document.getElementById('acqView');
+    if(v) v.style.display = 'none';
+  }
+  var nav = document.getElementById('nav');
+  if(nav) nav.addEventListener('click', onNavClick);
+  else document.addEventListener('click', onNavClick);
+})();
+
+/* DBの raise/PostgREST エラーを日本語へ。manager 権限拒否を最優先で判定。 */
+function acqReason(err){
+  var r = String((err && err.message) || err || '');
+  if(/forbidden_manager|forbidden|permission denied|row-level security|violates row-level|RLS|42501|not authorized/i.test(r))
+    return 'オーナー／管理者のみ利用できます';
+  if(/duplicate_tag/i.test(r)) return '同じタグが既にあります。別の表示名にしてください';
+  if(/label_required/i.test(r)) return '表示名を入力してください';
+  if(/JWT|token|expired|invalid_grant|401/i.test(r)) return 'もう一度ログインしてください';
+  return r || '処理に失敗しました';
+}
+
+/* TOKEN 切れなら再ログイン画面。true を返したら以降の処理は中断する。 */
+function acqNeedsLogin(){
+  if(!TOKEN){ if(typeof showLogin==='function') showLogin('もう一度ログインしてください。'); return true; }
+  return false;
+}
+
+/* 追加フォーム下のメッセージ */
+function acqSetMsg(t, ok){
+  var el = document.getElementById('acqMsg');
+  if(!el) return;
+  el.textContent = t || '';
+  el.className = 'acq-msg' + (t ? (ok ? ' ok' : ' ng') : '');
+}
+
+/* 表示名 → 英数字スラッグ（サーバ add_ref_source の正規化に合わせる）。
+   [^a-z0-9-] を除去・小文字化・先頭末尾ハイフン除去。空なら 'ref'+短い乱数。 */
+function acqSlugify(label){
+  var s = String(label || '').toLowerCase();
+  s = s.replace(/\s+/g, '-');                 // 空白はハイフンに
+  s = s.replace(/[^a-z0-9-]/g, '');           // 英数字とハイフン以外を除去
+  s = s.replace(/^-+|-+$/g, '');              // 先頭末尾のハイフン除去
+  s = s.replace(/-{2,}/g, '-');               // 連続ハイフンを1つに
+  if(!s) s = 'ref' + acqRandToken(6);
+  return s;
+}
+
+/* crypto.getRandomValues で英数字の短い乱数。無ければ単純フォールバック。 */
+function acqRandToken(n){
+  n = n || 6;
+  var chars = 'abcdefghijklmnopqrstuvwxyz0123456789', out = '';
+  try{
+    if(window.crypto && window.crypto.getRandomValues){
+      var buf = new Uint8Array(n);
+      window.crypto.getRandomValues(buf);
+      for(var i=0;i<n;i++){ out += chars[buf[i] % chars.length]; }
+      return out;
+    }
+  }catch(e){ /* フォールバックへ */ }
+  for(var j=0;j<n;j++){ out += chars[Math.floor(Math.random()*chars.length)]; }
+  return out;
+}
+
+/* 1つの ref_sources 行から ?ref=タグ 付きの予約リンクを組み立てる */
+function acqBookingUrl(tag){
+  return BOOKING_URL + '?ref=' + encodeURIComponent(tag || '');
+}
+
+/* ===== ① 流入元リンク一覧 ===== */
+function loadAcqList(){
+  var box = document.getElementById('acqList');
+  if(!box) return;
+  box.innerHTML = '<div class="placeholder">読み込み中…</div>';
+  sbGet('ref_sources?select=id,label,tag,is_shown,created_at&order=created_at.desc')
+    .then(function(rows){ renderAcqList(rows || []); })
+    .catch(function(err){
+      if(acqNeedsLogin()) return;
+      box.innerHTML = '<div class="placeholder">取得に失敗しました<br>'+esc(acqReason(err))+'</div>';
+    });
+}
+
+/* 一覧描画。値は全て esc()、操作は data-*。リンクは readonly input＋コピー。 */
+function renderAcqList(rows){
+  var box = document.getElementById('acqList');
+  if(!box) return;
+  if(!rows.length){
+    box.innerHTML = '<div class="placeholder">まだ流入元がありません。下の「流入元を追加」で作成してください。</div>';
+    return;
+  }
+  box.innerHTML = rows.map(function(s){
+    var shown = (s.is_shown !== false);
+    var id  = esc(s.id);
+    var url = acqBookingUrl(s.tag);
+    return '<div class="acq-card'+(shown?'':' off')+'">'
+      + '<div><span class="ac-label">'+esc(s.label)+'</span><span class="ac-tag">'+esc(s.tag)+'</span></div>'
+      + '<div class="acq-url">'
+        + '<input type="text" readonly value="'+esc(url)+'" onclick="this.select()">'
+        + '<button type="button" class="acq-btn copy" data-aq="copy" data-url="'+esc(url)+'">コピー</button>'
+      + '</div>'
+      + '<div class="acq-actions">'
+        + '<button type="button" class="acq-btn ghost" data-aq="'+(shown?'hide':'show')+'" data-id="'+id+'">'+(shown?'⏸ 非表示にする':'▶️ 表示する')+'</button>'
+        + '<button type="button" class="acq-btn ghost" data-aq="del" data-id="'+id+'">🗑 削除</button>'
+      + '</div></div>';
+  }).join('');
+}
+
+/* ===== ② 流入元を追加 ===== */
+function addRefSource(){
+  var el = document.getElementById('acqLabel');
+  var label = el ? el.value.trim() : '';
+  if(!label){ acqSetMsg('表示名を入力してください。'); return; }
+
+  var tag = acqSlugify(label);   // クライアントでスラッグ生成（サーバ側でも正規化・重複検査）
+  var btn = document.getElementById('acqAddBtn');
+  if(btn){ btn.disabled = true; btn.textContent = '発行中…'; }
+  acqSetMsg('発行中…', true);
+
+  sbRpc('add_ref_source', { p_label: label, p_tag: tag })
+    .then(function(){
+      if(btn){ btn.disabled = false; btn.textContent = '＋ 追加してリンク発行'; }
+      acqSetMsg('✅ 追加してリンクを発行しました', true);
+      if(el) el.value = '';
+      loadAcqList();
+    })
+    .catch(function(err){
+      if(btn){ btn.disabled = false; btn.textContent = '＋ 追加してリンク発行'; }
+      if(acqNeedsLogin()) return;
+      acqSetMsg('追加できませんでした（' + acqReason(err) + '）。');
+    });
+}
+
+/* ===== 一覧のクリック委譲（注入対策で data-* から取得）===== */
+(function bindAcqListDelegation(){
+  function onAcqListClick(e){
+    var b = e.target.closest('button[data-aq]');
+    if(!b) return;
+    var listEl = document.getElementById('acqList');
+    if(listEl && !listEl.contains(b)) return;   // acqList 配下のみ対象
+    var act = b.getAttribute('data-aq');
+    if(act === 'copy'){ copyAcqUrl(b.getAttribute('data-url'), b); return; }
+    var id = b.getAttribute('data-id');
+    if(!id) return;
+    if(act === 'del'){
+      if(!window.confirm('この流入元を削除しますか？（過去予約の記録は残ります）')) return;
+      runAcqOp(sbDelete('ref_sources', 'id=eq.' + encodeURIComponent(id)));
+    } else if(act === 'hide'){
+      runAcqOp(sbUpdate('ref_sources', 'id=eq.' + encodeURIComponent(id), { is_shown: false }));
+    } else if(act === 'show'){
+      runAcqOp(sbUpdate('ref_sources', 'id=eq.' + encodeURIComponent(id), { is_shown: true }));
+    }
+  }
+  var list = document.getElementById('acqList');
+  if(list) list.addEventListener('click', onAcqListClick);
+  else document.addEventListener('click', onAcqListClick);
+})();
+
+/* 操作の共通後処理：成功で一覧再読込、失敗は日本語表示 */
+function runAcqOp(promise){
+  promise
+    .then(function(){ loadAcqList(); })
+    .catch(function(err){
+      if(acqNeedsLogin()) return;
+      window.alert('できませんでした（' + acqReason(err) + '）。');
+    });
+}
+
+/* リンクをクリップボードへ。navigator.clipboard が無ければ execCommand フォールバック。 */
+function copyAcqUrl(url, btn){
+  function done(){
+    if(btn){ var t = btn.textContent; btn.textContent = '✓ コピー済'; setTimeout(function(){ btn.textContent = t; }, 1500); }
+  }
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(url).then(done, function(){ acqFallbackCopy(url); done(); });
+    } else { acqFallbackCopy(url); done(); }
+  }catch(e){ acqFallbackCopy(url); done(); }
+}
+function acqFallbackCopy(text){
+  try{
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  }catch(e){ /* コピー不可でも致命でない（リンクは画面に表示済み） */ }
+}
+
+/* ===== ③ 流入分析 ===== */
+/* 期間ラベル */
+function acqPeriodLabel(p){
+  return p === 'this_month' ? '今月'
+       : p === 'last_month' ? '先月'
+       : p === 'this_year'  ? '今年'
+       : p === 'last_6m'    ? '直近6ヶ月' : '';
+}
+
+/* 期間 → [fromISO, toISO)。JST(+09:00) のISO文字列で半開区間 [from, to)。
+   ローカル時刻の年月日から JST 文字列を組み立てる（端末TZに依存しない）。 */
+function acqRange(p){
+  var now = new Date();
+  var y = now.getFullYear(), m = now.getMonth();   // m=0..11
+  function iso(yy, mm, dd){   // mm は 1..12
+    return yy + '-' + ('0'+mm).slice(-2) + '-' + ('0'+dd).slice(-2) + 'T00:00:00+09:00';
+  }
+  if(p === 'this_month'){
+    var n1 = (m === 11) ? { y:y+1, m:1 } : { y:y, m:m+2 };
+    return [ iso(y, m+1, 1), iso(n1.y, n1.m, 1) ];
+  }
+  if(p === 'last_month'){
+    var pm = (m === 0) ? { y:y-1, m:12 } : { y:y, m:m };   // 先月
+    var cm = { y:y, m:m+1 };                               // 今月＝先月の終端
+    return [ iso(pm.y, pm.m, 1), iso(cm.y, cm.m, 1) ];
+  }
+  if(p === 'this_year'){
+    return [ iso(y, 1, 1), iso(y+1, 1, 1) ];
+  }
+  // last_6m：当月を含む直近6ヶ月（=5ヶ月前の1日〜翌月1日）
+  var startM = m - 5;          // 0基準
+  var sy = y, sm = startM;
+  while(sm < 0){ sm += 12; sy -= 1; }
+  var ey = (m === 11) ? y+1 : y, em = (m === 11) ? 1 : m+2;   // 翌月の1日（0基準m+1 → 1..12 は m+2）
+  return [ iso(sy, sm+1, 1), iso(ey, em, 1) ];
+}
+
+function setAcqPeriod(p){
+  ACQ_PERIOD = p;
+  var ts = document.querySelectorAll('#acqView .acq-tab[data-ap]');
+  for(var i=0;i<ts.length;i++){ ts[i].classList.toggle('active', ts[i].getAttribute('data-ap') === p); }
+  loadAcqStats();
+}
+
+function loadAcqStats(){
+  var box = document.getElementById('acqStats');
+  if(!box) return;
+  box.innerHTML = '<div class="placeholder">読み込み中…</div>';
+  var r = acqRange(ACQ_PERIOD);
+  sbRpc('ref_stats', { p_from: r[0], p_to: r[1] })
+    .then(function(rows){ renderAcqStats(Array.isArray(rows) ? rows : [], ACQ_PERIOD); })
+    .catch(function(err){
+      if(acqNeedsLogin()) return;
+      box.innerHTML = '<div class="placeholder">取得に失敗しました<br>'+esc(acqReason(err))+'</div>';
+    });
+}
+
+/* 数値を「¥1,234」表記に（null/NaN は ¥0） */
+function acqYen(n){
+  var v = Number(n);
+  if(!isFinite(v)) v = 0;
+  return '¥' + Math.round(v).toLocaleString('ja-JP');
+}
+
+/* 集計描画：ref 別の件数・来店・売上をバー＋表で表示。reservations 降順は RPC 側で確定済み。 */
+function renderAcqStats(rows, period){
+  var box = document.getElementById('acqStats');
+  if(!box) return;
+  var label = acqPeriodLabel(period);
+  if(!rows.length){
+    box.innerHTML = '<div class="placeholder">'+esc(label)+'：データがありません。<br>追跡リンクから予約が入ると、ここに流入元別の集計が出ます。</div>';
+    return;
+  }
+
+  // バー（予約件数）の最大値で正規化
+  var maxResv = 0, totResv = 0, totVisited = 0, totSales = 0;
+  rows.forEach(function(r){
+    var rv = Number(r.reservations) || 0;
+    if(rv > maxResv) maxResv = rv;
+    totResv += rv;
+    totVisited += (Number(r.visited) || 0);
+    totSales += (Number(r.sales) || 0);
+  });
+  if(maxResv <= 0) maxResv = 1;
+
+  var h = '<div class="acq-hint" style="margin:0 4px 8px">'+esc(label)+'</div>';
+
+  // 予約件数バー
+  h += rows.map(function(r){
+    var rv = Number(r.reservations) || 0;
+    var pct = Math.max(2, Math.round(rv / maxResv * 100));
+    return '<div class="acq-bar-wrap">'
+      + '<span class="acq-bar-name">'+esc(r.ref)+'</span>'
+      + '<span class="acq-bar-track"><span class="acq-bar-fill" style="width:'+pct+'%"></span></span>'
+      + '<span class="acq-bar-val">'+esc(rv)+'件</span>'
+      + '</div>';
+  }).join('');
+
+  // 明細表
+  h += '<table class="acq-tbl" style="margin-top:10px">'
+    + '<tr><th>流入元</th><th>予約</th><th>来店</th><th>売上</th></tr>';
+  h += rows.map(function(r){
+    return '<tr>'
+      + '<td>'+esc(r.ref)+'</td>'
+      + '<td>'+esc(Number(r.reservations) || 0)+'</td>'
+      + '<td>'+esc(Number(r.visited) || 0)+'</td>'
+      + '<td>'+esc(acqYen(r.sales))+'</td>'
+      + '</tr>';
+  }).join('');
+  h += '<tr class="tot"><td>合計</td><td>'+esc(totResv)+'</td><td>'+esc(totVisited)+'</td><td>'+esc(acqYen(totSales))+'</td></tr>';
+  h += '</table>';
+
+  box.innerHTML = h;
+}
+
+/* 集客ナビ（📣集客ボタン）と applyManagerNav は admin.html の土台側が用意するため、
+   ここでの動的注入は不要（二重防止のため削除）。showAcq は下で定義済み。 */
+
+/* ===== users タブ JS ===== */
+/* ============================================================================
+   ユーザー管理タブ（Supabase版）JS — owner/admin 専用
+   ・一覧：sbRpc('list_staff',{}) / 更新：sbRpc('update_staff',{p_id,p_role,p_store,p_active})
+   ・新規発行：Edge Function manage-staff（fetch）。パスワードは画面表示のみ・保存/ログ出力しない。
+   ・共有グローバルは再定義しない：SB_URL,TOKEN,hdr(),sbRpc(),esc(),
+     ensureStoreMap(),STORE_MAP,storeIdForSlug(),hideAllViews(),setActiveNav(),
+     showLogin(),window.IS_MANAGER。
+   ・XSS：innerHTML の動的値は esc()。行内操作は data-* ＋イベント委譲。
+   ============================================================================ */
+
+var USR_ROLE_LABEL = { owner:'オーナー', admin:'管理者', staff:'スタッフ' };
+var USR_ME_UID = '';   // 自分の auth user_id（自分自身の行を保護表示するため）
+
+/* 表示切替（必須パターン）。hideAllViews → setActiveNav → 表示 → 読込 */
+function showUsers(el){
+  if (typeof hideAllViews === 'function') hideAllViews();
+  if (el && typeof setActiveNav === 'function') setActiveNav(el);
+  var v = document.getElementById('usersView');
+  if (v) v.style.display = '';
+  usrAddSetMsg('');
+  usrHidePass();
+  // 権限ガード：manager でないと分かっている場合は即・日本語表示
+  if (typeof window.IS_MANAGER !== 'undefined' && window.IS_MANAGER === false){
+    usrForbidden();
+    if (typeof window !== 'undefined') window.scrollTo({ top:0, behavior:'smooth' });
+    return;
+  }
+  usrFillStoreOptions();   // 担当店舗セレクタ（新規追加用）を STORE_MAP から用意
+  // ★自分情報（user_id・役割）を先に確定してから一覧を出す＝初回から「自分」行の保護表示・owner選択肢が正しく出る
+  var meDone = (typeof SB_URL !== 'undefined' && typeof hdr === 'function' && TOKEN)
+    ? fetch(SB_URL + '/auth/v1/user', { headers: hdr() }).then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(u){ if (u && u.id) USR_ME_UID = u.id; }).catch(function(){})
+    : Promise.resolve();
+  var roleDone = (typeof sbRpc === 'function')
+    ? sbRpc('current_staff', {}).then(function(rows){ var me=(rows&&rows[0])||null; if(me) USR_MY_ROLE_CACHE = me.role || ''; }).catch(function(){})
+    : Promise.resolve();
+  Promise.all([meDone, roleDone]).then(loadStaff);
+  if (typeof window !== 'undefined') window.scrollTo({ top:0, behavior:'smooth' });
+}
+
+/* 権限なし表示（owner/admin 専用） */
+function usrForbidden(){
+  var list = document.getElementById('usrList');
+  if (list) list.innerHTML = '<div class="placeholder">オーナー／管理者のみ利用できます。</div>';
+  var cnt = document.getElementById('usrCount'); if (cnt) cnt.textContent = '';
+  var add = document.querySelector('#usersView .usr-add'); if (add) add.style.display = 'none';
+}
+
+/* RPC/REST/Edge のエラー reason を日本語へ。
+   ★具体的なドメインエラー（forbidden_store 等）を先に判定する。
+     broad な /forbidden|RLS/ を先頭に置くと、'forbidden_store' が 'forbidden' に
+     飲み込まれて誤マッピングするため、具体トークン→broad の順で評価する。 */
+function usrReason(err){
+  var r = String((err && err.message) || err || '');
+  if (/cannot_change_self/i.test(r))        return '自分自身の役割／有効は変更できません';
+  if (/only_owner_edits_owner/i.test(r))    return 'オーナーの変更・無効化はオーナー本人のみ可能です';
+  if (/only_owner_grants_manager/i.test(r)) return 'オーナー／管理者の作成はオーナーのみ可能です';
+  if (/only_owner_grants_owner/i.test(r))   return 'オーナーへの昇格はオーナーのみ可能です';
+  if (/last_owner/i.test(r))                return '最後のオーナーは降格・無効化できません';
+  if (/staff_needs_store/i.test(r))         return '一般スタッフは担当店舗（全店以外）を選んでください';
+  if (/store_not_in_tenant/i.test(r))       return 'この店舗は指定できません（他院の店舗です）';
+  if (/forbidden_store/i.test(r))           return 'この店舗は指定できません（権限外）';
+  if (/bad_role/i.test(r))                  return '役割の指定が正しくありません';
+  if (/staff_not_found/i.test(r))           return '対象のスタッフが見つかりません';
+  if (/email_exists/i.test(r))              return 'このメールは既に登録されています';
+  if (/weak_password/i.test(r))             return 'パスワードは8文字以上にしてください';
+  if (/bad_email/i.test(r))                 return 'メールアドレスの形式が正しくありません';
+  if (/staff_insert_failed|create_failed/i.test(r)) return '作成に失敗しました。入力をご確認ください';
+  // 権限・RLS（broad な catch-all）。具体トークンの後に判定する。
+  if (/forbidden_manager|forbidden|permission denied|row-level security|violates row-level|RLS|42501|not authorized/i.test(r)) return 'オーナー／管理者のみ利用できます';
+  if (/JWT|token|expired|invalid_grant|401|invalid_token|no_auth/i.test(r)) return 'もう一度ログインしてください';
+  return r || '処理に失敗しました';
+}
+
+/* 新規追加フォーム下のメッセージ */
+function usrAddSetMsg(t, ok){
+  var el = document.getElementById('usrAddMsg');
+  if (!el) return;
+  el.textContent = t || '';
+  el.className = 'usr-msg' + (t ? (ok ? ' ok' : ' ng') : '');
+}
+
+/* store_id(uuid) → 店名。null は「全店」 */
+function usrStoreName(storeId){
+  if (!storeId) return '全店';
+  if (STORE_MAP){
+    for (var k in STORE_MAP){ if (STORE_MAP[k] && STORE_MAP[k].id === storeId) return STORE_MAP[k].name || k; }
+  }
+  return '店舗';
+}
+
+/* 新規追加フォームの担当店舗セレクタを STORE_MAP から生成。先頭は「全店」(値 all → null) */
+function usrFillStoreOptions(){
+  var sel = document.getElementById('usrStore');
+  if (!sel) return;
+  ensureStoreMap().then(function(){
+    var cur = sel.value;
+    var opts = '<option value="all">🏢 全店</option>';
+    if (STORE_MAP){
+      for (var k in STORE_MAP){
+        opts += '<option value="' + esc(k) + '">' + esc(STORE_MAP[k].name || k) + '</option>';
+      }
+    }
+    sel.innerHTML = opts;
+    if (cur) sel.value = cur;
+  }).catch(function(){ /* 店舗が取れなくても「全店」だけで発行可能 */ });
+}
+
+/* 一覧取得：sbRpc('list_staff',{}) */
+function loadStaff(){
+  var list = document.getElementById('usrList');
+  if (!list) return;
+  list.innerHTML = '<div class="placeholder">読み込み中…</div>';
+  ensureStoreMap().catch(function(){ /* 店名解決できなくても一覧は出す */ }).then(function(){
+    return sbRpc('list_staff', {});
+  }).then(function(rows){
+    renderStaff(rows || []);
+  }).catch(function(err){
+    if (!TOKEN){ if (typeof showLogin === 'function') showLogin('もう一度ログインしてください。'); return; }
+    var r = usrReason(err);
+    if (r === 'オーナー／管理者のみ利用できます'){ usrForbidden(); return; }
+    list.innerHTML = '<div class="placeholder">取得に失敗しました<br>' + esc(r) + '</div>';
+  });
+}
+
+/* 役割 select の options（owner は自分が owner のときだけ。target 値も保持） */
+function usrRoleOptions(current, selfRole){
+  var roles = ['staff','admin'];
+  // owner オプションは「自分が owner」か「対象が既に owner」のときのみ出す
+  if (selfRole === 'owner' || current === 'owner') roles.push('owner');
+  if (roles.indexOf(current) < 0) roles.unshift(current); // 不明値でも現状を保持
+  return roles.map(function(r){
+    return '<option value="' + esc(r) + '"' + (r === current ? ' selected' : '') + '>' + esc(USR_ROLE_LABEL[r] || r) + '</option>';
+  }).join('');
+}
+
+/* 担当店舗 select の options（全店＝all、各店舗＝slug）。current は store_id(uuid) or null */
+function usrStoreOptions(currentStoreId){
+  var opts = '<option value="all"' + (!currentStoreId ? ' selected' : '') + '>🏢 全店</option>';
+  if (STORE_MAP){
+    for (var k in STORE_MAP){
+      var sel = (STORE_MAP[k] && STORE_MAP[k].id === currentStoreId) ? ' selected' : '';
+      opts += '<option value="' + esc(k) + '"' + sel + '>' + esc(STORE_MAP[k].name || k) + '</option>';
+    }
+  }
+  return opts;
+}
+
+/* 一覧描画。値は全て esc()。操作は data-* ＋イベント委譲 */
+function renderStaff(rows){
+  var cnt = document.getElementById('usrCount');
+  if (cnt) cnt.textContent = '登録 ' + rows.length + '名';
+  var list = document.getElementById('usrList');
+  if (!list) return;
+  if (!rows.length){
+    list.innerHTML = '<div class="placeholder">スタッフがいません。上のフォームから追加してください。</div>';
+    return;
+  }
+  // 自分の user_id（list_staff の自分行を判定）。複数 owner/admin でも自分だけ保護表示。
+  list.innerHTML = rows.map(function(u){
+    var id      = esc(u.id);
+    var role    = (u.role === 'owner' || u.role === 'admin') ? u.role : 'staff';
+    var active  = (u.is_active !== false);
+    var isSelf  = (USR_ME_UID && u.user_id && u.user_id === USR_ME_UID);
+    var roleBadge = '<span class="usr-badge usr-' + esc(role) + '">' + esc(USR_ROLE_LABEL[role] || role) + '</span>';
+    var statBadge = active
+      ? '<span class="usr-stat on">有効</span>'
+      : '<span class="usr-stat off">無効</span>';
+    // 自分の行の role select の「現状役割」を update_staff の自己保護に渡すため data に持たせる
+    return '<div class="usr-card' + (active ? '' : ' usr-off') + '" data-usr-id="' + id + '" data-usr-self="' + (isSelf ? '1' : '0') + '" data-usr-role="' + esc(role) + '">'
+      + '<div class="usr-top">'
+        + '<span class="usr-mail">' + esc(u.email || '（メール未設定）') + '</span>'
+        + roleBadge + statBadge
+        + '<span class="usr-store">' + esc(usrStoreName(u.store_id)) + '</span>'
+        + (isSelf ? '<span class="usr-self">（あなた）</span>' : '')
+      + '</div>'
+      + (u.display_name ? '<div class="usr-name">' + esc(u.display_name) + '</div>' : '')
+      + '<div class="usr-edit">'
+        + '<div class="usr-f"><label>役割</label><select data-usr-field="role">' + usrRoleOptions(role, USR_MY_ROLE()) + '</select></div>'
+        + '<div class="usr-f"><label>担当店舗</label><select data-usr-field="store">' + usrStoreOptions(u.store_id || null) + '</select></div>'
+      + '</div>'
+      + '<div class="usr-acts">'
+        + '<button type="button" class="usr-btn usr-primary" data-usr-act="save" data-usr-id="' + id + '">保存</button>'
+        + (isSelf
+            ? '<button type="button" class="usr-btn usr-ghost" disabled>自分は無効化できません</button>'
+            : '<button type="button" class="usr-btn ' + (active ? 'usr-danger' : 'usr-ghost') + '" data-usr-act="toggle" data-usr-id="' + id + '" data-usr-active="' + (active ? '1' : '0') + '">'
+              + (active ? '無効にする' : '有効にする') + '</button>')
+      + '</div>'
+      + '<div class="usr-rowmsg" data-usr-rowmsg="' + id + '"></div>'
+    + '</div>';
+  }).join('');
+}
+
+/* 自分の役割（owner昇格可否の判定用）。IS_MANAGER だけでは owner/admin の別が分からないので
+   list_staff の自分行から拾う。取れなければ admin 扱い（owner オプションは出さない安全側）。 */
+var USR_MY_ROLE_CACHE = '';
+function USR_MY_ROLE(){ return USR_MY_ROLE_CACHE || 'admin'; }
+
+/* 行メッセージ */
+function usrRowMsg(id, t, ok){
+  var el = document.querySelector('[data-usr-rowmsg="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
+  if (!el){
+    // CSS.escape 非対応環境のフォールバック（属性走査）
+    var all = document.querySelectorAll('[data-usr-rowmsg]');
+    for (var i=0;i<all.length;i++){ if (all[i].getAttribute('data-usr-rowmsg') === id){ el = all[i]; break; } }
+  }
+  if (!el) return;
+  el.textContent = t || '';
+  el.className = 'usr-rowmsg' + (t ? (ok ? ' ok' : ' ng') : '');
+}
+
+/* 一覧のクリック委譲（注入対策で data-* から取得）。保存・有効/無効トグル */
+(function bindUsrListDelegation(){
+  function onClick(e){
+    var btn = e.target.closest('button[data-usr-act]');
+    if (!btn) return;
+    var listEl = document.getElementById('usrList');
+    if (listEl && !listEl.contains(btn)) return;
+    var act = btn.getAttribute('data-usr-act');
+    var id  = btn.getAttribute('data-usr-id');
+    if (!id) return;
+    var card = btn.closest('.usr-card'); if (!card) return;
+
+    if (act === 'save'){
+      usrSaveRow(card, id, btn);
+    } else if (act === 'toggle'){
+      var toActive = btn.getAttribute('data-usr-active') !== '1';  // 今が有効なら無効化
+      var q = toActive ? 'このスタッフを「有効」にしますか？' : 'このスタッフを「無効」にしますか？\n（ログインできなくなります）';
+      if (!window.confirm(q)) return;
+      usrSaveRow(card, id, btn, { activeOverride: toActive });
+    }
+  }
+  var list = document.getElementById('usrList');
+  if (list) list.addEventListener('click', onClick);
+  else document.addEventListener('click', onClick);
+})();
+
+/* 1行の役割・担当店舗・有効を update_staff で一括更新。
+   ・p_store：'all'→null（全店）／slug→storeIdForSlug。slug 解決不可なら中止（無言で全店化しない）。
+   ・p_active：トグル時は override、通常保存は現状維持（カードの data-usr-active が無いのでnull→DB側 coalesce）。 */
+function usrSaveRow(card, id, btn, opt){
+  opt = opt || {};
+  var roleSel  = card.querySelector('select[data-usr-field="role"]');
+  var storeSel = card.querySelector('select[data-usr-field="store"]');
+  var role  = roleSel ? roleSel.value : 'staff';
+  var slug  = storeSel ? storeSel.value : 'all';
+
+  var storeId;
+  if (!slug || slug === 'all'){
+    storeId = null;                       // 全店
+  } else {
+    storeId = storeIdForSlug(slug);
+    if (!storeId){ usrRowMsg(id, '店舗情報を読み込めませんでした。少し待ってからお試しください。'); return; }
+  }
+  // ★一般スタッフは担当店舗が必須（全店だと予約が見えない）。DB側 update_staff も同じ制約。
+  if (role === 'staff' && !storeId){
+    usrRowMsg(id, '一般スタッフは担当店舗（全店以外）を選んでください。'); return;
+  }
+
+  // 有効フラグ：トグル時のみ明示。通常保存は null（DB側 coalesce で現状維持）。
+  var pActive = (typeof opt.activeOverride === 'boolean') ? opt.activeOverride : null;
+
+  btn.disabled = true;
+  var label = btn.textContent; btn.textContent = '保存中…';
+  usrRowMsg(id, '保存中…', true);
+
+  sbRpc('update_staff', { p_id: id, p_role: role, p_store: storeId, p_active: pActive })
+    .then(function(){
+      usrRowMsg(id, '✅ 保存しました', true);
+      loadStaff();   // 一覧を再読込（バッジ・状態を最新化）
+    })
+    .catch(function(err){
+      btn.disabled = false; btn.textContent = label;
+      if (!TOKEN){ if (typeof showLogin === 'function') showLogin('もう一度ログインしてください。'); return; }
+      usrRowMsg(id, '保存できませんでした（' + usrReason(err) + '）');
+    });
+}
+
+/* ============================================================================
+   新規スタッフ追加（ログイン発行）— Edge Function manage-staff を呼ぶ
+   ============================================================================ */
+
+/* 強めのパスワードを自動生成（英大小・数字・記号から12文字程度）。crypto 優先、無ければフォールバック。 */
+function usrGenPass(){
+  var cs = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%&*?';
+  var n = 12, out = '';
+  if (window.crypto && crypto.getRandomValues){
+    var rnd = crypto.getRandomValues(new Uint32Array(n));
+    for (var i=0;i<n;i++) out += cs.charAt(rnd[i] % cs.length);
+  } else {
+    for (var j=0;j<n;j++) out += cs.charAt(Math.floor(Math.random() * cs.length));
+  }
+  var inp = document.getElementById('usrPass');
+  if (inp) inp.value = out;
+  usrShowPass(out);   // 発行値を見せる（コピーして本人へ）
+  usrAddSetMsg('');
+}
+
+/* 発行したパスワードを画面に表示（保存・ログ出力はしない。表示のみ）。 */
+function usrShowPass(pw){
+  var box = document.getElementById('usrShown');
+  if (!box) return;
+  box.innerHTML = '🔑 発行した暗証番号：<code>' + esc(pw) + '</code><br>'
+    + 'コピーして本人に安全にお伝えください（この画面以外には保存されません）。';
+  box.className = 'usr-shown usr-open';
+}
+function usrHidePass(){
+  var box = document.getElementById('usrShown');
+  if (box){ box.innerHTML = ''; box.className = 'usr-shown'; }
+}
+
+/* 追加 → Edge Function manage-staff を fetch。成功で一覧再読込・本人へ伝える旨を表示。 */
+function usrAddStaff(){
+  var email = (document.getElementById('usrEmail').value || '').trim();
+  var name  = (document.getElementById('usrName').value || '').trim();
+  var role  = document.getElementById('usrRole').value || 'staff';
+  var slug  = document.getElementById('usrStore').value || 'all';
+  var pass  = document.getElementById('usrPass').value || '';
+
+  if (!email){ usrAddSetMsg('メールアドレスを入力してください。'); return; }
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ usrAddSetMsg('メールアドレスの形式が正しくありません。'); return; }
+  if (!pass || pass.length < 8){ usrAddSetMsg('パスワードは8文字以上にしてください（🎲自動発行が安全です）。'); return; }
+
+  // 担当店舗 slug → uuid（'all'→null＝全店）。slug 指定なのに解決できなければ中止。
+  var storeId = null;
+  if (slug && slug !== 'all'){
+    storeId = storeIdForSlug(slug);
+    if (!storeId){ usrAddSetMsg('店舗情報を読み込めませんでした。少し待ってからお試しください。'); return; }
+  }
+  // ★一般スタッフは担当店舗が必須（全店だと予約が見えない）。DB/Edge Function 側も同じ制約。
+  if (role === 'staff' && !storeId){ usrAddSetMsg('一般スタッフは担当店舗（全店以外）を選んでください。'); return; }
+
+  var payload = {
+    email: email,
+    password: pass,
+    role: role,
+    store_id: storeId,                 // null = 全店
+    display_name: name || null
+  };
+
+  var btn = document.getElementById('usrAddBtn');
+  btn.disabled = true; var label = btn.textContent; btn.textContent = '発行中…';
+  usrAddSetMsg('発行中…', true);
+
+  if (!TOKEN){
+    btn.disabled = false; btn.textContent = label;
+    if (typeof showLogin === 'function') showLogin('もう一度ログインしてください。');
+    return;
+  }
+
+  fetch(SB_URL + '/functions/v1/manage-staff', {
+    method: 'POST',
+    headers: Object.assign({ 'Content-Type':'application/json' }, hdr()),
+    body: JSON.stringify(payload)
+  })
+  .then(function(res){
+    return res.text().then(function(t){
+      var j = null; try { j = t ? JSON.parse(t) : null; } catch (e) {}
+      return { ok: res.ok, status: res.status, body: j };
+    });
+  })
+  .then(function(r){
+    btn.disabled = false; btn.textContent = label;
+    var b = r.body || {};
+    if (r.ok && b.ok && b.user_id){
+      usrAddSetMsg('✅ 発行しました。メールアドレスと暗証番号（パスワード）を本人にお伝えください。', true);
+      usrShowPass(pass);                 // 発行値を確認用に表示（パスワードは保存しない）
+      document.getElementById('usrEmail').value = '';
+      document.getElementById('usrName').value  = '';
+      document.getElementById('usrPass').value  = '';   // 入力欄はクリア（表示ボックスだけ残す）
+      loadStaff();
+      return;
+    }
+    // 失敗：reason を日本語化
+    var reason = b.reason || ('HTTP ' + r.status);
+    usrAddSetMsg('発行できませんでした（' + usrReason(reason) + '）。');
+  })
+  .catch(function(err){
+    btn.disabled = false; btn.textContent = label;
+    usrAddSetMsg('発行できませんでした（' + usrReason(err) + '）。通信状況をご確認ください。');
+  });
+}
+
+/* 起動時：自分の user_id と役割を current_staff から拾い、自己保護表示・owner昇格可否に使う。
+   ※ current_staff() は (tenant_id, store_id, role) のみで user_id を返さないため、
+     自分の auth user_id は /auth/v1/user から取得する。
+   失敗しても一覧は出る（その場合 owner オプションは安全側で非表示）。 */
+(function usrInitMe(){
+  function pull(){
+    if (typeof sbRpc !== 'function') return;
+    sbRpc('current_staff', {}).then(function(rows){
+      var me = (rows && rows[0]) || null;
+      if (me){
+        USR_MY_ROLE_CACHE = me.role || '';
+        // current_staff は user_id を返さない構成のため auth から拾う（下記・任意・失敗無視）
+      }
+    }).catch(function(){ /* 取れなくても可 */ });
+    // 自分の auth user_id（list_staff の自分行判定用）。失敗しても致命でない。
+    if (typeof SB_URL !== 'undefined' && typeof hdr === 'function' && TOKEN){
+      fetch(SB_URL + '/auth/v1/user', { headers: hdr() })
+        .then(function(res){ return res.ok ? res.json() : null; })
+        .then(function(u){ if (u && u.id) USR_ME_UID = u.id; })
+        .catch(function(){ /* 無視 */ });
+    }
+  }
+  // TOKEN が後から入る場合に備え、軽く遅延しても拾えるよう showUsers 側でも参照する。
+  if (typeof TOKEN !== 'undefined' && TOKEN) pull();
+  else if (typeof document !== 'undefined') document.addEventListener('click', function once(){ if (TOKEN){ pull(); document.removeEventListener('click', once); } });
 })();
 </script>
 </body>
