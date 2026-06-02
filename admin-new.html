@@ -3,18 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>予約管理（スタッフ用・Supabase版）</title>
+<title>管理ダッシュボード（Supabase版）</title>
 <style>
 
   :root{ --g:#0b5c55; --line:#e6eceb; --sub:#889; }
   *{box-sizing:border-box}
   body{margin:0;background:#f4f6f8;color:#222;font-family:-apple-system,"Hiragino Sans","Yu Gothic",sans-serif;}
   .wrap{max-width:760px;margin:0 auto;background:#fff;min-height:100vh;}
-  .hd{background:var(--g);color:#fff;padding:16px 18px;}
+  .hd{background:var(--g);color:#fff;padding:14px 18px;}
   .hd h1{margin:0;font-size:18px;}
   .speed{display:inline-block;background:#063;color:#bff0d6;font-size:11px;font-weight:700;border-radius:999px;padding:2px 9px;margin-top:7px}
+  /* タブナビ */
+  .nav{display:flex;gap:4px;padding:8px 10px;background:#f4f6f8;overflow-x:auto;position:sticky;top:0;z-index:10;border-bottom:1px solid var(--line);-webkit-overflow-scrolling:touch}
+  .nav button{flex:0 0 auto;padding:8px 12px;border:none;border-radius:8px;background:#eef2f1;color:#557;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap}
+  .nav button.active{background:var(--g);color:#fff}
 
-/* ===== 予約管理タブ（移植）CSS ===== */
+/* ===== 予約管理 タブ CSS ===== */
 /* ============================================================================
    予約管理タブ（Supabase版）CSS — 元 src/admin.html #resvView の見た目を完全再現
    ※ クラス名・配色・余白は原本そのまま。poc/admin.html の <head><style> 末尾に追記する。
@@ -66,11 +70,224 @@
 .resv-storebar{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 .resv-storebar label{font-size:12px;font-weight:700;color:#557}
 .resv-storebar select{flex:1;padding:8px;border:1px solid #d4dbda;border-radius:8px;font-size:13px;background:#fff}
+
+/* ===== customer タブ CSS ===== */
+/* ============================================================================
+   顧客カルテ（CRM）タブ CSS — 接頭辞 .crm- で名前空間を分離（既存 .rcard/.tab/.mb-… と非衝突）
+   GAS版 src/admin.html の一覧＋カルテ体裁を踏襲（配色・余白・絵文字・並び）。
+   ============================================================================ */
+#custView{max-width:760px;margin:0 auto;padding:12px}
+
+/* 一覧（左/上） */
+.crm-listhead{margin-bottom:10px}
+.crm-search{display:flex;align-items:center;gap:8px;background:#f3f4f6;border-radius:10px;padding:8px 10px}
+.crm-search input{border:0;background:transparent;outline:none;font-size:15px;width:100%;font-family:inherit}
+.crm-chips{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.crm-chip{font-size:12px;font-weight:700;padding:5px 11px;border-radius:999px;border:1px solid #e6eceb;background:#fff;color:#889;cursor:pointer;user-select:none}
+.crm-chip.crm-active{background:#0b5c55;color:#fff;border-color:#0b5c55}
+.crm-count{font-size:12px;color:#889;padding:8px 2px 4px}
+
+.crm-list{list-style:none;margin:0;padding:6px 0}
+.crm-cust{display:flex;gap:11px;align-items:center;padding:11px 10px;border-radius:12px;cursor:pointer}
+.crm-cust:active,.crm-cust:hover{background:#f3faf8}
+.crm-cust.crm-sel{background:#e6f6f3;outline:1px solid #b9e6df}
+.crm-cav{width:42px;height:42px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;font-weight:800;color:#fff;font-size:16px}
+.crm-cmain{flex:1 1 auto;min-width:0}
+.crm-cnm{font-weight:800;font-size:15px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.crm-csub{font-size:12px;color:#889;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.crm-pill{font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;color:#fff;white-space:nowrap}
+.crm-s-new{background:#2563eb}
+.crm-s-rep{background:#16a34a}
+.crm-s-att{background:#d97706}
+.crm-s-vip{background:#9333ea}
+
+/* 詳細（カルテ） */
+.crm-back{display:none;align-items:center;gap:6px;background:#f1f5f9;border:1px solid #e6eceb;color:#222;border-radius:10px;padding:7px 12px;font-weight:800;font-size:13px;cursor:pointer;margin-bottom:10px}
+.crm-back.crm-show{display:inline-flex}
+.crm-dhead{padding:4px 2px 14px;border-bottom:1px solid #e6eceb;display:flex;gap:14px;align-items:center}
+.crm-dhead .crm-cav{width:58px;height:58px;font-size:22px}
+.crm-dtitle{flex:1 1 auto;min-width:0}
+.crm-dtitle h2{margin:0;font-size:20px}
+.crm-drow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px}
+.crm-ticket{font-size:12px;color:#889}
+.crm-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:14px 0}
+.crm-stat{background:#f8fafa;border:1px solid #e6eceb;border-radius:12px;padding:10px 12px;text-align:center}
+.crm-stat b{display:block;font-size:20px}
+.crm-stat span{font-size:11px;color:#889}
+.crm-sect{padding:6px 0 4px}
+.crm-sect h3{font-size:12px;color:#889;font-weight:800;letter-spacing:.04em;margin:14px 0 6px;text-transform:uppercase}
+.crm-next{margin:2px 0 4px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:11px 14px;font-size:14px;font-weight:800;color:#065f46}
+.crm-next small{display:block;font-weight:700;color:#047857;font-size:11px;margin-bottom:2px}
+.crm-cs-ok{font-size:13.5px;font-weight:800;color:#15803d;margin:2px 0 8px}
+.crm-cs-ng{font-size:13.5px;font-weight:800;color:#c2410c;margin:2px 0 8px}
+.crm-cs-when{font-size:12px;font-weight:400;color:#888;margin-left:4px}
+.crm-memo{background:#fffdf5;border:1px solid #f3e9c7;border-radius:12px;padding:12px 14px;font-size:14px;white-space:pre-wrap;line-height:1.5}
+.crm-timeline{margin:6px 0 4px;padding:0;list-style:none}
+.crm-timeline li{position:relative;padding:6px 0 12px 20px;font-size:14px}
+.crm-timeline li::before{content:"";position:absolute;left:4px;top:11px;width:9px;height:9px;border-radius:50%;background:#0b5c55}
+.crm-timeline li::after{content:"";position:absolute;left:8px;top:18px;bottom:-2px;width:2px;background:#e6eceb}
+.crm-timeline li:last-child::after{display:none}
+.crm-timeline .crm-dt{font-size:12px;color:#889}
+.crm-timeline .crm-tag{font-size:10px;font-weight:800;border-radius:6px;padding:1px 7px;margin-left:6px}
+.crm-tag-v{background:#dcfce7;color:#15803d}
+.crm-tag-n{background:#ffedd5;color:#c2410c}
+.crm-tag-c{background:#f1f5f9;color:#64748b}
+.crm-qrow{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid #f0f0f0;font-size:13px}
+.crm-qk{flex:0 0 42%;color:#888;line-height:1.4;word-break:break-word}
+.crm-qv{flex:1;color:#222;white-space:pre-wrap;line-height:1.4;word-break:break-word}
+
+/* フッタ操作（編集パネル） */
+.crm-foot{padding:14px 0 24px}
+.crm-edit{background:#fff;border:1px solid #d7e6e3;border-radius:12px;padding:14px;margin-top:8px}
+.crm-edit h3{font-size:13px;font-weight:800;color:#0b5c55;margin:0 0 10px}
+.crm-el{display:block;font-size:12px;font-weight:700;color:#445;margin:10px 0 4px}
+.crm-edit textarea,.crm-edit select,.crm-edit input{width:100%;box-sizing:border-box;padding:9px;border:1px solid #d4dbda;border-radius:8px;font-size:14px;background:#fff;font-family:inherit}
+.crm-edit textarea{resize:vertical}
+.crm-row2{display:flex;gap:8px}
+.crm-row2>div{flex:1}
+.crm-save{margin-top:12px;width:100%;padding:10px 0;border-radius:9px;border:none;background:#0b5c55;color:#fff;font-weight:800;font-size:14px;cursor:pointer}
+.crm-save:disabled{opacity:.55;cursor:default}
+.crm-emsg{font-size:12.5px;font-weight:700;margin-top:10px;min-height:16px}
+.crm-emsg.crm-ok{color:#15803d}
+.crm-emsg.crm-ng{color:#c2410c}
+
+.crm-placeholder{display:grid;place-items:center;min-height:40vh;color:#9ca3af;font-size:14px;text-align:center;padding:24px;line-height:1.6}
+
+/* スマホ：一覧を先に、タップでカルテ。PCは縦並びでも崩れない単カラム構成 */
+@media (max-width:860px){
+  .crm-detail.crm-detail-show ~ .crm-listwrap{display:none}
+}
+
+/* ===== dashboard タブ CSS ===== */
+/* ===== 経営ダッシュボード（dash- 接頭辞・既存 .tab/.rcard/.mb-/.rtab と非衝突） ===== */
+#dashView{max-width:760px;margin:0 auto;padding:12px}
+.dash-tabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.dash-tab{flex:1 1 22%;min-width:64px;text-align:center;padding:9px 0;border-radius:10px;background:#eef2f1;color:#557;font-weight:700;font-size:13.5px;cursor:pointer;user-select:none}
+.dash-tab.active{background:#0b5c55;color:#fff}
+.dash-period{font-size:13px;font-weight:800;color:#0b5c55;margin:2px 2px 12px}
+.dash-kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:18px}
+.dash-kpi{background:#fff;border:1px solid #e6eceb;border-radius:12px;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.dash-kpi-v{font-size:19px;font-weight:800;color:#0b5c55;line-height:1.2}
+.dash-kpi-l{font-size:11.5px;color:#888;margin-top:3px}
+.dash-kpi.dash-kpi-main{grid-column:1 / -1;background:#0b5c55}
+.dash-kpi.dash-kpi-main .dash-kpi-v{color:#fff;font-size:26px}
+.dash-kpi.dash-kpi-main .dash-kpi-l{color:#bfe9e3}
+.dash-kpi.dash-kpi-warn .dash-kpi-v{color:#c2410c}
+.dash-sect{margin-bottom:18px}
+.dash-sect h3{font-size:13px;font-weight:800;color:#0b5c55;border-bottom:2px solid #d7ebe8;padding-bottom:6px;margin:0 0 10px}
+.dash-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.dash-row-l{flex:0 0 30%;font-size:12.5px;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dash-bar{flex:1;height:14px;background:#eef2f1;border-radius:999px;overflow:hidden}
+.dash-bar-fill{height:100%;background:#0b5c55;border-radius:999px}
+.dash-bar-fill.dash-alt{background:#5eb0a6}
+.dash-row-v{flex:0 0 auto;font-size:12px;font-weight:700;color:#0b5c55;text-align:right;min-width:74px}
+.dash-row-sub{font-size:10.5px;color:#999;font-weight:400;margin-left:4px}
+.dash-nrbar{display:flex;height:22px;border-radius:999px;overflow:hidden;background:#eef2f1}
+.dash-nr-new{background:#38bdf8}
+.dash-nr-rep{background:#0b5c55}
+.dash-nr-legend{font-size:12px;color:#555;margin-top:7px}
+.dash-empty{font-size:12px;color:#9ca3af;padding:6px 2px}
+.dash-note{font-size:11px;color:#9ca3af;margin-top:6px;line-height:1.5}
+.dash-placeholder{font-size:13px;color:#889;padding:24px 0;text-align:center}
+
+/* ===== reviews タブ CSS ===== */
+/* ===== 口コミ管理タブ（接頭辞 .rev- 専用。既存 .resv-/.rtab/.rcard/.rc-/.rb-/.mb-/.rbtn と非衝突）===== */
+#reviewView{max-width:760px;margin:0 auto;padding:12px}
+.rev-form{background:#fff;border:1px solid #e6eceb;border-radius:12px;padding:14px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.rev-form h3{font-size:14px;font-weight:800;color:#0b5c55;margin:0 0 4px}
+.rev-hint{font-size:11.5px;color:#999;margin:0 0 10px}
+.rev-grid{display:flex;gap:8px;margin-bottom:8px}
+.rev-form input,.rev-form select,.rev-form textarea{width:100%;padding:8px;border:1px solid #d4dbda;border-radius:8px;font-size:13px;box-sizing:border-box;font-family:inherit}
+.rev-form textarea{margin-bottom:8px;resize:vertical}
+.rev-form .rev-save{width:100%;padding:10px;background:#0b5c55;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;margin-top:4px}
+.rev-form .rev-save:disabled{opacity:.55;cursor:default}
+.rev-msg{font-size:12px;font-weight:700;min-height:16px;margin:2px 2px 0}
+.rev-msg.ok{color:#15803d}.rev-msg.ng{color:#c2410c}
+.rev-count{font-size:12px;color:#888;margin:4px 2px 10px}
+.revcard{background:#fff;border:1px solid #e6eceb;border-radius:12px;padding:12px 14px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.rev-top{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:6px}
+.rev-stars{color:#f59e0b;font-size:14px;letter-spacing:1px}
+.rev-nurse{font-size:12px;color:#555}
+.rev-store{font-size:10.5px;background:#e6f4f1;color:#0b5c55;padding:1px 8px;border-radius:999px;font-weight:700}
+.rev-order{font-size:10.5px;color:#aab;margin-left:auto}
+.rev-on{font-size:10.5px;background:#dcfce7;color:#15803d;padding:1px 7px;border-radius:999px;font-weight:700}
+.rev-off{font-size:10.5px;background:#f1f5f9;color:#94a3b8;padding:1px 7px;border-radius:999px;font-weight:700}
+.rev-body{font-size:13px;color:#333;line-height:1.6;white-space:pre-wrap;margin-bottom:8px}
+.rev-acts{display:flex;flex-wrap:wrap;gap:6px}
+.rev-acts .rbtn{text-decoration:none;display:inline-block}
+
+/* ===== settings タブ CSS ===== */
+/* ===== 設定タブ（接頭辞 .set- で衝突回避） ===== */
+#setView{max-width:760px;margin:0 auto;padding:12px}
+.set-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.set-tab{font-size:12.5px;font-weight:700;color:#557;background:#eef2f1;border:1px solid #e0e8e6;border-radius:999px;padding:6px 12px;cursor:pointer;user-select:none}
+.set-tab.set-on{background:#0b5c55;color:#fff;border-color:#0b5c55}
+.set-sect{background:#fff;border:1px solid #e6eceb;border-radius:12px;padding:6px 14px 10px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.set-sect h3{font-size:13px;font-weight:800;color:#0b5c55;margin:10px 0 6px}
+.set-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f0f0f0;font-size:13px}
+.set-row:last-child{border-bottom:none}
+.set-l{color:#666;flex:0 0 auto}
+.set-v{color:#222;text-align:right}
+.set-okb{color:#15803d;font-weight:700;font-size:12.5px}
+.set-ngb{color:#c2410c;font-weight:700;font-size:12.5px}
+.set-note{font-size:11.5px;color:#9ca3af;margin:6px 4px 14px;line-height:1.6}
+.set-ph{padding:28px 12px;text-align:center;color:#9ca3af;font-size:13px}
+.set-err{color:#c2410c}
+/* カード（メニュー／アーティスト／店舗・シフト共通） */
+.set-card{background:#fff;border:1px solid #e6eceb;border-radius:12px;padding:12px 14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.set-card.set-off{opacity:.55}
+.set-card .set-name{font-weight:800;color:#1f2937;font-size:15px;margin-bottom:4px}
+.set-tag{display:inline-block;font-size:11px;color:#557;background:#eef2f1;border-radius:6px;padding:1px 7px;margin-left:6px}
+.set-tag.set-tagng{color:#c2410c;background:#fff3ec}
+.set-meta{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:#444;margin-bottom:8px}
+.set-meta b{color:#0b5c55}
+.set-id{font-size:11px;color:#9ca3af;margin-top:2px}
+.set-hint{font-size:11px;color:#9ca3af;margin-top:6px;line-height:1.5}
+.set-now{font-size:15px;color:#1f2937;margin:6px 0 2px}
+.set-now b{color:#0b5c55;font-size:17px}
+.set-edit{display:none;margin-top:8px;border-top:1px dashed #e0e8e6;padding-top:8px}
+.set-edit.set-open{display:block}
+.set-edit label,.set-add label{display:block;font-size:12px;color:#666;margin:8px 0 3px}
+.set-edit input,.set-add input{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid #cdd6d4;border-radius:9px;font-size:14px;background:#fff}
+.set-chk{display:flex;align-items:center;gap:8px;font-size:13px;color:#1f2937;margin-top:10px}
+.set-chk input{width:auto}
+.set-acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.set-btn{flex:1;min-width:90px;padding:9px 0;border:none;border-radius:9px;font-weight:700;font-size:13px;cursor:pointer}
+.set-btn.set-primary{background:#0b5c55;color:#fff}
+.set-btn.set-ghost{background:#eef2f1;color:#557}
+.set-btn.set-danger{background:#fdecea;color:#c0392b}
+.set-btn:disabled{opacity:.6;cursor:default}
+.set-add-h{font-size:14px;font-weight:800;color:#0b5c55;margin:16px 4px 8px}
+.set-msg{font-size:12.5px;margin:8px 0;min-height:16px}
+.set-msg.set-ok{color:#15803d}
+.set-msg.set-ng{color:#c2410c}
+/* シフト表 */
+.set-shift-tbl{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+.set-shift-tbl th,.set-shift-tbl td{border-bottom:1px solid #f0f0f0;padding:6px 4px;text-align:center}
+.set-shift-tbl th{color:#557;font-size:11px;font-weight:700}
+.set-shift-tbl td:first-child{font-weight:700;color:#1f2937}
+.set-shift-tbl input[type=time]{padding:5px 4px;border:1px solid #cdd6d4;border-radius:7px;font-size:12px;width:80px}
+.set-shift-tbl input[type=checkbox]{width:auto}
+.set-ex-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid #f4f4f4}
+.set-ex-row input[type=date],.set-ex-row input[type=time]{padding:6px;border:1px solid #cdd6d4;border-radius:7px;font-size:12px}
+.set-ex-off{font-size:12px;color:#666;display:flex;align-items:center;gap:3px}
+.set-ex-off input{width:auto}
+.set-ex-x{padding:6px 10px;border:none;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;background:#eef2f1;color:#557}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="hd"><h1>予約管理（スタッフ用）</h1></div>
+  <div class="hd"><h1>管理ダッシュボード</h1></div>
+
+  <nav class="nav" id="nav" style="display:none">
+    <button data-v="resv"   onclick="showReservations(this)">📋 予約管理</button>
+    <button data-v="cust"   onclick="showCustomers(this)">🗂 顧客カルテ</button>
+    <button data-v="dash"   onclick="showDashboard(this)">📊 経営</button>
+    <button data-v="review" onclick="showReviews(this)">⭐ 口コミ</button>
+    <button data-v="set"    onclick="showSettings(this)">⚙️ 設定</button>
+  </nav>
+
+  <!-- ===== 予約管理 ===== -->
 <!-- ============================================================================
      予約管理タブ（Supabase版）HTML — 元 src/admin.html #resvView を忠実に移植
      ・期間タブ（今日／今週／今後すべて）／絞り込み（アーティスト・問診ステータス）
@@ -138,6 +355,92 @@
   <div class="resv-count" id="resvCount"></div>
   <div id="resvBoard"><div class="placeholder">読み込み中…</div></div>
 </div>
+
+  <!-- ===== customer ===== -->
+<!-- ============================================================================
+     顧客カルテ（CRM）タブ — poc/admin.html の <div class="wrap"> 内に挿入する。
+     id="custView" / 表示関数 showCustomers(el) / 詳細関数 selectCustomer(lineUid)
+     ・一覧：customers を RLS スコープで取得（氏名/LINE名 ilike 検索＋区分/有人で絞込）
+     ・詳細：RPC get_customer で集約（来店回数・LTV・次回予約・履歴・問診・同意書）
+     ・フッタ：メモ追記/区分変更/有人対応を customers に sbUpdate（自店・authenticated）
+     ============================================================================ -->
+<div id="custView" style="display:none">
+  <!-- 一覧（左/上） -->
+  <div class="crm-listwrap">
+    <div class="crm-listhead">
+      <div class="crm-search">🔍<input id="crmSearch" type="text" placeholder="お名前・LINE名で検索…" autocomplete="off"></div>
+      <div class="crm-chips" id="crmChips">
+        <span class="crm-chip crm-active" data-f="all">すべて</span>
+        <span class="crm-chip" data-f="new">新規</span>
+        <span class="crm-chip" data-f="rep">常連</span>
+        <span class="crm-chip" data-f="att">要対応</span>
+      </div>
+    </div>
+    <div class="crm-count" id="crmCount"></div>
+    <ul class="crm-list" id="crmList"></ul>
+  </div>
+
+  <!-- 詳細（カルテ） -->
+  <div class="crm-detail" id="crmDetail">
+    <button type="button" class="crm-back" id="crmBack">← 一覧へ戻る</button>
+    <div id="crmDetailBody"><div class="crm-placeholder">← 上の一覧からお客様を選んでください</div></div>
+  </div>
+</div>
+
+  <!-- ===== dashboard ===== -->
+<div id="dashView" style="display:none">
+  <div class="dash-tabs" id="dashTabs">
+    <span class="dash-tab active" data-dp="this_month">今月</span>
+    <span class="dash-tab" data-dp="last_month">先月</span>
+    <span class="dash-tab" data-dp="this_year">今年</span>
+    <span class="dash-tab" data-dp="last_6m">直近6ヶ月</span>
+  </div>
+  <div class="dash-period" id="dashPeriod"></div>
+  <div id="dashBody"><div class="dash-placeholder">読み込み中…</div></div>
+</div>
+
+  <!-- ===== reviews ===== -->
+<!-- ============================================================================
+     口コミ管理タブ（Supabase版）HTML — 元 src/admin.html #reviewsView を忠実に移植
+     ・コピペ式の追加フォーム（担当・評価・本文・Googleリンク・店舗・並び順）
+     ・一覧カード（評価★・担当・店舗・公開バッジ・本文・公開切替/リンク/削除）
+     ・店舗セレクタは STORE_MAP（stores.code→name）から動的生成。空=全店共通(store_id=NULL)
+     poc/admin.html の <div class="wrap"> 内、<script> ブロックより前に挿入する。
+     ============================================================================ -->
+<div id="reviewView" style="display:none">
+  <div class="rev-form">
+    <h3>➕ 口コミを追加</h3>
+    <p class="rev-hint">Googleの<b>本物の口コミ</b>をコピペしてください（追加すると公開されます）。</p>
+    <div class="rev-grid">
+      <input id="revNurse" placeholder="担当（例：遠山）" autocomplete="off">
+      <select id="revRating">
+        <option value="5">★5</option><option value="4">★4</option><option value="3">★3</option><option value="2">★2</option><option value="1">★1</option>
+      </select>
+    </div>
+    <textarea id="revBody" rows="3" placeholder="口コミ本文（必須）"></textarea>
+    <input id="revLink" placeholder="Googleリンク（任意・https://…）" autocomplete="off">
+    <div class="rev-grid" style="margin-top:8px">
+      <select id="revStore"><option value="">全店共通</option></select>
+      <input id="revOrder" type="number" placeholder="並び順（任意）">
+    </div>
+    <div class="rev-msg" id="revMsg"></div>
+    <button type="button" class="rev-save" id="revSave" onclick="addReview()">＋ 追加して公開</button>
+  </div>
+  <div class="rev-count" id="revCount"></div>
+  <div id="reviewList"><div class="placeholder">読み込み中…</div></div>
+</div>
+
+  <!-- ===== settings ===== -->
+<div id="setView" style="display:none">
+  <div class="set-tabs">
+    <span class="set-tab set-on" data-sp="info" data-act="setsec">ℹ️ システム情報</span>
+    <span class="set-tab" data-sp="menu" data-act="setsec">💉 メニュー・料金</span>
+    <span class="set-tab" data-sp="artist" data-act="setsec">👩‍⚕️ アーティスト</span>
+    <span class="set-tab" data-sp="store" data-act="setsec">🏪 受付時間</span>
+    <span class="set-tab" data-sp="shift" data-act="setsec">🗓 シフト</span>
+  </div>
+  <div id="setBody"><div class="set-ph">読み込み中…</div></div>
+</div>
 </div>
 <div id="login" style="position:fixed;inset:0;background:#0b5c55;display:flex;align-items:center;justify-content:center;z-index:50;padding:24px">
   <div style="background:#fff;border-radius:14px;padding:24px;width:100%;max-width:340px;box-shadow:0 8px 30px rgba(0,0,0,.2)">
@@ -149,21 +452,40 @@
   </div>
 </div>
 <script>
-// ===== 設定・認証（poc 既存を踏襲）=====
-var SB_URL = "https://stgarheuldubyrzdqzaq.supabase.co";
-var SB_KEY = "sb_publishable_e5A9MJzOCvzsfWXBd9DLzg_Wa_hJ0qb";
-var TOKEN  = ""; // ログイン後のアクセストークン。これが無いと予約・お客様名は読めない（RLSでPII保護）。
+// ===== 設定・認証・共有ヘルパー（全タブ共通。各タブはこれを再定義しない）=====
+var SB_URL    = "https://stgarheuldubyrzdqzaq.supabase.co";
+var SB_KEY    = "sb_publishable_e5A9MJzOCvzsfWXBd9DLzg_Wa_hJ0qb";
+var TENANT_ID = "11111111-1111-1111-1111-111111111111";
+var TOKEN     = ""; // ログイン後のアクセストークン。これが無いとPIIは読めない（RLS保護）。
 function hdr(){ return { "apikey": SB_KEY, "Authorization": "Bearer " + (TOKEN || SB_KEY) }; }
 function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;"); }
 function ymd(d){ return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2); }
 function hhmm(iso){ var d=new Date(iso); return ("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2); }
 
-// ログイン画面の再表示（resv-tab.js のエラー時フックから呼ばれる）
-function showLogin(msg){
-  var ov=document.getElementById("login"); if(ov) ov.style.display="flex";
-  var e=document.getElementById("lerr"); if(e&&msg) e.textContent=msg;
+// 書込ヘルパー（PostgREST）。RLSが権限を判定（managerのみ等）。失敗はthrow。
+function sbInsert(table, rows){
+  return fetch(SB_URL+"/rest/v1/"+table,{ method:"POST",
+    headers:Object.assign({"Content-Type":"application/json","Prefer":"return=representation"},hdr()), body:JSON.stringify(rows) })
+    .then(function(res){ return res.text().then(function(t){ var j=null; try{j=t?JSON.parse(t):null;}catch(e){} if(!res.ok) throw new Error((j&&j.message)||("HTTP "+res.status)); return j; }); });
 }
-// スタッフ ログイン（Supabase Auth・メール/パスワード）。成功で予約タブを表示して一覧を読む。
+function sbUpdate(table, filter, patch){
+  return fetch(SB_URL+"/rest/v1/"+table+"?"+filter,{ method:"PATCH",
+    headers:Object.assign({"Content-Type":"application/json","Prefer":"return=representation"},hdr()), body:JSON.stringify(patch) })
+    .then(function(res){ return res.text().then(function(t){ var j=null; try{j=t?JSON.parse(t):null;}catch(e){} if(!res.ok) throw new Error((j&&j.message)||("HTTP "+res.status)); return j; }); });
+}
+function sbDelete(table, filter){
+  return fetch(SB_URL+"/rest/v1/"+table+"?"+filter,{ method:"DELETE", headers:hdr() })
+    .then(function(res){ if(!res.ok) return res.text().then(function(t){ throw new Error(t||("HTTP "+res.status)); }); return true; });
+}
+
+// ===== ビュー切替（全タブ共通）=====
+function hideAllViews(){ ["resvView","custView","dashView","reviewView","setView"].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display="none"; }); }
+function setActiveNav(el){ var bs=document.querySelectorAll("#nav button"); for(var i=0;i<bs.length;i++) bs[i].classList.toggle("active", bs[i]===el); }
+
+// ===== ログイン画面の再表示（各タブのエラーフックから呼ばれる）=====
+function showLogin(msg){ var ov=document.getElementById("login"); if(ov) ov.style.display="flex"; var e=document.getElementById("lerr"); if(e&&msg) e.textContent=msg; }
+
+// ===== スタッフ ログイン（Supabase Auth）。成功でナビを出し予約管理を表示 =====
 function login(){
   var email=(document.getElementById("le").value||"").trim(), pw=document.getElementById("lp").value||"";
   var err=document.getElementById("lerr");
@@ -174,14 +496,15 @@ function login(){
       if(d&&d.access_token){
         TOKEN=d.access_token;
         document.getElementById("login").style.display="none";
-        document.getElementById("resvView").style.display="";
+        document.getElementById("nav").style.display="";
         if(typeof initResvStoreBar==="function") initResvStoreBar();
-        loadBoard();
+        var first=document.querySelector("#nav button");
+        showReservations(first);
       } else { err.textContent="ログインできませんでした（メール・パスワードをご確認ください）。"; }
     }).catch(function(e){ err.textContent="通信エラー："+(e&&e.message||e); });
 }
 
-/* ===== 予約管理タブ（移植）JS ===== */
+/* ===== 予約管理 タブ JS ===== */
 /* ============================================================================
    予約管理タブ（Supabase版）JS
    ・google.script.run（GAS）を Supabase REST / RPC に置き換え。認証は poc/admin.html を踏襲。
@@ -223,7 +546,13 @@ function sbRpc(fn, body){
     method:'POST',
     headers: Object.assign({ 'Content-Type':'application/json' }, hdr()),
     body: JSON.stringify(body || {})
-  }).then(function(res){ return res.json().then(function(j){ if(!res.ok) throw new Error((j&&j.message)||('HTTP '+res.status)); return j; }); });
+  }).then(function(res){ return res.text().then(function(t){
+    // ★void を返すRPC(set_status/set_outcome/staff_cancel_reservation/save_artist_shifts 等)は
+    //   本文が空(204)になる。res.json()だと空本文で例外→成功なのに失敗表示になるため text()で受ける。
+    var j=null; try{ j=t?JSON.parse(t):null; }catch(e){}
+    if(!res.ok) throw new Error((j&&j.message)||t||('HTTP '+res.status));
+    return j;
+  }); });
 }
 
 /* stores（code→id）を1回ロードしてキャッシュ。store セレクタの店舗名も補完 */
@@ -581,12 +910,1357 @@ function mbReason(r){
 function initResvStoreBar(){
   sbRpc('current_staff', {}).then(function(rows){
     var me = (rows && rows[0]) || null;
+    // ★owner/admin か＝全タブ共通の編集権限フラグ（顧客カルテ等が参照）。
+    window.IS_MANAGER = !!(me && (me.role === 'owner' || me.role === 'admin'));
     var bar = document.getElementById('resvStoreBar');
     if (!bar) return;
-    if (me && (me.role === 'owner' || me.role === 'admin')) bar.style.display = '';
-    else bar.style.display = 'none';   // staff：自店固定（RLSが自店だけを返す）
+    bar.style.display = window.IS_MANAGER ? '' : 'none';   // staff：自店固定（RLSが自店だけを返す）
   }).catch(function(){ /* 取れなければ非表示のまま＝自店運用 */ });
 }
+
+/* ===== customer タブ JS ===== */
+/* ============================================================================
+   顧客カルテ（CRM）タブ JS — poc/admin.html の <script> 末尾に追記する。
+   共有グローバル（再定義しない）：SB_URL,SB_KEY,TOKEN,hdr(),sbGet,sbRpc,sbInsert,
+     sbUpdate,sbDelete,esc(),ymd(),hhmm(),currentStoreSlug,storeIdForSlug,
+     ensureStoreMap,STORE_MAP,hideAllViews,setActiveNav,showLogin,TENANT_ID。
+   ・予約管理タブ(resv-tab.js)が showCustomers(nav要素)＋selectCustomer(uid) を呼ぶ。
+   ・全ての値出力は esc()。クリックは data-* 属性＋イベント委譲（インライン onclick に
+     動的値を文字列連結しない）＝注入対策。
+
+   【レビュー修正の要点】
+   ・get_customer の reservations / next_reservation は to_jsonb(r.*)（生の予約行）で
+     返るため、r.menus.name / r.artists.name は存在しない（常に undefined）。
+     → menus / artists の id→name マップを別途ロードし、r.menu_id / r.artist_id で名称解決。
+   ・一覧の店舗フィルタはサーバ側で付けず RLS に委ね、クライアントで store 一致 or NULL を許容
+     （store_id=NULL のLINE顧客が脱落しないように。RLSが他店を遮断済みなので安全）。
+   ============================================================================ */
+
+/* ---- 状態 ---- */
+var CRM_LIST = [];          // 一覧の生データ（customers 行）
+var CRM_CARDS = {};         // line_uid -> get_customer の戻り（キャッシュ）
+var CRM_FILTER = 'all';     // all | new | rep | att
+var CRM_SELECTED = null;    // 選択中 line_uid
+var CRM_SEARCH_T = null;    // 検索デバウンス
+var CRM_COLORS = ['#0f766e','#7c3aed','#db2777','#2563eb','#ea580c','#0891b2','#65a30d','#9333ea'];
+
+/* メニュー/アーティストの id→name マップ（get_customer の生予約行に名前が無いため自前解決）。
+   RLS スコープで読める範囲のみ。1回ロードしてキャッシュ。 */
+var CRM_MENU_MAP = null;    // { menu_id: name }
+var CRM_ARTIST_MAP = null;  // { artist_id: name }
+
+/* ---- 区分（customer_type）の表示ラベル。DBは自由文字列なので既知値を日本語化 ---- */
+var CRM_TYPE_LABEL = { vip:'VIP', repeat:'常連', regular:'常連', new:'新規', prospect:'見込み', other:'その他' };
+function crmTypeLabel(t){ if(t==null||t==='') return ''; return CRM_TYPE_LABEL[String(t)] || String(t); }
+
+/* ---- 小ヘルパー（接頭辞付き：既存 initials/colorFor と衝突回避） ---- */
+function crmInitials(name){ var n = String(name||'').replace(/\s/g,''); return n ? n.slice(0,1) : '?'; }
+function crmHash(s){ var h=0; s=String(s); for(var i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))>>>0; } return h; }
+function crmColor(uid){ return CRM_COLORS[crmHash(uid) % CRM_COLORS.length]; }
+function crmYen(n){ var v=(typeof n==='number')?n:parseInt(n,10); if(!isFinite(v)) v=0; return '¥' + v.toLocaleString('ja-JP'); }
+function crmDate(iso){ if(!iso) return '—'; var d=new Date(iso); if(isNaN(d.getTime())) return '—';
+  return d.getFullYear()+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+('0'+d.getDate()).slice(-2); }
+function crmDateTime(iso){ if(!iso) return '—'; var d=new Date(iso); if(isNaN(d.getTime())) return '—';
+  return crmDate(iso)+' '+hhmm(iso); }
+
+/* メニュー/アーティスト名マップを1回だけロード（RLSスコープ内）。失敗しても空マップで続行。 */
+function crmEnsureNameMaps(){
+  if (CRM_MENU_MAP && CRM_ARTIST_MAP) return Promise.resolve();
+  return Promise.all([
+    sbGet('menus?select=id,name').catch(function(){ return []; }),
+    sbGet('artists?select=id,name').catch(function(){ return []; })
+  ]).then(function(res){
+    CRM_MENU_MAP = {}; (res[0]||[]).forEach(function(m){ if(m && m.id) CRM_MENU_MAP[m.id] = m.name; });
+    CRM_ARTIST_MAP = {}; (res[1]||[]).forEach(function(a){ if(a && a.id) CRM_ARTIST_MAP[a.id] = a.name; });
+  });
+}
+function crmMenuName(id){ return (id && CRM_MENU_MAP && CRM_MENU_MAP[id]) ? CRM_MENU_MAP[id] : ''; }
+function crmArtistName(id){ return (id && CRM_ARTIST_MAP && CRM_ARTIST_MAP[id]) ? CRM_ARTIST_MAP[id] : ''; }
+
+/* 来店ステータスの区分（新規/常連/要対応/VIP）。human_status があれば最優先で「要対応」。 */
+function crmStatusOf(c){
+  if (c && c.human_status && String(c.human_status) !== '' && String(c.human_status) !== 'done') return 'att';
+  var vt = c && (c.customer_type||'');
+  if (vt === 'vip') return 'vip';
+  var vc = (c && typeof c.visit_count === 'number') ? c.visit_count : 0;
+  return vc >= 2 ? 'rep' : 'new';
+}
+function crmStatusPill(st){
+  var map = { new:{t:'新規',c:'crm-s-new'}, rep:{t:'常連',c:'crm-s-rep'},
+              att:{t:'要対応',c:'crm-s-att'}, vip:{t:'VIP',c:'crm-s-vip'} };
+  var s = map[st] || map.new;
+  return '<span class="crm-pill '+s.c+'">'+s.t+'</span>';
+}
+
+/* ===== タブ表示：必ず hideAllViews → setActiveNav → 表示 → 読込 ===== */
+function showCustomers(el){
+  if (typeof hideAllViews === 'function') hideAllViews();
+  if (el && typeof setActiveNav === 'function') setActiveNav(el);
+  document.getElementById('custView').style.display = '';
+  crmBackToList();
+  crmLoadList();
+  window.scrollTo({ top:0, behavior:'smooth' });
+}
+
+/* ===== 一覧の取得（GAS adminListCustomers の置換）=====
+   RLS が自テナント・自店に絞る。店舗フィルタはサーバに付けず RLS 任せ＋クライアントで
+   store 一致 or NULL を許容（store_id=NULL のLINE顧客を落とさない）。 */
+function crmLoadList(){
+  var listEl = document.getElementById('crmList');
+  listEl.innerHTML = '<li class="crm-placeholder" style="min-height:30vh">読み込み中…</li>';
+  document.getElementById('crmCount').textContent = '';
+
+  ensureStoreMap().then(function(){
+    var kw = (document.getElementById('crmSearch').value || '').trim();
+
+    var path = 'customers?select=id,line_uid,line_display_name,visit_count,last_visit_at,' +
+      'customer_type,human_status,store_id&order=visit_count.desc';
+
+    // 検索：LINE表示名の部分一致（ilike）。記号を除去し、空になったら条件を付けない。
+    if (kw){
+      var safe = kw.replace(/([%_*,()\\])/g, '');
+      if (safe){
+        path += '&line_display_name=ilike.' + encodeURIComponent('*' + safe + '*');
+      }
+    }
+
+    // 要対応：human_status が NULL でない行を粗く絞る（最終判定はクライアント crmStatusOf）。
+    if (CRM_FILTER === 'att'){
+      path += '&human_status=not.is.null';
+    }
+
+    sbGet(path).then(function(rows){
+      rows = rows || [];
+      var slug = currentStoreSlug();
+      var storeId = storeIdForSlug(slug);   // 'all' は null＝全店
+      CRM_LIST = rows.filter(function(c){
+        // 店舗スコープ：店舗指定時は「その店舗 or 店舗未設定(NULL)」のみ表示（RLSが他店は既に遮断済み）。
+        if (storeId && c.store_id && c.store_id !== storeId) return false;
+        // 区分/来店回数ベースの絞込（new/rep/att）。
+        var st = crmStatusOf(c);
+        if (CRM_FILTER === 'all') return true;
+        if (CRM_FILTER === 'new') return st === 'new';
+        if (CRM_FILTER === 'rep') return st === 'rep' || st === 'vip';
+        if (CRM_FILTER === 'att') return st === 'att';
+        return true;
+      });
+      crmRenderList();
+    }).catch(function(err){
+      if (!TOKEN){ if (typeof showLogin === 'function') showLogin('もう一度ログインしてください。'); return; }
+      listEl.innerHTML = '<li class="crm-placeholder" style="min-height:30vh">一覧の取得に失敗しました<br>'+esc(err&&err.message||err)+'</li>';
+    });
+  }).catch(function(err){
+    listEl.innerHTML = '<li class="crm-placeholder" style="min-height:30vh">店舗情報を取得できませんでした<br>'+esc(err&&err.message||err)+'</li>';
+  });
+}
+
+function crmRenderList(){
+  var slug = currentStoreSlug();
+  var storeId = storeIdForSlug(slug);
+  var scopeLbl = storeId ? ('（' + esc((STORE_MAP && STORE_MAP[slug] && STORE_MAP[slug].name) || slug) + '）') : '（全店）';
+  document.getElementById('crmCount').textContent = CRM_LIST.length + '件 ' + scopeLbl;
+
+  var listEl = document.getElementById('crmList');
+  if (!CRM_LIST.length){
+    listEl.innerHTML = '<li class="crm-placeholder" style="min-height:24vh">該当する顧客がいません</li>';
+    return;
+  }
+  listEl.innerHTML = CRM_LIST.map(function(c){
+    var uid = c.line_uid || '';
+    var name = c.line_display_name || '（名前なし）';
+    var st = crmStatusOf(c);
+    var sel = (CRM_SELECTED === uid && uid) ? ' crm-sel' : '';
+    var sub = '来店' + esc(c.visit_count || 0) + '回 ・ 最終 ' + esc(crmDate(c.last_visit_at));
+    var typeLbl = crmTypeLabel(c.customer_type);
+    if (typeLbl) sub += ' ・ ' + esc(typeLbl);
+    // uid は data-uid に格納（onclick への動的連結はしない＝注入対策）
+    return '<li class="crm-cust'+sel+'" data-uid="'+esc(uid)+'">' +
+      '<div class="crm-cav" style="background:'+crmColor(uid)+'">'+esc(crmInitials(name))+'</div>' +
+      '<div class="crm-cmain">' +
+        '<div class="crm-cnm">'+esc(name)+' '+crmStatusPill(st)+'</div>' +
+        '<div class="crm-csub">'+sub+'</div>' +
+      '</div></li>';
+  }).join('');
+}
+
+/* チップ絞込（区分/有人）。クリックは委譲で取る。 */
+document.getElementById('crmChips').addEventListener('click', function(e){
+  var chip = e.target.closest('.crm-chip'); if (!chip) return;
+  CRM_FILTER = chip.getAttribute('data-f') || 'all';
+  var chips = document.querySelectorAll('#crmChips .crm-chip');
+  for (var i=0;i<chips.length;i++) chips[i].classList.toggle('crm-active', chips[i].getAttribute('data-f') === CRM_FILTER);
+  crmLoadList();
+});
+
+/* 検索（デバウンス）。入力値は path 側で encode＋ワイルドカード化済み。 */
+document.getElementById('crmSearch').addEventListener('input', function(){
+  clearTimeout(CRM_SEARCH_T);
+  CRM_SEARCH_T = setTimeout(crmLoadList, 280);
+});
+
+/* 行タップ → 詳細。uid は data-uid から取得（注入対策）。 */
+document.getElementById('crmList').addEventListener('click', function(e){
+  var li = e.target.closest('.crm-cust'); if (!li) return;
+  var uid = li.getAttribute('data-uid'); if (!uid) return;
+  selectCustomer(uid);
+});
+
+document.getElementById('crmBack').addEventListener('click', crmBackToList);
+function crmBackToList(){
+  var d = document.getElementById('crmDetail');
+  d.classList.remove('crm-detail-show');
+  document.getElementById('crmBack').classList.remove('crm-show');
+}
+
+/* ===== カルテ1件の取得（GAS adminGetCustomer の置換 → RPC get_customer）===== */
+function selectCustomer(lineUid){
+  if (!lineUid) return;
+  CRM_SELECTED = lineUid;
+  crmRenderList();   // 選択ハイライト更新
+
+  // 詳細表示へ（スマホは一覧を隠す）
+  document.getElementById('crmDetail').classList.add('crm-detail-show');
+  document.getElementById('crmBack').classList.add('crm-show');
+  window.scrollTo({ top:0, behavior:'smooth' });
+
+  if (CRM_CARDS[lineUid]){ crmRenderDetail(lineUid, CRM_CARDS[lineUid]); return; }
+  document.getElementById('crmDetailBody').innerHTML = '<div class="crm-placeholder">読み込み中…</div>';
+
+  // 名前マップと get_customer を並行取得（名前マップ失敗は致命でない）。
+  Promise.all([
+    crmEnsureNameMaps(),
+    sbRpc('get_customer', { p_line_uid: lineUid })
+  ]).then(function(out){
+    CRM_CARDS[lineUid] = out[1] || {};
+    crmRenderDetail(lineUid, CRM_CARDS[lineUid]);
+  }).catch(function(err){
+    if (!TOKEN){ if (typeof showLogin === 'function') showLogin('もう一度ログインしてください。'); return; }
+    var msg = String(err && err.message || err || '');
+    var body = document.getElementById('crmDetailBody');
+    if (/forbidden_store/i.test(msg)){
+      body.innerHTML = '<div class="crm-placeholder">この顧客は表示権限がありません。<br><small>（権限外の店舗・または解決できない顧客です）</small></div>';
+    } else {
+      body.innerHTML = '<div class="crm-placeholder">カルテの取得に失敗しました<br>'+esc(msg)+'</div>';
+    }
+  });
+}
+
+/* get_customer の戻り（jsonb）：
+   { customer, display_name, reservations[], ltv, next_reservation, questionnaire, consent }
+   ・reservations / next_reservation は to_jsonb(r.*)＝生の予約行（menu_id / artist_id を持つ。
+     埋め込み menus / artists オブジェクトは無いので名前はマップで解決する）。 */
+function crmRenderDetail(uid, res){
+  res = res || {};
+  var c = res.customer || null;                       // customers 行 or null（synth顧客）
+  var name = res.display_name || (c && c.line_display_name) || '（名前なし）';
+  var resvs = Array.isArray(res.reservations) ? res.reservations : [];
+  var ltv = res.ltv || 0;
+  var next = res.next_reservation || null;
+  var q = res.questionnaire || null;                  // { answers:jsonb, submitted_at, ... }
+  var consent = res.consent || null;                  // { pdf_url, signed_at, ... }
+
+  var visitCount = (c && typeof c.visit_count === 'number') ? c.visit_count
+                   : resvs.filter(function(r){ return r.outcome === 'visited'; }).length;
+  var lastVisit = (c && c.last_visit_at) ? c.last_visit_at
+                  : (function(){ var v = resvs.filter(function(r){ return r.outcome === 'visited'; });
+                       return v.length ? v[0].start_at : null; })();
+
+  // ステータス判定：customer があればそれ、無ければ算出 visit_count を持つ合成オブジェクトで判定。
+  var st = c ? crmStatusOf(c)
+             : crmStatusOf({ customer_type:'', human_status:'', visit_count:visitCount });
+
+  /* 次回予約（生予約行：menu_id から名称解決） */
+  var nextMenu = next ? crmMenuName(next.menu_id) : '';
+  var nextBox = next
+    ? '<div class="crm-sect"><div class="crm-next"><small>📅 次回予約</small>' +
+        esc(crmDateTime(next.start_at)) +
+        (nextMenu ? '　' + esc(nextMenu) : '') +
+      '</div></div>'
+    : '';
+
+  /* 同意書（電子署名）。pdf_url があれば別タブで開く（target=_blank）。 */
+  var consentSect;
+  if (consent && consent.signed_at){
+    var pdf = (consent.pdf_url && /^https?:\/\//.test(consent.pdf_url))
+      ? '<a class="rbtn" href="'+esc(consent.pdf_url)+'" target="_blank" rel="noopener">📄 PDFを開く</a>'
+      : '<span class="crm-cs-when">（PDFのリンクが見つかりません）</span>';   // ★http/https のみ許可（javascript: 等の危険URLを弾く＝クリック型XSS対策）
+    consentSect = '<div class="crm-sect"><h3>📝 同意書（電子署名）</h3>' +
+      '<div class="crm-cs-ok">✅ 署名済み <span class="crm-cs-when">'+esc(crmDateTime(consent.signed_at))+'</span></div>' +
+      '<div class="cs-acts" style="display:flex;gap:8px;flex-wrap:wrap">'+pdf+'</div></div>';
+  } else if (consent){
+    consentSect = '<div class="crm-sect"><h3>📝 同意書（電子署名）</h3><div class="crm-cs-ng">未署名</div></div>';
+  } else {
+    consentSect = '<div class="crm-sect"><h3>📝 同意書（電子署名）</h3><div class="crm-cs-ng">未取得</div></div>';
+  }
+
+  /* 予約履歴（新しい順・get_customer が既に降順で返す）。生予約行から名称解決。 */
+  var WDc = ['日','月','火','水','木','金','土'];
+  var history = resvs.map(function(r){
+    var d = new Date(r.start_at);
+    var dateLbl = isNaN(d.getTime()) ? '—'
+      : (d.getFullYear()+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+('0'+d.getDate()).slice(-2)+'（'+WDc[d.getDay()]+'）'+hhmm(r.start_at));
+    var menu = crmMenuName(r.menu_id) || '—';
+    var artist = crmArtistName(r.artist_id) || '';
+    var tre = r.treatment_type === 'retouch' ? 'リタッチ' : (r.treatment_type === 'new' ? '新規' : '');
+    var tag = r.outcome === 'visited' ? '<span class="crm-tag crm-tag-v">来店</span>'
+            : r.outcome === 'no_show' ? '<span class="crm-tag crm-tag-n">無断キャンセル</span>'
+            : (r.status === 'cancelled' ? '<span class="crm-tag crm-tag-c">キャンセル</span>' : '');
+    var line = esc(menu) + (tre ? '（'+esc(tre)+'）' : '') + (artist ? ' ／ 担当：'+esc(artist) : '');
+    return '<li><div>'+line+tag+'</div><div class="crm-dt">'+esc(dateLbl)+'</div></li>';
+  }).join('');
+  if (!history) history = '<li><div>まだ来店・予約の記録がありません。</div></li>';
+
+  /* 最新問診（answers を項目展開）。answers は jsonb（オブジェクト or 配列）。 */
+  var qSect;
+  if (q && q.answers && typeof q.answers === 'object'){
+    var ans = q.answers;
+    var qrows = '';
+    if (Array.isArray(ans)){
+      qrows = ans.map(function(pair){
+        var k, v;
+        if (pair && typeof pair === 'object' && !Array.isArray(pair)){
+          k = (pair.label != null) ? pair.label : (pair.key != null ? pair.key : '');
+          v = (pair.value != null) ? pair.value : '';
+        } else if (Array.isArray(pair)){
+          k = pair[0]; v = pair[1];
+        } else { k = ''; v = pair; }
+        v = (v === '' || v == null) ? '—' : (typeof v === 'object' ? JSON.stringify(v) : String(v));
+        return '<div class="crm-qrow"><div class="crm-qk">'+esc(k)+'</div><div class="crm-qv">'+esc(v)+'</div></div>';
+      }).join('');
+    } else {
+      qrows = Object.keys(ans).map(function(k){
+        var v = ans[k];
+        v = (v === '' || v == null) ? '—' : (typeof v === 'object' ? JSON.stringify(v) : String(v));
+        return '<div class="crm-qrow"><div class="crm-qk">'+esc(k)+'</div><div class="crm-qv">'+esc(v)+'</div></div>';
+      }).join('');
+    }
+    var qWhen = q.submitted_at ? ' <span class="crm-cs-when" style="margin:0">'+esc(crmDateTime(q.submitted_at))+'</span>' : '';
+    qSect = '<div class="crm-sect"><h3>📋 事前問診票'+qWhen+'</h3>' +
+      (qrows || '<div class="crm-memo">回答項目がありません。</div>') + '</div>';
+  } else {
+    qSect = '<div class="crm-sect"><h3>📋 事前問診票</h3><div class="crm-memo">まだ回答がありません（予約確定後にお客様が記入します）。</div></div>';
+  }
+
+  /* 背景メモ */
+  var memo = (c && c.background_memo) ? esc(c.background_memo) : '—';
+
+  /* 区分・有人対応の現在値（編集パネルの初期選択に使う） */
+  var curType = (c && c.customer_type) || '';
+  var curHuman = (c && c.human_status) || '';
+  var curReason = (c && c.human_reason) || '';
+  var hasUid = !!uid;
+
+  document.getElementById('crmDetailBody').innerHTML = '' +
+    '<div class="crm-dhead">' +
+      '<div class="crm-cav" style="background:'+crmColor(uid)+'">'+esc(crmInitials(name))+'</div>' +
+      '<div class="crm-dtitle">' +
+        '<h2>'+esc(name)+' 様</h2>' +
+        '<div class="crm-drow">' + crmStatusPill(st) +
+          (curType ? '<span class="crm-pill crm-s-rep" style="background:#475569">'+esc(crmTypeLabel(curType))+'</span>' : '') +
+          (c && c.ticket_no ? '<span class="crm-ticket">対応番号 '+esc(c.ticket_no)+'</span>' : '') +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="crm-stats">' +
+      '<div class="crm-stat"><b>'+esc(visitCount)+'</b><span>来店回数</span></div>' +
+      '<div class="crm-stat"><b style="font-size:15px;padding-top:3px">'+esc(crmYen(ltv))+'</b><span>累計利用（LTV）</span></div>' +
+      '<div class="crm-stat"><b style="font-size:15px;padding-top:3px">'+esc(crmDate(lastVisit))+'</b><span>最終来店</span></div>' +
+    '</div>' +
+    nextBox +
+    consentSect +
+    '<div class="crm-sect"><h3>基本情報</h3><div class="crm-memo" style="background:#f8fafa;border-color:#e6eceb;white-space:normal">' +
+      'LINE表示名：'+esc((c && c.line_display_name) || name) +
+      (c && c.chief_complaint ? '<br>主訴：'+esc(c.chief_complaint) : '') +
+      (c && c.interest_menus ? '<br>興味メニュー：'+esc(c.interest_menus) : '') +
+      (c && c.line_joined_at ? '<br>LINE登録日：'+esc(crmDate(c.line_joined_at)) : '') +
+      (curHuman && curHuman !== 'done' && curHuman !== '' ? '<br><b style="color:#c2410c">⚠️ 有人対応中：'+esc(curHuman)+(curReason?'（'+esc(curReason)+'）':'')+'</b>' : '') +
+    '</div></div>' +
+    qSect +
+    '<div class="crm-sect"><h3>背景メモ</h3><div class="crm-memo">'+memo+'</div></div>' +
+    '<div class="crm-sect"><h3>来店・対応履歴</h3><ul class="crm-timeline">'+history+'</ul></div>' +
+    crmFooterHtml(uid, curType, curHuman, hasUid, c);
+
+  // フッタ操作のイベント（保存ボタン）。uid は閉包で持つ（onclick 連結しない）。
+  // ★編集できるのは「customers行があり、かつ自店 or manager」のときだけ（RLS staff_customers_write と一致）。
+  if (hasUid && c && (c.store_id || window.IS_MANAGER)){
+    var btn = document.getElementById('crmSaveBtn');
+    if (btn) btn.addEventListener('click', function(){ crmSaveEdits(uid); });
+  }
+}
+
+/* フッタ操作パネル（メモ追記／区分変更／有人対応）。authenticated 自店のみ実効。 */
+function crmFooterHtml(uid, curType, curHuman, hasUid, c){
+  if (!hasUid){
+    return '<div class="crm-foot"><div class="crm-memo" style="text-align:center;color:#889">' +
+      'このお客様は LINE 未連携のため、メモ・区分の編集はできません（電話予約など）。</div></div>';
+  }
+  if (!c){   // ★顧客台帳に行が無い（予約のみの合成顧客）＝更新しても0件になるため編集UIを出さない
+    return '<div class="crm-foot"><div class="crm-memo" style="text-align:center;color:#889">' +
+      'このお客様はまだ顧客台帳に登録がないため（予約のみ）、メモ・区分の編集はできません。</div></div>';
+  }
+  if (!c.store_id && !window.IS_MANAGER){   // ★全店共通(store_id=NULL)の顧客は manager のみ編集可（RLSと一致）
+    return '<div class="crm-foot"><div class="crm-memo" style="text-align:center;color:#889">' +
+      'この全店共通のお客様は、オーナー／管理者のみ編集できます。</div></div>';
+  }
+  function opt(val, label, cur){ return '<option value="'+esc(val)+'"'+(cur===val?' selected':'')+'>'+esc(label)+'</option>'; }
+  // 有人対応：空＝対応不要、値あり＝対応中、'done'＝対応済み（human_done_at をセット）
+  var humanCur = (curHuman === 'done') ? 'done' : (curHuman ? 'open' : '');
+  var typeCur = curType || '';
+  return '<div class="crm-foot">' +
+    '<div class="crm-edit">' +
+      '<h3>✏️ メモ・区分・有人対応の更新</h3>' +
+      '<label class="crm-el">背景メモに追記</label>' +
+      '<textarea id="crmMemoAdd" rows="2" placeholder="このお客様への申し送り・対応メモを追記…"></textarea>' +
+      '<div class="crm-row2">' +
+        '<div>' +
+          '<label class="crm-el">区分</label>' +
+          '<select id="crmTypeSel">' +
+            opt('', '（未設定）', typeCur) +
+            opt('new', '新規', typeCur) +
+            opt('repeat', '常連', typeCur) +
+            opt('vip', 'VIP', typeCur) +
+            opt('prospect', '見込み', typeCur) +
+            opt('other', 'その他', typeCur) +
+          '</select>' +
+        '</div>' +
+        '<div>' +
+          '<label class="crm-el">有人対応</label>' +
+          '<select id="crmHumanSel">' +
+            opt('', '対応不要', humanCur) +
+            opt('open', '対応中（要フォロー）', humanCur) +
+            opt('done', '対応済み', humanCur) +
+          '</select>' +
+        '</div>' +
+      '</div>' +
+      '<label class="crm-el">有人対応の理由（任意）</label>' +
+      '<input id="crmHumanReason" type="text" placeholder="例）デザイン相談・クレーム対応など" autocomplete="off">' +
+      '<button type="button" class="crm-save" id="crmSaveBtn">この内容で更新する</button>' +
+      '<div class="crm-emsg" id="crmEditMsg"></div>' +
+    '</div>' +
+  '</div>';
+}
+
+function crmEditMsg(t, ok){
+  var el = document.getElementById('crmEditMsg');
+  if (!el) return;
+  el.textContent = t || '';
+  el.className = 'crm-emsg' + (t ? (ok ? ' crm-ok' : ' crm-ng') : '');
+}
+
+/* フッタ：customers を line_uid で更新（自店・authenticated）。失敗時は日本語で理由表示。
+   ・メモは「追記」（既存 background_memo の末尾に日付つきで足す）。
+   ・有人対応 done のときは human_done_at=now、open のときは null、対応不要は status/理由クリア。 */
+function crmSaveEdits(uid){
+  if (!uid) return;
+  var card = CRM_CARDS[uid] || {};
+  var cust = card.customer || {};
+
+  var memoAdd = (document.getElementById('crmMemoAdd').value || '').trim();
+  var typeVal = document.getElementById('crmTypeSel').value;       // '' / new / repeat / vip ...
+  var humanSel = document.getElementById('crmHumanSel').value;     // '' / open / done
+  var reasonVal = (document.getElementById('crmHumanReason').value || '').trim();
+
+  var patch = {};
+
+  // 区分（空文字は null として送る）
+  patch.customer_type = (typeVal === '') ? null : typeVal;
+
+  // 背景メモ：既存に追記（上書きしない）。
+  if (memoAdd){
+    var stamp = crmDate(new Date().toISOString());
+    var prev = cust.background_memo ? String(cust.background_memo) : '';
+    patch.background_memo = (prev ? prev + '\n' : '') + '[' + stamp + '] ' + memoAdd;
+  }
+
+  // 有人対応
+  if (humanSel === ''){            // 対応不要：クリア
+    patch.human_status = null; patch.human_reason = null; patch.human_done_at = null;
+  } else if (humanSel === 'open'){ // 対応中
+    patch.human_status = 'open'; patch.human_reason = reasonVal || null; patch.human_done_at = null;
+  } else if (humanSel === 'done'){ // 対応済み
+    patch.human_status = 'done'; patch.human_reason = reasonVal || null;
+    patch.human_done_at = new Date().toISOString();
+  }
+
+  var btn = document.getElementById('crmSaveBtn');
+  if (btn){ btn.disabled = true; btn.textContent = '更新中…'; }
+  crmEditMsg('更新中…', true);
+
+  var filter = 'line_uid=eq.' + encodeURIComponent(uid);
+  sbUpdate('customers', filter, patch).then(function(rows){
+    if (btn){ btn.disabled = false; btn.textContent = 'この内容で更新する'; }
+    // 更新が0件＝権限が無い/該当無し（RLSで弾かれた可能性）。representation が空配列なら失敗扱い。
+    if (Array.isArray(rows) && rows.length === 0){
+      crmEditMsg('更新できませんでした（権限がありません。担当店舗・ログインをご確認ください）。');
+      return;
+    }
+    crmEditMsg('✅ 更新しました。', true);
+    delete CRM_CARDS[uid];          // キャッシュ破棄
+    selectCustomer(uid);            // カルテ再読込
+    crmLoadList();                  // 一覧のステータス・区分も更新
+  }).catch(function(err){
+    if (btn){ btn.disabled = false; btn.textContent = 'この内容で更新する'; }
+    var msg = String(err && err.message || err || '');
+    if (/permission|denied|rls|forbidden|42501/i.test(msg)){
+      crmEditMsg('権限がありません（この店舗のお客様は編集できません）。');
+    } else if (!TOKEN){
+      if (typeof showLogin === 'function') showLogin('もう一度ログインしてください。');
+    } else {
+      crmEditMsg('更新できませんでした：' + esc(msg));
+    }
+  });
+}
+
+/* ===== dashboard タブ JS ===== */
+/* ============================================================================
+   経営ダッシュボード（Supabase版）
+   ・dashboard_stats(p_store,p_from,p_to) を呼び、戻りjsonbの存在キーのみ描画。
+   ・期間：今月／先月／今年／直近6ヶ月。from/to を JST境界 ISO(+09:00) で計算。
+   ・店舗スコープ：storeIdForSlug(currentStoreSlug())。'all'=null（owner/admin・全店）。
+   ・閲覧専用。0件・¥0でも崩れない。XSS対策で innerHTML 値は esc()。
+   ・戻りjsonbキー：sales,visited,reservations,cancelled,noShow,avgSpend,questionnaireRate,
+        byNurse[{artist_id,name,visited,sales}],byMenu[{menu_id,name,count}],
+        newVsRepeat{newCount,repeatCount}。
+        ※repeatRate/cancelRate/monthly は dashboard_stats に無いので参照しない。
+   ============================================================================ */
+var DASH_PERIOD = 'this_month';
+
+/* 円表示・最大値（ローカルヘルパー。dash- 名前空間で衝突回避） */
+function dashYen(n){ return '¥' + (Number(n) || 0).toLocaleString('ja-JP'); }
+function dashMaxOf(arr){ var m = 1; for (var i = 0; i < arr.length; i++){ if (arr[i] > m) m = arr[i]; } return m; }
+
+/* JST(+09:00)境界の ISO 文字列を作る（年・月・日を渡す。月は1始まり） */
+function dashJstIso(y, mo1, d){
+  var p2 = function(n){ return ('0' + n).slice(-2); };
+  return y + '-' + p2(mo1) + '-' + p2(d) + 'T00:00:00+09:00';
+}
+
+/* 期間 → { from, to(排他), label }。すべて JST 境界。
+   ※年月は実行端末のローカル時刻（国内＝JST想定）から取得。境界文字列は +09:00 で固定。 */
+function dashRangeFor(p){
+  var now = new Date();
+  var y = now.getFullYear(), m1 = now.getMonth() + 1; // 1始まり
+  if (p === 'this_month'){
+    var nm = m1 === 12 ? 1 : m1 + 1, ny = m1 === 12 ? y + 1 : y;
+    return { from: dashJstIso(y, m1, 1), to: dashJstIso(ny, nm, 1), label: y + '年' + m1 + '月' };
+  }
+  if (p === 'last_month'){
+    var lm = m1 === 1 ? 12 : m1 - 1, ly = m1 === 1 ? y - 1 : y;
+    return { from: dashJstIso(ly, lm, 1), to: dashJstIso(y, m1, 1), label: ly + '年' + lm + '月' };
+  }
+  if (p === 'this_year'){
+    return { from: dashJstIso(y, 1, 1), to: dashJstIso(y + 1, 1, 1), label: y + '年（年間）' };
+  }
+  // last_6m：当月を含む直近6ヶ月（5ヶ月前の1日〜来月1日）
+  var sy = y, sm = m1 - 5;
+  while (sm <= 0){ sm += 12; sy -= 1; }
+  var ey = m1 === 12 ? y + 1 : y, em = m1 === 12 ? 1 : m1 + 1;
+  return { from: dashJstIso(sy, sm, 1), to: dashJstIso(ey, em, 1), label: sy + '年' + sm + '月〜' + y + '年' + m1 + '月' };
+}
+
+/* 表示関数（指定どおり：hideAllViews→setActiveNav→display→読込） */
+function showDashboard(el){
+  hideAllViews();
+  if (el) setActiveNav(el);
+  document.getElementById('dashView').style.display = '';
+  loadDash();
+  window.scrollTo({ top:0, behavior:'smooth' });
+}
+
+/* 期間タブのクリック委譲（インライン onclick を使わず data-dp ＋ 委譲）。
+   ★修正：トップレベルIIFEで #dashTabs に直接バインドすると、このJSがマークアップより
+   先に評価される / ビューが後から注入される構成で null になりタブが無反応になる。
+   document への委譲（クリック時に #dashView 内の .dash-tab を解決）にして
+   DOM生成タイミングに依存せず必ず効くようにする。 */
+document.addEventListener('click', function(e){
+  var t = e.target.closest ? e.target.closest('.dash-tab') : null;
+  if (!t) return;
+  var tabs = document.getElementById('dashTabs');
+  if (!tabs || !tabs.contains(t)) return;   // 他タブの同名クラスに反応しない保険
+  var p = t.getAttribute('data-dp'); if (!p) return;
+  DASH_PERIOD = p;
+  var all = tabs.querySelectorAll('.dash-tab');
+  for (var i = 0; i < all.length; i++){ all[i].classList.toggle('active', all[i] === t); }
+  loadDash();
+});
+
+/* 集計取得 → 描画 */
+function loadDash(){
+  var body = document.getElementById('dashBody');
+  body.innerHTML = '<div class="dash-placeholder">読み込み中…</div>';
+
+  ensureStoreMap().then(function(){
+    var r = dashRangeFor(DASH_PERIOD);
+    document.getElementById('dashPeriod').textContent = r.label + ' の集計';
+    var storeId = storeIdForSlug(currentStoreSlug()); // 'all'→null（owner/adminのみRLS許可）
+    return sbRpc('dashboard_stats', { p_store: storeId, p_from: r.from, p_to: r.to });
+  }).then(function(s){
+    renderDash(s || {});
+  }).catch(function(err){
+    if (!TOKEN){ if (typeof showLogin === 'function') showLogin('もう一度ログインしてください。'); return; }
+    var msg = String((err && err.message) || err || '');
+    // 全店(null)を非managerが見た等：forbidden_store を日本語に
+    if (/forbidden_store|forbidden|permission|denied/i.test(msg)){
+      body.innerHTML = '<div class="dash-placeholder">権限がありません（この店舗・期間を表示できません）。</div>';
+      return;
+    }
+    body.innerHTML = '<div class="dash-placeholder">取得に失敗しました<br>' + esc(msg) + '</div>';
+  });
+}
+
+/* dashboard_stats の戻りjsonb（存在キーのみ）を描画。 */
+function renderDash(s){
+  var body = document.getElementById('dashBody');
+
+  // KPIカード（GAS版の体裁・色・KPI名を踏襲。存在キーのみ）
+  var num = function(v){ return Number(v) || 0; };
+  var kpis = [
+    { l:'売上',     v: dashYen(s.sales),               c:'dash-kpi-main' },
+    { l:'来店数',   v: num(s.visited) + '件' },
+    { l:'予約数',   v: num(s.reservations) + '件' },
+    { l:'平均単価', v: dashYen(s.avgSpend) },
+    { l:'キャンセル', v: num(s.cancelled) + '件',       c:(num(s.cancelled) > 0 ? 'dash-kpi-warn' : '') },
+    { l:'無断キャンセル', v: num(s.noShow) + '件',      c:(num(s.noShow) > 0 ? 'dash-kpi-warn' : '') },
+    { l:'問診記入率', v: num(s.questionnaireRate) + '%' }
+  ];
+  var html = '<div class="dash-kpis">' + kpis.map(function(x){
+    return '<div class="dash-kpi ' + (x.c || '') + '">' +
+             '<div class="dash-kpi-v">' + esc(x.v) + '</div>' +
+             '<div class="dash-kpi-l">' + esc(x.l) + '</div>' +
+           '</div>';
+  }).join('') + '</div>';
+
+  // アーティスト別（売上降順）。
+  // ★修正：RPC側の order by x->>'sales' desc は文字列比較で並びが崩れうるため、
+  //   クライアントで Number(sales) の降順に再ソートして降順を担保する。
+  var byNurse = (Array.isArray(s.byNurse) ? s.byNurse.slice() : [])
+    .sort(function(a, b){ return num(b.sales) - num(a.sales); });
+  html += '<div class="dash-sect"><h3>📊 アーティスト別（売上）</h3>';
+  if (byNurse.length){
+    var maxN = dashMaxOf(byNurse.map(function(n){ return num(n.sales); }));
+    html += byNurse.map(function(n){
+      var w = Math.round(num(n.sales) / maxN * 100);
+      return '<div class="dash-row">' +
+               '<div class="dash-row-l">' + esc(n.name || '—') + '</div>' +
+               '<div class="dash-bar"><div class="dash-bar-fill" style="width:' + w + '%"></div></div>' +
+               '<div class="dash-row-v">' + esc(dashYen(n.sales)) +
+                 '<span class="dash-row-sub">' + esc(num(n.visited)) + '件</span></div>' +
+             '</div>';
+    }).join('');
+  } else {
+    html += '<div class="dash-empty">この期間の来店実績はありません</div>';
+  }
+  html += '</div>';
+
+  // メニュー別（件数）
+  var byMenu = Array.isArray(s.byMenu) ? s.byMenu : [];
+  html += '<div class="dash-sect"><h3>💉 メニュー別（予約数）</h3>';
+  if (byMenu.length){
+    var maxM = dashMaxOf(byMenu.map(function(m){ return num(m.count); }));
+    html += byMenu.map(function(m){
+      var w = Math.round(num(m.count) / maxM * 100);
+      return '<div class="dash-row">' +
+               '<div class="dash-row-l">' + esc(m.name || '—') + '</div>' +
+               '<div class="dash-bar"><div class="dash-bar-fill dash-alt" style="width:' + w + '%"></div></div>' +
+               '<div class="dash-row-v">' + esc(num(m.count)) + '件</div>' +
+             '</div>';
+    }).join('');
+  } else {
+    html += '<div class="dash-empty">この期間の予約はありません</div>';
+  }
+  html += '</div>';
+
+  // 新規 vs リピーター（来店ベース）
+  var nr = s.newVsRepeat || { newCount:0, repeatCount:0 };
+  var nc = num(nr.newCount), rc = num(nr.repeatCount), tot = Math.max(1, nc + rc);
+  html += '<div class="dash-sect"><h3>🆕 新規 vs リピーター（来店ベース）</h3>' +
+            '<div class="dash-nrbar">' +
+              '<div class="dash-nr-new" style="width:' + Math.round(nc / tot * 100) + '%"></div>' +
+              '<div class="dash-nr-rep" style="width:' + Math.round(rc / tot * 100) + '%"></div>' +
+            '</div>' +
+            '<div class="dash-nr-legend">🆕 新規 ' + esc(nc) + '件 ／ 🔁 リピーター ' + esc(rc) + '件</div>' +
+          '</div>';
+
+  html += '<div class="dash-note">※ 売上・来店・リピートは「来店済み」記録が基準です。予約管理で来店結果を記録するほど正確になります。</div>';
+
+  body.innerHTML = html;
+}
+
+/* ===== reviews タブ JS ===== */
+/* ============================================================================
+   口コミ管理タブ（Supabase版）JS
+   ・GAS google.script.run（adminListReviews/adminAddReview/adminToggleReview/adminRemoveReview）を
+     sbGet/sbInsert/sbUpdate/sbDelete に置換。共有グローバルはそのまま使う（再定義しない）。
+   ・RLS：reviews はテナント／自店・全店共通(store_id=NULL)に絞られる。編集系は manager のみ許可。
+     非manager の書込失敗は「権限がありません」を日本語表示。
+   ・XSS対策：innerHTML へ入れる値は必ず esc()。操作は data-* ＋イベント委譲で取得。
+   ============================================================================ */
+
+/* 表示切替（必須パターン）。hideAllViews → setActiveNav → 表示 → 読込 */
+function showReviews(el){
+  hideAllViews();
+  if(el) setActiveNav(el);
+  document.getElementById('reviewView').style.display='';
+  revSetMsg('');
+  fillReviewStoreOptions();   // 追加フォームの店舗候補を STORE_MAP から用意
+  loadReviews();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+/* DBの raise/PostgREST エラーを日本語へ。RLS拒否（権限なし）を最優先で判定 */
+function revReason(err){
+  var r = String((err && err.message) || err || '');
+  if(/permission denied|row-level security|violates row-level|RLS|42501|not authorized|forbidden/i.test(r)) return '権限がありません';
+  if(/JWT|token|expired|invalid_grant|401/i.test(r)) return 'もう一度ログインしてください';
+  return r || '処理に失敗しました';
+}
+
+/* 追加フォーム下のメッセージ */
+function revSetMsg(t, ok){
+  var el = document.getElementById('revMsg');
+  if(!el) return;
+  el.textContent = t || '';
+  el.className = 'rev-msg' + (t ? (ok ? ' ok' : ' ng') : '');
+}
+
+/* store_id(uuid) → 表示名。null/未解決は「全店共通」 */
+function revStoreName(storeId){
+  if(!storeId) return '全店共通';
+  if(STORE_MAP){
+    for(var k in STORE_MAP){ if(STORE_MAP[k] && STORE_MAP[k].id === storeId) return STORE_MAP[k].name || k; }
+  }
+  return '店舗';
+}
+
+/* 追加フォームの店舗セレクタを STORE_MAP（stores）から動的生成。先頭は「全店共通」(値空=NULL) */
+function fillReviewStoreOptions(){
+  var sel = document.getElementById('revStore');
+  if(!sel) return;
+  ensureStoreMap().then(function(){
+    var cur = sel.value;
+    var opts = '<option value="">全店共通</option>';
+    if(STORE_MAP){
+      for(var k in STORE_MAP){
+        opts += '<option value="'+esc(k)+'">'+esc(STORE_MAP[k].name || k)+'</option>';
+      }
+    }
+    sel.innerHTML = opts;
+    sel.value = cur;   // 直前の選択は維持
+  }).catch(function(){ /* 店舗が取れなくても「全店共通」だけで追加可能 */ });
+}
+
+/* 一覧取得：sort_order 昇順（NULLは後ろ）→ created_at 降順。RLSがテナント・店舗スコープを担保 */
+function loadReviews(){
+  var list = document.getElementById('reviewList');
+  if(!list) return;
+  list.innerHTML = '<div class="placeholder">読み込み中…</div>';
+  sbGet('reviews?select=*&order=sort_order.asc.nullslast,created_at.desc')
+    .then(function(rows){ renderReviews(rows || []); })
+    .catch(function(err){
+      if(!TOKEN){ if(typeof showLogin==='function') showLogin('もう一度ログインしてください。'); return; }
+      list.innerHTML = '<div class="placeholder">取得に失敗しました<br>'+esc(revReason(err))+'</div>';
+    });
+}
+
+/* カード描画。元 onReviewsLoaded のHTML・バッジ・文言を踏襲。値は全て esc()、操作は data-* */
+function renderReviews(rows){
+  var cnt = document.getElementById('revCount');
+  if(cnt) cnt.textContent = '登録 ' + rows.length + '件';
+  var list = document.getElementById('reviewList');
+  if(!list) return;
+  if(!rows.length){
+    list.innerHTML = '<div class="placeholder">まだ口コミがありません。上のフォームから追加してください。</div>';
+    return;
+  }
+  list.innerHTML = rows.map(function(r){
+    var rt = Math.max(0, Math.min(5, r.rating|0));
+    var stars = '★★★★★☆☆☆☆☆'.slice(5-rt, 10-rt);
+    var shown = (r.is_shown !== false);
+    var badge = shown ? '<span class="rev-on">公開中</span>' : '<span class="rev-off">非公開</span>';
+    var linkBtn = (r.google_link && /^https?:\/\//.test(r.google_link))
+      ? '<a class="rbtn" href="'+esc(r.google_link)+'" target="_blank" rel="noopener">↗ リンク</a>' : '';
+    var ord = (r.sort_order || r.sort_order === 0) ? '<span class="rev-order">並び '+esc(r.sort_order)+'</span>' : '';
+    var id = esc(r.id);
+    return '<div class="revcard">'
+      + '<div class="rev-top"><span class="rev-stars">'+stars+'</span>'
+        + (r.nurse_label ? '<span class="rev-nurse">担当：'+esc(r.nurse_label)+'</span>' : '')
+        + '<span class="rev-store">'+esc(revStoreName(r.store_id))+'</span>'
+        + badge + ord + '</div>'
+      + '<div class="rev-body">'+esc(r.body)+'</div>'
+      + '<div class="rev-acts">'
+        + '<button type="button" class="rbtn" data-rev-act="'+(shown?'hide':'show')+'" data-rev-id="'+id+'">'+(shown?'🙈 非公開にする':'👁 公開する')+'</button>'
+        + linkBtn
+        + '<button type="button" class="rbtn danger" data-rev-act="del" data-rev-id="'+id+'">🗑 削除</button>'
+      + '</div></div>';
+  }).join('');
+}
+
+/* 追加：sbInsert('reviews', {...})。店舗は選択 slug→uuid（空=全店共通=NULL）。tenant_id は TENANT_ID */
+function addReview(){
+  var body = document.getElementById('revBody').value.trim();
+  if(!body){ revSetMsg('口コミ本文を入力してください。'); return; }
+
+  var slug = document.getElementById('revStore').value;        // ''＝全店共通
+  // ★店舗を選択しているのに uuid 解決できない場合は無言で全店共通(NULL)にせず中止する
+  var storeId = null;
+  if(slug){
+    storeId = storeIdForSlug(slug);
+    if(!storeId){ revSetMsg('店舗情報を読み込めませんでした。少し待ってから再度お試しください。'); return; }
+  }
+  var ratingVal = parseInt(document.getElementById('revRating').value, 10);
+  var orderRaw = document.getElementById('revOrder').value.trim();
+  var orderNum = orderRaw === '' ? null : parseInt(orderRaw, 10);
+  if(orderNum !== null && isNaN(orderNum)) orderNum = null;
+
+  var row = {
+    tenant_id: TENANT_ID,
+    store_id: storeId,                                          // null = 全店共通
+    nurse_label: document.getElementById('revNurse').value.trim() || null,
+    rating: (ratingVal >= 1 && ratingVal <= 5) ? ratingVal : 5,
+    body: body,
+    google_link: document.getElementById('revLink').value.trim() || null,
+    sort_order: orderNum,
+    is_shown: true
+  };
+
+  var btn = document.getElementById('revSave');
+  btn.disabled = true; btn.textContent = '追加中…'; revSetMsg('追加中…', true);
+  sbInsert('reviews', row)
+    .then(function(){
+      btn.disabled = false; btn.textContent = '＋ 追加して公開';
+      revSetMsg('✅ 追加して公開しました', true);
+      document.getElementById('revBody').value = '';
+      document.getElementById('revLink').value = '';
+      document.getElementById('revNurse').value = '';
+      document.getElementById('revOrder').value = '';
+      loadReviews();
+    })
+    .catch(function(err){
+      btn.disabled = false; btn.textContent = '＋ 追加して公開';
+      if(!TOKEN){ if(typeof showLogin==='function') showLogin('もう一度ログインしてください。'); return; }
+      revSetMsg('追加できませんでした（' + revReason(err) + '）。');
+    });
+}
+
+/* 一覧のクリック委譲（注入対策で data-* から取得）。公開切替・削除を実行。
+   reviewList が未挿入でも落ちないよう document へフォールバックする。 */
+(function bindReviewListDelegation(){
+  function onReviewListClick(e){
+    var btn = e.target.closest('button.rbtn[data-rev-act]');
+    if(!btn) return;
+    // reviewList 配下のボタンのみ対象（document フォールバック時の誤爆防止）
+    var listEl = document.getElementById('reviewList');
+    if(listEl && !listEl.contains(btn)) return;
+    var act = btn.getAttribute('data-rev-act');
+    var id  = btn.getAttribute('data-rev-id');
+    if(!id) return;
+    if(act === 'del'){
+      if(!window.confirm('この口コミを削除しますか？')) return;
+      runReviewOp(sbDelete('reviews', 'id=eq.' + encodeURIComponent(id)));
+    } else if(act === 'hide'){
+      runReviewOp(sbUpdate('reviews', 'id=eq.' + encodeURIComponent(id), { is_shown: false }));
+    } else if(act === 'show'){
+      runReviewOp(sbUpdate('reviews', 'id=eq.' + encodeURIComponent(id), { is_shown: true }));
+    }
+  }
+  var list = document.getElementById('reviewList');
+  if(list) list.addEventListener('click', onReviewListClick);
+  else document.addEventListener('click', onReviewListClick);
+})();
+
+/* 操作の共通後処理：成功で再読込、失敗は権限なし等を日本語表示 */
+function runReviewOp(promise){
+  promise
+    .then(function(){ loadReviews(); })
+    .catch(function(err){
+      if(!TOKEN){ if(typeof showLogin==='function') showLogin('もう一度ログインしてください。'); return; }
+      window.alert('できませんでした（' + revReason(err) + '）。');
+    });
+}
+
+/* ===== settings タブ JS ===== */
+/* ============================================================================
+   設定タブ（Supabase版）— id="setView" / 表示関数 showSettings(el)
+   GAS版 src/admin.html の設定タブを踏襲。サブパネルをタブで切替：
+     info（システム情報・読取）／menu（メニュー・料金）／artist（アーティスト）
+     store（受付時間）／shift（シフト）
+   ・共有グローバルをそのまま使用：SB_URL,SB_KEY,TOKEN,hdr(),sbGet,sbRpc,
+     sbInsert,sbUpdate,sbDelete,esc,currentStoreSlug,storeIdForSlug,
+     ensureStoreMap,STORE_MAP,TENANT_ID,hideAllViews,setActiveNav,showLogin
+   ・マスタ編集(menus/artists/stores/artist_shifts)はRLSで manager のみ。
+     非managerの書込失敗は「権限がありません（オーナー/管理者のみ編集できます）」と表示。
+   ・XSS：innerHTMLは必ず esc()。操作は data-* 属性＋イベント委譲で取得。
+   ・店舗スコープ：設定タブには店舗セレクタが無いため、一覧クエリに store_id
+     フィルタを付けない＝RLS に委ねる（manager=同テナント全店／staff=自店）。
+   ============================================================================ */
+var SET_SECTION = 'info';
+var SET_WD = ['日','月','火','水','木','金','土'];
+var SET_MANAGER_MSG = '権限がありません（オーナー/管理者のみ編集できます）';
+
+/* 表示関数（規約どおり：hideAllViews → setActiveNav → 表示 → 読込） */
+function showSettings(el){
+  if (typeof hideAllViews === 'function') hideAllViews();
+  if (el && typeof setActiveNav === 'function') setActiveNav(el);
+  document.getElementById('setView').style.display = '';
+  setSettingsSection(SET_SECTION || 'info');
+  window.scrollTo({ top:0, behavior:'smooth' });
+}
+
+/* サブパネル切替 */
+function setSettingsSection(s){
+  SET_SECTION = s;
+  var ts = document.querySelectorAll('#setView .set-tab');
+  for (var i=0;i<ts.length;i++){ ts[i].classList.toggle('set-on', ts[i].getAttribute('data-sp')===s); }
+  if (s==='menu')        setLoadMenus();
+  else if (s==='artist') setLoadArtists();
+  else if (s==='store')  setLoadStores();
+  else if (s==='shift')  setLoadShiftIndex();
+  else                   setLoadInfo();
+}
+
+/* DBの例外メッセージ→日本語。manager権限不足は専用文言。 */
+function setReason(err){
+  var r = String((err && err.message) || err || '');
+  if (/permission denied|row-level security|violates row-level|insufficient_privilege|42501|forbidden/i.test(r)) return SET_MANAGER_MSG;
+  if (/no_overlap|exclusion|overlap/i.test(r)) return '同じ担当の予約と重複しています';
+  return r || '処理に失敗しました';
+}
+
+/* 共通：ログイン切れの一括処理（!TOKEN なら showLogin） */
+function setHandleAuth(err){
+  if (typeof TOKEN !== 'undefined' && !TOKEN){
+    if (typeof showLogin === 'function') showLogin('もう一度ログインしてください。');
+    return true;
+  }
+  return false;
+}
+
+/* yenC が無ければ簡易フォーマット */
+function setYen(n){
+  if (typeof yenC === 'function') return yenC(n);
+  var v = parseInt(n,10);
+  return (isNaN(v)?String(n==null?'—':n):('¥'+v.toLocaleString('ja-JP')));
+}
+
+/* ============================================================================
+   1) システム情報（読取専用）
+   stores の営業設定＋件数（menus/artists/reviews）。機微情報の実値は出さない。
+   ※店舗フィルタは付けず RLS に委ねる（manager=全店／staff=自店）。
+   ============================================================================ */
+function setLoadInfo(){
+  var body = document.getElementById('setBody');
+  body.innerHTML = '<div class="set-ph">読み込み中…</div>';
+  ensureStoreMap().then(function(){
+    var storesPath = 'stores?select=id,name,code,business_hours_start,business_hours_end,slot_interval_min,seat_count,closed_days,google_calendar_id,accept_outside_business_hours&order=name';
+    return Promise.all([
+      sbGet(storesPath),
+      sbGet('menus?select=id'),
+      sbGet('artists?select=id'),
+      sbGet('reviews?select=id')
+    ]);
+  }).then(function(res){
+    var stores = res[0]||[], menus = res[1]||[], artists = res[2]||[], reviews = res[3]||[];
+    var okb = function(ok,okt,ngt){ return ok
+      ? '<span class="set-okb">✅ '+esc(okt||'設定済み')+'</span>'
+      : '<span class="set-ngb">⚠️ '+esc(ngt||'未設定')+'</span>'; };
+    var row = function(l,v){ return '<div class="set-row"><span class="set-l">'+esc(l)+'</span><span class="set-v">'+v+'</span></div>'; };
+    var h = '';
+    h += '<div class="set-sect"><h3>🏪 店舗</h3>' + (stores.length ? stores.map(function(s){
+      return row('店舗名', esc(s.name||'—'))
+        + row('予約受付', esc(s.business_hours_start||'—')+' 〜 '+esc(s.business_hours_end||'—'))
+        + row('予約の刻み', esc(s.slot_interval_min||'—')+'分ごと')
+        + row('席数', s.seat_count>0 ? ('<b>'+esc(s.seat_count)+'席</b>') : '制限なし')
+        + row('定休日', esc(s.closed_days||'—'))
+        + row('営業時間外の受付', okb(s.accept_outside_business_hours,'許可','不可'))
+        + row('カレンダー連携', okb(!!s.google_calendar_id));
+    }).join('') : '<div class="set-row"><span class="set-v">店舗が登録されていません</span></div>') + '</div>';
+    h += '<div class="set-sect"><h3>📊 登録データ</h3>'
+      + row('メニュー', esc(menus.length)+'件')
+      + row('アーティスト', esc(artists.length)+'件')
+      + row('口コミ', esc(reviews.length)+'件')
+      + '</div>';
+    h += '<div class="set-note">※ システム情報は確認用の読み取り画面です。メニュー・料金、アーティスト、受付時間、シフトは上の各タブで編集できます（オーナー／管理者のみ）。カレンダーIDなどの機微情報は安全のため表示していません。</div>';
+    body.innerHTML = h;
+  }).catch(function(err){
+    if (setHandleAuth(err)) return;
+    body.innerHTML = '<div class="set-ph set-err">取得に失敗しました<br>'+esc(setReason(err))+'</div>';
+  });
+}
+
+/* ============================================================================
+   2) メニュー・料金
+   menus（name, price_normal, price_monitor, is_active）一覧→編集（料金/有効）。
+   ※menus はテナント共通マスタ。staff_read_menus で同テナント全件読める。
+   ============================================================================ */
+function setLoadMenus(){
+  var body = document.getElementById('setBody');
+  body.innerHTML = '<div class="set-ph">読み込み中…</div>';
+  sbGet('menus?select=id,name,price_normal,price_monitor,is_active&order=name')
+    .then(function(rows){
+      rows = rows || [];
+      var h = '';
+      if (!rows.length){ h += '<div class="set-ph">メニューがまだありません。</div>'; }
+      rows.forEach(function(m){
+        var mid = esc(m.id);
+        h += '<div class="set-card'+(m.is_active?'':' set-off')+'" data-mid="'+mid+'">'
+          + '<div class="set-name">'+esc(m.name)+(m.is_active?'':' <span class="set-tag set-tagng">停止中</span>')+'</div>'
+          + '<div class="set-meta"><span>モニター <b>'+setYen(m.price_monitor)+'</b></span><span>通常 <b>'+setYen(m.price_normal)+'</b></span></div>'
+          + '<div class="set-id">ID：'+mid+'</div>'
+          + '<div class="set-acts"><button type="button" class="set-btn set-ghost" data-act="medit" data-mid="'+mid+'">✏️ 編集</button></div>'
+          + '<div class="set-edit" id="set-medit-'+mid+'">'
+          +   '<label>モニター価格（円）</label><input type="number" inputmode="numeric" id="set-mm-'+mid+'" value="'+esc(m.price_monitor==null?'':m.price_monitor)+'">'
+          +   '<label>通常価格（円）</label><input type="number" inputmode="numeric" id="set-mp-'+mid+'" value="'+esc(m.price_normal==null?'':m.price_normal)+'">'
+          +   '<label class="set-chk"><input type="checkbox" id="set-mact-'+mid+'"'+(m.is_active?' checked':'')+'>このメニューを予約ページに表示する（有効）</label>'
+          +   '<div class="set-acts">'
+          +     '<button type="button" class="set-btn set-primary" data-act="msave" data-mid="'+mid+'">💾 保存</button>'
+          +     '<button type="button" class="set-btn set-ghost" data-act="mcancel" data-mid="'+mid+'">やめる</button>'
+          +   '</div>'
+          + '</div></div>';
+      });
+      h += '<div class="set-msg" id="set-menuMsg"></div>';
+      h += '<div class="set-note">※ 料金・有効/無効の変更は保存後すぐ反映されます。施術時間や担当アーティストの割り当て（artist_menus）は別途設定します。編集はオーナー／管理者のみです。</div>';
+      body.innerHTML = h;
+    }).catch(function(err){
+      if (setHandleAuth(err)) return;
+      body.innerHTML = '<div class="set-ph set-err">取得に失敗しました<br>'+esc(setReason(err))+'</div>';
+    });
+}
+
+function setSaveMenu(mid){
+  var mon = (document.getElementById('set-mm-'+mid)||{}).value;
+  var nor = (document.getElementById('set-mp-'+mid)||{}).value;
+  var act = !!(document.getElementById('set-mact-'+mid)||{}).checked;
+  var nMon = parseInt(mon,10), nNor = parseInt(nor,10);
+  if (mon===''||nor===''||isNaN(nMon)||isNaN(nNor)||nMon<0||nNor<0){
+    setMsg('set-menuMsg','料金は0以上の半角数字で入力してください。', false); return;
+  }
+  var patch = { price_normal:nNor, price_monitor:nMon, is_active:act };
+  sbUpdate('menus','id=eq.'+encodeURIComponent(mid), patch)
+    .then(function(){ setMsg('set-menuMsg','✅ 保存しました。', true); setLoadMenus(); })
+    .catch(function(err){ if (setHandleAuth(err)) return; setMsg('set-menuMsg', setReason(err), false); });
+}
+
+/* ============================================================================
+   3) アーティスト
+   artists（name, qualification, specialty, career, nomination_fee, is_active）一覧→編集／停止トグル。
+   ※店舗フィルタは付けず RLS に委ねる（manager=全店／staff=自店＋全店共通）。
+   ============================================================================ */
+function setLoadArtists(){
+  var body = document.getElementById('setBody');
+  body.innerHTML = '<div class="set-ph">読み込み中…</div>';
+  ensureStoreMap().then(function(){
+    var path = 'artists?select=id,name,qualification,specialty,career,nomination_fee,is_active,store_id&order=name';
+    return sbGet(path);
+  }).then(function(rows){
+    rows = rows || [];
+    var h = '';
+    if (!rows.length){ h += '<div class="set-ph">アーティストがまだいません。</div>'; }
+    rows.forEach(function(a){
+      var aid = esc(a.id);
+      h += '<div class="set-card'+(a.is_active?'':' set-off')+'" data-aid="'+aid+'">'
+        + '<div class="set-name">'+esc(a.name)+(a.is_active?'':' <span class="set-tag set-tagng">停止中</span>')+'</div>'
+        + '<div class="set-meta"><span>'+esc(a.qualification||'—')+'</span><span>得意：'+esc(a.specialty||'—')+'</span>'
+        +   '<span>指名料 '+(a.nomination_fee?setYen(a.nomination_fee):'—')+'</span></div>'
+        + '<div class="set-id">ID：'+aid+'</div>'
+        + '<div class="set-acts">'
+        +   '<button type="button" class="set-btn set-ghost" data-act="aedit" data-aid="'+aid+'">✏️ 編集</button>'
+        +   '<button type="button" class="set-btn set-ghost" data-act="atoggle" data-aid="'+aid+'" data-to="'+(a.is_active?'0':'1')+'">'+(a.is_active?'⏸ 停止':'▶️ 稼働')+'</button>'
+        + '</div>'
+        + '<div class="set-edit" id="set-aedit-'+aid+'">'
+        +   '<label>名前（表示名）</label><input type="text" id="set-aname-'+aid+'" value="'+esc(a.name||'')+'">'
+        +   '<label>資格</label><input type="text" id="set-aqual-'+aid+'" value="'+esc(a.qualification||'')+'">'
+        +   '<label>得意・専門</label><input type="text" id="set-aspec-'+aid+'" value="'+esc(a.specialty||'')+'">'
+        +   '<label>経歴</label><input type="text" id="set-acareer-'+aid+'" value="'+esc(a.career||'')+'">'
+        +   '<label>指名料（円・空欄で無し）</label><input type="number" inputmode="numeric" id="set-afee-'+aid+'" value="'+esc(a.nomination_fee==null?'':a.nomination_fee)+'">'
+        +   '<div class="set-acts">'
+        +     '<button type="button" class="set-btn set-primary" data-act="asave" data-aid="'+aid+'">💾 保存</button>'
+        +     '<button type="button" class="set-btn set-ghost" data-act="acancel" data-aid="'+aid+'">やめる</button>'
+        +   '</div>'
+        + '</div></div>';
+    });
+    h += '<div class="set-msg" id="set-artistMsg"></div>';
+    h += '<div class="set-note">※ 「停止」にすると予約ページの担当一覧から外れます（データは残り、いつでも再稼働できます）。編集はオーナー／管理者のみです。</div>';
+    body.innerHTML = h;
+  }).catch(function(err){
+    if (setHandleAuth(err)) return;
+    body.innerHTML = '<div class="set-ph set-err">取得に失敗しました<br>'+esc(setReason(err))+'</div>';
+  });
+}
+
+function setSaveArtist(aid){
+  var name = ((document.getElementById('set-aname-'+aid)||{}).value||'').trim();
+  if (!name){ setMsg('set-artistMsg','名前を入力してください。', false); return; }
+  var feeRaw = (document.getElementById('set-afee-'+aid)||{}).value;
+  var fee = (feeRaw==='' || feeRaw==null) ? null : parseInt(feeRaw,10);
+  if (fee!==null && (isNaN(fee)||fee<0)){ setMsg('set-artistMsg','指名料は0以上の半角数字で入力してください。', false); return; }
+  var patch = {
+    name: name,
+    qualification: ((document.getElementById('set-aqual-'+aid)||{}).value||'').trim() || null,
+    specialty:     ((document.getElementById('set-aspec-'+aid)||{}).value||'').trim() || null,
+    career:        ((document.getElementById('set-acareer-'+aid)||{}).value||'').trim() || null,
+    nomination_fee: fee
+  };
+  sbUpdate('artists','id=eq.'+encodeURIComponent(aid), patch)
+    .then(function(){ setMsg('set-artistMsg','✅ 保存しました。', true); setLoadArtists(); })
+    .catch(function(err){ if (setHandleAuth(err)) return; setMsg('set-artistMsg', setReason(err), false); });
+}
+
+function setToggleArtist(aid, to){
+  var active = (to === '1');
+  if (!active && !window.confirm('このアーティストを予約導線から外します（停止）。よろしいですか？\n※登録データは残ります。いつでも再稼働できます。')) return;
+  sbUpdate('artists','id=eq.'+encodeURIComponent(aid), { is_active: active })
+    .then(function(){ setLoadArtists(); })
+    .catch(function(err){ if (setHandleAuth(err)) return; setMsg('set-artistMsg', setReason(err), false); });
+}
+
+/* ============================================================================
+   4) 受付時間
+   stores の営業時間/刻み/席数を編集→sbUpdate('stores','id=eq.'+id,{...})。
+   HH:MM形式・席数>=1 の検証。
+   ※店舗フィルタは付けず RLS に委ねる（manager=全店／staff=自店）。
+   ============================================================================ */
+function setLoadStores(){
+  var body = document.getElementById('setBody');
+  body.innerHTML = '<div class="set-ph">読み込み中…</div>';
+  ensureStoreMap().then(function(){
+    var path = 'stores?select=id,name,business_hours_start,business_hours_end,slot_interval_min,seat_count,google_calendar_id&order=name';
+    return sbGet(path);
+  }).then(function(rows){
+    rows = rows || [];
+    var h = '';
+    if (!rows.length){ h += '<div class="set-ph">店舗が登録されていません。</div>'; }
+    rows.forEach(function(s){
+      var id = esc(s.id);
+      h += '<div class="set-card" data-store="'+id+'">'
+        + '<div class="set-name">🏪 '+esc(s.name||'—')+'</div>'
+        + '<div class="set-now">現在の予約受付：<b>'+esc(s.business_hours_start||'—')+' 〜 '+esc(s.business_hours_end||'—')+'</b></div>'
+        + '<div class="set-hint">'+esc(s.slot_interval_min||'—')+'分ごと ／ 席数 '+(s.seat_count>0?('<b>'+esc(s.seat_count)+'席</b>（同時施術の上限）'):'制限なし')+(s.google_calendar_id?'':' ／ ⚠️ カレンダーID未設定')+'</div>'
+        + '<div class="set-acts"><button type="button" class="set-btn set-ghost" data-act="sedit" data-store="'+id+'">✏️ 受付時間を変更</button></div>'
+        + '<div class="set-edit" id="set-sedit-'+id+'">'
+        +   '<label>予約受付の開始</label><input type="time" id="set-ss-'+id+'" value="'+esc(s.business_hours_start||'')+'">'
+        +   '<label>最終受付（この時刻の枠まで予約可）</label><input type="time" id="set-se-'+id+'" value="'+esc(s.business_hours_end||'')+'">'
+        +   '<label>予約の刻み（分）</label><input type="number" inputmode="numeric" id="set-si-'+id+'" value="'+esc(s.slot_interval_min==null?'':s.slot_interval_min)+'">'
+        +   '<label>席数（同時に施術できる人数・1以上）</label><input type="number" inputmode="numeric" id="set-sc-'+id+'" value="'+esc(s.seat_count==null?'':s.seat_count)+'">'
+        +   '<div class="set-hint">保存すると予約ページの空き枠に反映されます。席数は同時刻の予約上限です（例：2席なら同時2件まで）。</div>'
+        +   '<div class="set-acts">'
+        +     '<button type="button" class="set-btn set-primary" data-act="ssave" data-store="'+id+'">💾 保存</button>'
+        +     '<button type="button" class="set-btn set-ghost" data-act="scancel" data-store="'+id+'">やめる</button>'
+        +   '</div>'
+        + '</div></div>';
+    });
+    h += '<div class="set-msg" id="set-storeMsg"></div>';
+    h += '<div class="set-note">※ 保存すると予約ページの空き枠が変わります。変更後はお客様が選べる時間帯が想定どおりか確認してください。編集はオーナー／管理者のみです。</div>';
+    body.innerHTML = h;
+  }).catch(function(err){
+    if (setHandleAuth(err)) return;
+    body.innerHTML = '<div class="set-ph set-err">取得に失敗しました<br>'+esc(setReason(err))+'</div>';
+  });
+}
+
+function setIsHHMM(v){ return /^([01]\d|2[0-3]):[0-5]\d$/.test(String(v||'')); }
+
+function setSaveStore(id){
+  var start = (document.getElementById('set-ss-'+id)||{}).value || '';
+  var end   = (document.getElementById('set-se-'+id)||{}).value || '';
+  var intv  = (document.getElementById('set-si-'+id)||{}).value;
+  var seat  = (document.getElementById('set-sc-'+id)||{}).value;
+  if (!setIsHHMM(start) || !setIsHHMM(end)){ setMsg('set-storeMsg','時刻は HH:MM 形式で入力してください。', false); return; }
+  if (start >= end){ setMsg('set-storeMsg','最終受付は開始より後の時刻にしてください。', false); return; }
+  var nIntv = parseInt(intv,10), nSeat = parseInt(seat,10);
+  if (isNaN(nIntv) || nIntv < 5 || nIntv > 120){ setMsg('set-storeMsg','刻みは5〜120分で入力してください。', false); return; }
+  if (isNaN(nSeat) || nSeat < 1){ setMsg('set-storeMsg','席数は1以上の半角数字で入力してください。', false); return; }
+  var patch = { business_hours_start:start, business_hours_end:end, slot_interval_min:nIntv, seat_count:nSeat };
+  sbUpdate('stores','id=eq.'+encodeURIComponent(id), patch)
+    .then(function(){ setMsg('set-storeMsg','✅ 保存しました。', true); setLoadStores(); })
+    .catch(function(err){ if (setHandleAuth(err)) return; setMsg('set-storeMsg', setReason(err), false); });
+}
+
+/* ============================================================================
+   5) シフト
+   一覧でアーティストを選び→sbGet artist_shifts→曜日表＋例外日を編集→
+   sbRpc('save_artist_shifts',{p_artist, p_payload:[行...]}) で置き換え保存。
+   行の形：{kind:'weekly'|'date', day_of_week, shift_date, is_off, start_time, end_time}
+   ※店舗フィルタは付けず RLS に委ねる（manager=全店／staff=自店）。
+   ============================================================================ */
+function setLoadShiftIndex(){
+  var body = document.getElementById('setBody');
+  body.innerHTML = '<div class="set-ph">読み込み中…</div>';
+  ensureStoreMap().then(function(){
+    var path = 'artists?select=id,name,is_active&order=name';
+    return sbGet(path);
+  }).then(function(rows){
+    rows = rows || [];
+    var h = '<div class="set-add-h">🗓 シフトを編集するアーティストを選ぶ</div>';
+    if (!rows.length){ h += '<div class="set-ph">アーティストがいません。</div>'; }
+    rows.forEach(function(a){
+      var aid = esc(a.id);
+      h += '<div class="set-card'+(a.is_active?'':' set-off')+'">'
+        + '<div class="set-name">'+esc(a.name)+(a.is_active?'':' <span class="set-tag set-tagng">停止中</span>')+'</div>'
+        + '<div class="set-acts"><button type="button" class="set-btn set-ghost" data-act="shedit" data-aid="'+aid+'" data-name="'+esc(a.name)+'">🗓 シフトを編集</button></div>'
+        + '</div>';
+    });
+    h += '<div class="set-note">※ 曜日ごとの出勤時間と、特定日の例外（休み・臨時出勤）を登録します。編集はオーナー／管理者のみです。</div>';
+    body.innerHTML = h;
+  }).catch(function(err){
+    if (setHandleAuth(err)) return;
+    body.innerHTML = '<div class="set-ph set-err">取得に失敗しました<br>'+esc(setReason(err))+'</div>';
+  });
+}
+
+/* HH:MM:SS / HH:MM → HH:MM に正規化 */
+function setHM(t){ var m = String(t||'').match(/^(\d{2}:\d{2})/); return m ? m[1] : ''; }
+
+function setLoadShiftEditor(aid, name){
+  var body = document.getElementById('setBody');
+  body.innerHTML = '<div class="set-ph">読み込み中…</div>';
+  sbGet('artist_shifts?select=kind,day_of_week,shift_date,is_off,start_time,end_time&artist_id=eq.'+encodeURIComponent(aid)+'&order=kind,day_of_week,shift_date')
+    .then(function(rows){
+      rows = rows || [];
+      // 曜日（weekly）を曜日番号で索引化。1曜日＝最大2区間（区間2は後方互換のため空欄も許容）。
+      var weekly = {}; // dow -> {off, ranges:[{start,end}...]}
+      var exceptions = [];
+      rows.forEach(function(r){
+        if (r.kind === 'weekly' && r.day_of_week != null){
+          var d = r.day_of_week;
+          if (!weekly[d]) weekly[d] = { off:false, ranges:[] };
+          if (r.is_off) weekly[d].off = true;
+          if (r.start_time && r.end_time) weekly[d].ranges.push({ start:setHM(r.start_time), end:setHM(r.end_time) });
+        } else if (r.kind === 'date' && r.shift_date){
+          exceptions.push({ date:r.shift_date, off:!!r.is_off, start:setHM(r.start_time), end:setHM(r.end_time) });
+        }
+      });
+      var h = '<div class="set-acts"><button type="button" class="set-btn set-ghost" data-act="shback">← アーティスト一覧へ</button></div>';
+      h += '<div class="set-add-h">🗓 '+esc(name)+' のシフト</div>';
+      h += '<div class="set-card" data-aid="'+esc(aid)+'">'
+        + '<div class="set-hint">曜日ごとの出勤時間を設定します。何も入れない曜日は「受付時間内ずっと予約可」。「休」にチェックでその曜日は予約に出ません。区間は最大2つ（昼休みを空ける用）。</div>'
+        + '<table class="set-shift-tbl"><tr><th>曜日</th><th>休</th><th>区間1</th><th>区間2</th></tr>';
+      for (var d=0; d<7; d++){
+        var wd = weekly[d] || { off:false, ranges:[] };
+        var r1 = wd.ranges[0] || {}, r2 = wd.ranges[1] || {};
+        h += '<tr><td>'+SET_WD[d]+'</td>'
+          + '<td><input type="checkbox" id="set-sh-off-'+d+'"'+(wd.off?' checked':'')+'></td>'
+          + '<td><input type="time" id="set-sh-s1-'+d+'" value="'+esc(r1.start||'')+'">〜<input type="time" id="set-sh-e1-'+d+'" value="'+esc(r1.end||'')+'"></td>'
+          + '<td><input type="time" id="set-sh-s2-'+d+'" value="'+esc(r2.start||'')+'">〜<input type="time" id="set-sh-e2-'+d+'" value="'+esc(r2.end||'')+'"></td></tr>';
+      }
+      h += '</table></div>';
+      h += '<div class="set-add-h">📌 例外日（休み・臨時出勤）</div>'
+        + '<div class="set-card"><div id="set-ex-list"></div>'
+        + '<div class="set-acts"><button type="button" class="set-btn set-ghost" data-act="shaddex">＋ 例外日を追加</button></div>'
+        + '<div class="set-hint">特定の日だけ「休み」または「特別な時間」を登録（曜日パターンより優先）。臨時出勤は休みのチェックを外して時刻を入れます。</div></div>';
+      h += '<div class="set-msg" id="set-shiftMsg"></div>';
+      h += '<div class="set-acts"><button type="button" class="set-btn set-primary" data-act="shsave" data-aid="'+esc(aid)+'">💾 シフトを保存</button></div>';
+      body.innerHTML = h;
+      exceptions.forEach(function(e){ setAddException(e); });
+    }).catch(function(err){
+      if (setHandleAuth(err)) return;
+      body.innerHTML = '<div class="set-ph set-err">取得に失敗しました<br>'+esc(setReason(err))+'</div>';
+    });
+}
+
+/* 例外日1行を追加（値は esc して属性に入れる。×ボタンはイベント委譲で削除） */
+function setAddException(e){
+  e = e || {};
+  var list = document.getElementById('set-ex-list'); if (!list) return;
+  var div = document.createElement('div');
+  div.className = 'set-ex-row';
+  div.innerHTML = '<input type="date" class="set-ex-date" value="'+esc(e.date||'')+'">'
+    + '<label class="set-ex-off"><input type="checkbox" class="set-ex-offchk"'+(e.off?' checked':'')+'>休み</label>'
+    + '<input type="time" class="set-ex-s" value="'+esc(e.start||'')+'">〜<input type="time" class="set-ex-e" value="'+esc(e.end||'')+'">'
+    + '<button type="button" class="set-ex-x" data-act="shdelex">×</button>';
+  list.appendChild(div);
+}
+
+function setSaveShift(aid){
+  var payload = [];
+  // 曜日（weekly）
+  for (var d=0; d<7; d++){
+    var off = !!(document.getElementById('set-sh-off-'+d)||{}).checked;
+    if (off){
+      payload.push({ kind:'weekly', day_of_week:d, shift_date:null, is_off:true, start_time:null, end_time:null });
+      continue;
+    }
+    var pairs = [['set-sh-s1-','set-sh-e1-'], ['set-sh-s2-','set-sh-e2-']];
+    for (var p=0; p<pairs.length; p++){
+      var s = (document.getElementById(pairs[p][0]+d)||{}).value || '';
+      var en = (document.getElementById(pairs[p][1]+d)||{}).value || '';
+      if (s && en){
+        if (s >= en){ setMsg('set-shiftMsg', SET_WD[d]+'曜日：開始＜終了になるよう時刻を入れてください。', false); return; }
+        payload.push({ kind:'weekly', day_of_week:d, shift_date:null, is_off:false, start_time:s, end_time:en });
+      } else if (s || en){
+        setMsg('set-shiftMsg', SET_WD[d]+'曜日：開始・終了の両方を入れてください。', false); return;
+      }
+    }
+  }
+  // 例外日（date）
+  var rows = document.querySelectorAll('#set-ex-list .set-ex-row');
+  for (var i=0; i<rows.length; i++){
+    var date = (rows[i].querySelector('.set-ex-date')||{}).value || '';
+    if (!date) continue;
+    var exoff = !!(rows[i].querySelector('.set-ex-offchk')||{}).checked;
+    var es = (rows[i].querySelector('.set-ex-s')||{}).value || '';
+    var ee = (rows[i].querySelector('.set-ex-e')||{}).value || '';
+    if (exoff){
+      payload.push({ kind:'date', day_of_week:null, shift_date:date, is_off:true, start_time:null, end_time:null });
+    } else {
+      if (!es || !ee){ setMsg('set-shiftMsg', date+' の例外日は「休み」にするか、開始・終了の時刻を入れてください。', false); return; }
+      if (es >= ee){ setMsg('set-shiftMsg', date+' の例外日：開始＜終了になるよう時刻を入れてください。', false); return; }
+      payload.push({ kind:'date', day_of_week:null, shift_date:date, is_off:false, start_time:es, end_time:ee });
+    }
+  }
+  var btn = document.querySelector('[data-act="shsave"]');
+  if (btn){ btn.disabled = true; btn.textContent = '保存中…'; }
+  sbRpc('save_artist_shifts', { p_artist: aid, p_payload: payload })
+    .then(function(){
+      setMsg('set-shiftMsg','✅ シフトを保存しました（'+payload.length+'件）。', true);
+      if (btn){ btn.disabled = false; btn.textContent = '💾 シフトを保存'; }
+    })
+    .catch(function(err){
+      if (setHandleAuth(err)) return;
+      setMsg('set-shiftMsg', setReason(err), false);
+      if (btn){ btn.disabled = false; btn.textContent = '💾 シフトを保存'; }
+    });
+}
+
+/* ============================================================================
+   共通：メッセージ表示／イベント委譲
+   ============================================================================ */
+function setMsg(id, text, ok){
+  var el = document.getElementById(id); if (!el) return;
+  el.textContent = text || '';
+  el.className = 'set-msg' + (text ? (ok ? ' set-ok' : ' set-ng') : '');
+}
+
+/* setView 全体に1つだけイベント委譲を貼る（動的値は data-* から取得＝注入対策）。 */
+(function(){
+  var root = document.getElementById('setView');
+  if (!root || root.getAttribute('data-setbound')) return;
+  root.setAttribute('data-setbound','1');
+  root.addEventListener('click', function(e){
+    var b = e.target.closest('[data-act]'); if (!b) return;
+    var act = b.getAttribute('data-act');
+    // サブタブ切替
+    if (act === 'setsec'){ setSettingsSection(b.getAttribute('data-sp')); return; }
+    // メニュー
+    if (act === 'medit'){ var me = document.getElementById('set-medit-'+b.getAttribute('data-mid')); if (me) me.classList.add('set-open'); return; }
+    if (act === 'mcancel'){ var mc = document.getElementById('set-medit-'+b.getAttribute('data-mid')); if (mc) mc.classList.remove('set-open'); return; }
+    if (act === 'msave'){ setSaveMenu(b.getAttribute('data-mid')); return; }
+    // アーティスト
+    if (act === 'aedit'){ var ae = document.getElementById('set-aedit-'+b.getAttribute('data-aid')); if (ae) ae.classList.add('set-open'); return; }
+    if (act === 'acancel'){ var ac = document.getElementById('set-aedit-'+b.getAttribute('data-aid')); if (ac) ac.classList.remove('set-open'); return; }
+    if (act === 'asave'){ setSaveArtist(b.getAttribute('data-aid')); return; }
+    if (act === 'atoggle'){ setToggleArtist(b.getAttribute('data-aid'), b.getAttribute('data-to')); return; }
+    // 受付時間
+    if (act === 'sedit'){ var se = document.getElementById('set-sedit-'+b.getAttribute('data-store')); if (se) se.classList.add('set-open'); return; }
+    if (act === 'scancel'){ var sc = document.getElementById('set-sedit-'+b.getAttribute('data-store')); if (sc) sc.classList.remove('set-open'); return; }
+    if (act === 'ssave'){ setSaveStore(b.getAttribute('data-store')); return; }
+    // シフト
+    if (act === 'shedit'){ setLoadShiftEditor(b.getAttribute('data-aid'), b.getAttribute('data-name')); return; }
+    if (act === 'shback'){ setLoadShiftIndex(); return; }
+    if (act === 'shaddex'){ setAddException(); return; }
+    if (act === 'shdelex'){ var row = b.closest('.set-ex-row'); if (row) row.remove(); return; }
+    if (act === 'shsave'){ setSaveShift(b.getAttribute('data-aid')); return; }
+  });
+})();
 </script>
 </body>
 </html>
