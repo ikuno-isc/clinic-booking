@@ -80,9 +80,16 @@ function sbInsert(path, row){
   var t0 = performance.now();
   return fetch(SB_URL + "/rest/v1/" + path, {
     method:"POST",
-    headers: Object.assign({ "Content-Type":"application/json", "Prefer":"return=representation" }, H),
+    headers: Object.assign({ "Content-Type":"application/json", "Prefer":"return=minimal" }, H),
     body: JSON.stringify(row)
-  }).then(function(r){ return r.json().then(function(j){ return { ok:r.ok, status:r.status, data:j, ms: Math.round(performance.now()-t0) }; }); });
+  }).then(function(r){ return r.text().then(function(t){ var j=null; try{ j=t?JSON.parse(t):null; }catch(e){} return { ok:r.ok, status:r.status, data:j, ms: Math.round(performance.now()-t0) }; }); });
+}
+// Supabaseの関数(RPC)を呼ぶ（空き時間取得など）。
+function sbRpc(fn, args){
+  var t0 = performance.now();
+  return fetch(SB_URL + "/rest/v1/rpc/" + fn, {
+    method:"POST", headers: Object.assign({ "Content-Type":"application/json" }, H), body: JSON.stringify(args||{})
+  }).then(function(r){ return r.json().then(function(j){ return { ok:r.ok, data:j, ms: Math.round(performance.now()-t0) }; }); });
 }
 
 var ST = { artists:[], menus:[], pairs:[], artist:null, menu:null, date:null, slot:null, dayResv:[] };
@@ -173,7 +180,8 @@ function pickSlot(t){ ST.slot=t; render(); window.scrollTo(0,document.body.scrol
 // 空き時間：営業時間内を30分刻みで作り、その日の同じ担当の予約と重ならない枠だけ出す
 function loadSlots(){
   var dayStart = ST.date+"T00:00:00+09:00", dayEnd = ST.date+"T23:59:59+09:00";
-  sbGet("reservations?select=start_at,end_at&artist_id=eq."+ST.artist.id+"&status=neq.cancelled&start_at=gte."+encodeURIComponent(dayStart)+"&start_at=lte."+encodeURIComponent(dayEnd))
+  // 空き時間は専用関数(busy_ranges)で取得＝予約のお客様名などは取らない（PII保護）。
+  sbRpc("busy_ranges", { p_artist: ST.artist.id, p_from: dayStart, p_to: dayEnd })
   .then(function(r){
     ST.dayResv = r.data || [];
     var dur = ST.menu._dur || 60;
