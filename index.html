@@ -245,6 +245,7 @@ function getQueryParam(name){
 }
 var STORE    = getQueryParam('store') || 'kurume';
 var MODE     = getQueryParam('mode')  || 'book'; // 'book'（予約）/ 'cancel'（キャンセル）
+var REF      = getQueryParam('ref')   || '';     // 流入元タグ（集客：?ref= で来た予約に記録）
 var cancelList = [];  // キャンセル画面で表示中の自分の予約一覧
 
 // ===== 状態 =====
@@ -601,7 +602,7 @@ function doSub(){
     reservation_type:st.coupon==='none'?'normal':'monitor',
     reservation_datetime:st.date+'T'+st.time,
     furigana:st.furigana, customer_name:st.custName, phone:st.phone,
-    coupon:st.coupon, art_experience:st.artExp, memo:st.memo,
+    coupon:st.coupon, art_experience:st.artExp, memo:st.memo, ref:REF,
   },function(err,res){
     if(err||!res){subFail(btn,'送信に失敗しました。電波の良い場所で再度お試しください。');return;}
     if(res.ok){
@@ -623,7 +624,7 @@ function subFail(btn,msg){
   var e=document.getElementById('serr'); if(e){e.className='msg-err';e.textContent=msg;}
 }
 function errR(r){
-  return({conflict:'その時間帯はすでにご予約が入っております。別の日時でお試しください。',busy:'ただいまアクセスが集中しています。少し時間をおいて、もう一度お試しください。',invalid_uid:'お客様情報が取得できませんでした。LINEアプリ内から開き直してください。',no_duration:'この担当・メニューの所要時間が未設定です。トーク画面からお問い合わせください。',no_store_calendar:'ただいま予約を受け付けられません。トーク画面からお問い合わせください。',bad_datetime:'日時が正しく選択されていません。もう一度ご指定ください。'})[r]||'申し訳ございません、ただいまご予約をお受けできませんでした。折り返しご連絡いたします。';
+  return({conflict:'その時間帯はすでにご予約が入っております。別の日時でお試しください。',busy:'ただいまアクセスが集中しています。少し時間をおいて、もう一度お試しください。',invalid_uid:'お客様情報が取得できませんでした。LINEアプリ内から開き直してください。',no_duration:'この担当・メニューの所要時間が未設定です。トーク画面からお問い合わせください。',no_store_calendar:'ただいま予約を受け付けられません。トーク画面からお問い合わせください。',outside_hours:'選択された時間は現在の受付時間外です。お手数ですが、最新の空き時間を選び直してください。',bad_datetime:'日時が正しく選択されていません。もう一度ご指定ください。'})[r]||'申し訳ございません、ただいまご予約をお受けできませんでした。折り返しご連絡いたします。';
 }
 // LIFFウィンドウを閉じてLINEのトークへ戻す。LINEアプリ外（通常ブラウザ）では何も起きない。
 function backToTalk(){
