@@ -177,6 +177,12 @@
     .resv-menu { font-size:13px; color:#333; margin-top:6px; }
     .resv-nurse { font-size:12px; color:#888; margin-top:3px; }
     .resv-note { font-size:12px; color:#a06000; background:#fff7e6; border-radius:8px; padding:10px 12px; margin-top:12px; line-height:1.6; }
+    /* 他院修正の注意（経験「有」のお客様にだけ確認画面で表示） */
+    .fix-note { background:#fff7e6; border:1.5px solid #f0a020; border-radius:10px; padding:13px 15px; margin:16px 0; font-size:12.5px; color:#8a4b00; line-height:1.75; }
+    .fix-note-hd { font-weight:800; color:#b45309; font-size:14px; margin-bottom:7px; }
+    .fix-note p { margin:0 0 6px; }
+    .fix-note ul { margin:6px 0 0 18px; padding:0; }
+    .fix-note li { margin-bottom:4px; }
     .btn-cancel { display:block; width:100%; margin-top:14px; padding:12px; font-size:14px; font-weight:700; border-radius:8px; border:1px solid #e08; color:#d11a6b; background:#fff; cursor:pointer; }
     .btn-cancel:active { background:#fdeef4; }
     .cancel-empty { text-align:center; color:#888; font-size:14px; padding:40px 0; }
@@ -582,6 +588,7 @@ function s6(){
   h+=sr('お名前',esc(st.custName)+'（'+esc(st.furigana)+'）');
   h+=sr('電話番号',esc(st.phone));
   h+='</div>';
+  if(st.artExp==='yes') h+=FIXNOTE; // アートメイク経験「有」＝他院修正の案内を確認画面で目立たせる
   h+='<div class="sec-lbl">ご利用規約</div>';
   h+='<div class="terms-box">'+TERMS+'</div>';
   h+='<div class="agree-row"><input type="checkbox" id="agc"'+(st.agreed?' checked':'')+' onchange="st.agreed=this.checked;updSub()"><span>上記の利用規約・注意事項・キャンセルポリシーをすべて確認しました。</span></div>';
@@ -624,7 +631,7 @@ function subFail(btn,msg){
   var e=document.getElementById('serr'); if(e){e.className='msg-err';e.textContent=msg;}
 }
 function errR(r){
-  return({conflict:'その時間帯はすでにご予約が入っております。別の日時でお試しください。',busy:'ただいまアクセスが集中しています。少し時間をおいて、もう一度お試しください。',invalid_uid:'お客様情報が取得できませんでした。LINEアプリ内から開き直してください。',no_duration:'この担当・メニューの所要時間が未設定です。トーク画面からお問い合わせください。',no_store_calendar:'ただいま予約を受け付けられません。トーク画面からお問い合わせください。',outside_hours:'選択された時間は現在の受付時間外です。お手数ですが、最新の空き時間を選び直してください。',bad_datetime:'日時が正しく選択されていません。もう一度ご指定ください。'})[r]||'申し訳ございません、ただいまご予約をお受けできませんでした。折り返しご連絡いたします。';
+  return({conflict:'その時間帯はすでにご予約が入っております。別の日時でお試しください。',busy:'ただいまアクセスが集中しています。少し時間をおいて、もう一度お試しください。',invalid_uid:'お客様情報が取得できませんでした。LINEアプリ内から開き直してください。',no_duration:'この担当・メニューの所要時間が未設定です。トーク画面からお問い合わせください。',no_store_calendar:'ただいま予約を受け付けられません。トーク画面からお問い合わせください。',nurse_inactive:'申し訳ございません。この担当者は現在予約を受け付けておりません。別の担当者をお選びください。',seat_full:'申し訳ございません。その時間帯は満席です。お手数ですが、別の日時でお試しください。',outside_hours:'選択された時間は現在の受付時間外です。お手数ですが、最新の空き時間を選び直してください。',bad_datetime:'日時が正しく選択されていません。もう一度ご指定ください。'})[r]||'申し訳ございません、ただいまご予約をお受けできませんでした。折り返しご連絡いたします。';
 }
 // LIFFウィンドウを閉じてLINEのトークへ戻す。LINEアプリ外（通常ブラウザ）では何も起きない。
 function backToTalk(){
@@ -680,6 +687,19 @@ var TERMS='<p>ご予約の前に、以下の項目について必ずご確認い
   +'<li>インクが拡散しやすく、毛並み感が出づらい可能性があります。</li>'
   +'<li>濃く残っている場合は担当者の判断で見送る可能性があります。</li>'
   +'</ul>';
+
+// 確認画面で、アートメイク経験「有」のお客様にだけ出す注意ボックス（他院修正になる旨）。
+// 文言はTERMS内の「他院修正の注意点」と同じリスクを、確認画面で目立つ形で再掲する。
+var FIXNOTE='<div class="fix-note">'
+  +'<div class="fix-note-hd">⚠️ 今回の施術は「他院修正」になります</div>'
+  +'<p>他院でアートメイクを受けたことがある方は、今回の施術が「他院修正」となります。仕上がりに次のような影響が出る場合がありますので、ご了承のうえご予約ください。</p>'
+  +'<ul>'
+  +'<li>ストロークの間から既存の色が見える場合があります。</li>'
+  +'<li>大幅なデザイン変更ははみ出す場合があります。</li>'
+  +'<li>皮膚の状態によっては色が入りにくく抜けやすい可能性があります。</li>'
+  +'<li>インクが拡散しやすく、毛並み感が出づらい可能性があります。</li>'
+  +'<li>濃く残っている場合は担当者の判断で見送る可能性があります。</li>'
+  +'</ul></div>';
 
 // ===== キャンセルモード（?mode=cancel） =====
 // LIFFで取得したUIDをPOST本文で送り、自分の予約だけを一覧→選択→確認→確定する。
