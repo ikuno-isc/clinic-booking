@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>アートメイク予約（Supabase版・お試し）</title>
+<style>
+  :root{ --g:#06c755; --gd:#06845a; --ink:#222; --sub:#888; --line:#e6eceb; }
+  *{box-sizing:border-box}
+  body{margin:0;background:#f4f6f8;color:var(--ink);font-family:-apple-system,"Hiragino Sans","Yu Gothic",sans-serif;}
+  .wrap{max-width:480px;margin:0 auto;background:#fff;min-height:100vh;}
+  .hd{background:var(--g);color:#fff;padding:16px 18px;}
+  .hd h1{margin:0;font-size:18px;}
+  .hd .sub{font-size:12px;opacity:.9;margin-top:3px}
+  .speed{display:inline-block;background:#063;color:#bff0d6;font-size:11px;font-weight:700;border-radius:999px;padding:2px 9px;margin-top:7px}
+  .body{padding:16px 18px 40px;}
+  .step{margin-bottom:22px;}
+  .step-t{font-size:13px;font-weight:800;color:var(--gd);margin:0 0 9px;display:flex;align-items:center;gap:7px}
+  .num{display:inline-flex;width:20px;height:20px;border-radius:50%;background:var(--g);color:#fff;font-size:12px;align-items:center;justify-content:center}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px 14px;font-size:14px;font-weight:700;cursor:pointer}
+  .chip.on{background:var(--g);color:#fff;border-color:var(--g)}
+  .menu{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:9px;cursor:pointer}
+  .menu.on{border-color:var(--g);box-shadow:0 0 0 2px rgba(6,199,85,.25)}
+  .menu .nm{font-size:14px;font-weight:700;line-height:1.4}
+  .menu .meta{font-size:12px;color:var(--sub);margin-top:4px}
+  .dates{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+  .date{flex:0 0 auto;border:1px solid var(--line);border-radius:10px;padding:8px 12px;text-align:center;cursor:pointer;min-width:58px}
+  .date.on{background:var(--g);color:#fff;border-color:var(--g)}
+  .date .d{font-size:16px;font-weight:800}.date .w{font-size:11px}
+  .slots{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .slot{border:1px solid var(--line);border-radius:9px;padding:9px 0;text-align:center;font-size:13px;font-weight:700;cursor:pointer}
+  .slot.on{background:var(--g);color:#fff;border-color:var(--g)}
+  .slot.x{opacity:.32;text-decoration:line-through;cursor:not-allowed}
+  .ph{color:var(--sub);font-size:13px;padding:10px 0}
+  input{width:100%;padding:11px;border:1px solid #d4dbda;border-radius:9px;font-size:15px;margin-top:6px}
+  label{font-size:13px;font-weight:700;color:#445}
+  .btn{display:block;width:100%;margin-top:18px;padding:14px;border:none;border-radius:10px;background:var(--g);color:#fff;font-size:16px;font-weight:800;cursor:pointer}
+  .btn:disabled{opacity:.5}
+  .msg{font-size:13px;font-weight:700;margin-top:12px;min-height:18px}
+  .msg.ok{color:var(--gd)} .msg.ng{color:#c2410c}
+  .done{text-align:center;padding:48px 20px}
+  .done .ic{font-size:54px}
+  .small{font-size:11px;color:#aab;margin-top:14px;line-height:1.6}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hd">
+    <h1>アートメイク ご予約</h1>
+    <div class="sub" id="storeName">久留米店</div>
+    <span class="speed" id="speed">読み込み中…</span>
+  </div>
+  <div class="body" id="body"><div class="ph">読み込み中…</div></div>
+</div>
+
+<script>
+// ===== 設定（公開キー＝埋め込みOK・RLSで保護） =====
+var SB_URL = "https://stgarheuldubyrzdqzaq.supabase.co";
+var SB_KEY = "sb_publishable_e5A9MJzOCvzsfWXBd9DLzg_Wa_hJ0qb";
+var STORE_ID = "22222222-0000-0000-0000-000000000001"; // 久留米店
+var TENANT_ID = "11111111-1111-1111-1111-111111111111";
+var OPEN_H = 9, CLOSE_H = 19, INTERVAL = 30; // 営業 09:00-19:00 / 30分刻み
+
+var H = { "apikey": SB_KEY, "Authorization": "Bearer " + SB_KEY };
+function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+// Supabase REST 取得（経過msも返す）
+function sbGet(path){
+  var t0 = performance.now();
+  return fetch(SB_URL + "/rest/v1/" + path, { headers: H })
+    .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, data:j, ms: Math.round(performance.now()-t0) }; }); });
+}
+function sbInsert(path, row){
+  var t0 = performance.now();
+  return fetch(SB_URL + "/rest/v1/" + path, {
+    method:"POST",
+    headers: Object.assign({ "Content-Type":"application/json", "Prefer":"return=representation" }, H),
+    body: JSON.stringify(row)
+  }).then(function(r){ return r.json().then(function(j){ return { ok:r.ok, status:r.status, data:j, ms: Math.round(performance.now()-t0) }; }); });
+}
+
+var ST = { artists:[], menus:[], pairs:[], artist:null, menu:null, date:null, slot:null, dayResv:[] };
+var WD = ["日","月","火","水","木","金","土"];
+
+// 起動：マスタ（担当・メニュー・担当可能ペア）を一括取得
+function boot(){
+  var t0 = performance.now();
+  Promise.all([
+    sbGet("artists?select=id,name&store_id=eq."+STORE_ID+"&is_active=eq.true&order=name"),
+    sbGet("menus?select=id,name,price_normal,price_monitor&tenant_id=eq."+TENANT_ID+"&is_active=eq.true"),
+    sbGet("artist_menus?select=artist_id,menu_id,duration_new_min&is_certified=eq.true")
+  ]).then(function(res){
+    ST.artists = res[0].data || [];
+    ST.menus   = res[1].data || [];
+    ST.pairs   = res[2].data || [];
+    var ms = Math.round(performance.now()-t0);
+    document.getElementById("speed").textContent = "⚡ Supabase（東京）で " + ms + " ミリ秒で読み込み";
+    render();
+  }).catch(function(e){
+    document.getElementById("body").innerHTML = '<div class="msg ng">読み込みに失敗しました：'+esc(e&&e.message||e)+'</div>';
+  });
+}
+
+function menusForArtist(aid){
+  var ids = {};
+  ST.pairs.forEach(function(p){ if(p.artist_id===aid) ids[p.menu_id]=p.duration_new_min; });
+  return ST.menus.filter(function(m){ return ids[m.id]!=null; }).map(function(m){ return Object.assign({_dur:ids[m.id]}, m); });
+}
+function next14days(){
+  var out=[], now=new Date();
+  for(var i=0;i<14;i++){ var d=new Date(now.getFullYear(),now.getMonth(),now.getDate()+i); out.push(d); }
+  return out;
+}
+function ymd(d){ return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2); }
+
+function render(){
+  var h = "";
+  // STEP1 担当
+  h += '<div class="step"><div class="step-t"><span class="num">1</span>担当アーティスト</div><div class="chips">';
+  ST.artists.forEach(function(a){
+    h += '<div class="chip'+(ST.artist&&ST.artist.id===a.id?' on':'')+'" onclick="pickArtist(\''+a.id+'\')">'+esc(a.name)+'</div>';
+  });
+  h += '</div></div>';
+  // STEP2 メニュー
+  if(ST.artist){
+    h += '<div class="step"><div class="step-t"><span class="num">2</span>メニュー</div>';
+    var ms = menusForArtist(ST.artist.id);
+    ms.forEach(function(m){
+      var price = m.price_normal!=null ? ("¥"+Number(m.price_normal).toLocaleString()) : "";
+      h += '<div class="menu'+(ST.menu&&ST.menu.id===m.id?' on':'')+'" onclick="pickMenu(\''+m.id+'\')">'
+        + '<div class="nm">'+esc(m.name)+'</div>'
+        + '<div class="meta">'+price+'（税込）　／　施術 約'+m._dur+'分</div></div>';
+    });
+    h += '</div>';
+  }
+  // STEP3 日付
+  if(ST.menu){
+    h += '<div class="step"><div class="step-t"><span class="num">3</span>ご希望日</div><div class="dates">';
+    next14days().forEach(function(d){
+      var k=ymd(d);
+      h += '<div class="date'+(ST.date===k?' on':'')+'" onclick="pickDate(\''+k+'\')"><div class="d">'+d.getDate()+'</div><div class="w">'+WD[d.getDay()]+'</div></div>';
+    });
+    h += '</div></div>';
+  }
+  // STEP4 時間
+  if(ST.date){
+    h += '<div class="step"><div class="step-t"><span class="num">4</span>ご希望時間</div><div id="slotArea"><div class="ph">空き時間を計算中…</div></div></div>';
+  }
+  // STEP5 お客様情報＋確定
+  if(ST.slot){
+    h += '<div class="step"><div class="step-t"><span class="num">5</span>お客様情報</div>'
+      + '<label>お名前</label><input id="cn" placeholder="例）山田 花子" autocomplete="off">'
+      + '<label style="display:block;margin-top:10px">電話番号</label><input id="cp" placeholder="例）09012345678" autocomplete="off">'
+      + '<button class="btn" id="sub" onclick="submitBooking()">この内容で予約する（'+ST.date+' '+ST.slot+'〜）</button>'
+      + '<div class="msg" id="m"></div></div>';
+  }
+  h += '<div class="small">⚡ このページは Supabase（東京リージョン）を直接読み込んでいます。二重予約はデータベースが物理的に防ぎます。</div>';
+  document.getElementById("body").innerHTML = h;
+  if(ST.date) loadSlots();
+}
+
+function pickArtist(id){ ST.artist = ST.artists.filter(function(a){return a.id===id;})[0]; ST.menu=null; ST.date=null; ST.slot=null; render(); }
+function pickMenu(id){ var ms=menusForArtist(ST.artist.id); ST.menu = ms.filter(function(m){return m.id===id;})[0]; ST.date=null; ST.slot=null; render(); }
+function pickDate(k){ ST.date=k; ST.slot=null; render(); }
+function pickSlot(t){ ST.slot=t; render(); window.scrollTo(0,document.body.scrollHeight); }
+
+// 空き時間：営業時間内を30分刻みで作り、その日の同じ担当の予約と重ならない枠だけ出す
+function loadSlots(){
+  var dayStart = ST.date+"T00:00:00+09:00", dayEnd = ST.date+"T23:59:59+09:00";
+  sbGet("reservations?select=start_at,end_at&artist_id=eq."+ST.artist.id+"&status=neq.cancelled&start_at=gte."+encodeURIComponent(dayStart)+"&start_at=lte."+encodeURIComponent(dayEnd))
+  .then(function(r){
+    ST.dayResv = r.data || [];
+    var dur = ST.menu._dur || 60;
+    var busy = ST.dayResv.map(function(x){ return [new Date(x.start_at).getTime(), new Date(x.end_at).getTime()]; });
+    var html = "", any=false;
+    for(var mins = OPEN_H*60; mins + dur <= CLOSE_H*60; mins += INTERVAL){
+      var hh = ("0"+Math.floor(mins/60)).slice(-2), mm = ("0"+(mins%60)).slice(-2), t = hh+":"+mm;
+      var s = new Date(ST.date+"T"+t+":00+09:00").getTime(), e = s + dur*60000;
+      var free = busy.every(function(b){ return e<=b[0] || s>=b[1]; });
+      if(free) any=true;
+      html += '<div class="slot'+(free?(ST.slot===t?' on':''):' x')+'" '+(free?'onclick="pickSlot(\''+t+'\')"':'')+'>'+t+'</div>';
+    }
+    var area = document.getElementById("slotArea");
+    if(area) area.innerHTML = '<div class="slots">'+html+'</div>' + (any?'':'<div class="ph">この日は空きがありません。別の日をお選びください。</div>') + '<div class="small">空き時間も '+r.ms+'ms で計算しました。</div>';
+  });
+}
+
+function submitBooking(){
+  var name=(document.getElementById("cn")||{}).value||""; name=name.trim();
+  var phone=(document.getElementById("cp")||{}).value||"";
+  var m=document.getElementById("m");
+  if(!name){ m.className="msg ng"; m.textContent="お名前を入力してください。"; return; }
+  var dur = ST.menu._dur || 60;
+  var s = ST.date+"T"+ST.slot+":00+09:00";
+  var e = new Date(new Date(s).getTime() + dur*60000).toISOString();
+  var btn=document.getElementById("sub"); btn.disabled=true; btn.textContent="送信中…"; m.textContent="";
+  sbInsert("reservations", {
+    tenant_id:TENANT_ID, store_id:STORE_ID, artist_id:ST.artist.id, menu_id:ST.menu.id,
+    customer_name:name, phone:phone, start_at:s, end_at:e
+  }).then(function(r){
+    if(r.ok){ showDone(r.ms); return; }
+    btn.disabled=false; btn.textContent="この内容で予約する";
+    if(String(r.status)==="409" || (r.data && String(r.data.code)==="23P01")){
+      m.className="msg ng"; m.textContent="申し訳ありません、その時間はちょうど埋まりました。別の時間をお選びください。";
+      loadSlots();
+    }else{
+      m.className="msg ng"; m.textContent="送信に失敗しました："+esc((r.data&&r.data.message)||r.status);
+    }
+  }).catch(function(err){ btn.disabled=false; btn.textContent="この内容で予約する"; m.className="msg ng"; m.textContent="通信エラー："+esc(err&&err.message||err); });
+}
+function showDone(ms){
+  document.getElementById("body").innerHTML =
+    '<div class="done"><div class="ic">✅</div><h2>ご予約を承りました</h2>'
+    +'<p>'+esc(ST.artist.name)+' ／ '+esc(ST.menu.name)+'<br>'+esc(ST.date)+' '+esc(ST.slot)+'〜</p>'
+    +'<div class="speed" style="background:#063">⚡ 予約確定まで '+ms+' ミリ秒</div>'
+    +'<div class="small">※これはSupabase版のお試しです（実際のLINE通知等は今後つなぎます）。</div></div>';
+  window.scrollTo(0,0);
+}
+
+boot();
+</script>
+</body>
+</html>
