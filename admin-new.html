@@ -921,26 +921,32 @@ function initResvStoreBar(){
 /* ===== customer タブ JS ===== */
 /* ============================================================================
    顧客カルテ（CRM）タブ JS — poc/admin.html の <script> 末尾に追記する。
-   共有グローバル（再定義しない）：SB_URL,SB_KEY,TOKEN,hdr(),sbGet,sbRpc,sbInsert,
-     sbUpdate,sbDelete,esc(),ymd(),hhmm(),currentStoreSlug,storeIdForSlug,
-     ensureStoreMap,STORE_MAP,hideAllViews,setActiveNav,showLogin,TENANT_ID。
-   ・予約管理タブ(resv-tab.js)が showCustomers(nav要素)＋selectCustomer(uid) を呼ぶ。
+   ・顧客一覧を「予約(reservations)から導出した顧客 ∪ customers台帳」で作る。
+     → customers が空でも、ブラウザ/電話予約だけの顧客（例：LINE未連携の山田花子）が出る。
+   ・予約管理タブ(resv-tab.js)が showCustomers(nav要素) ＋ selectCustomer(line_uid) を呼ぶ。
    ・全ての値出力は esc()。クリックは data-* 属性＋イベント委譲（インライン onclick に
      動的値を文字列連結しない）＝注入対策。
+   ・共有グローバル（再定義しない）：SB_URL,SB_KEY,TOKEN,hdr(),sbGet,sbRpc,sbUpdate,
+     esc(),ymd(),hhmm(),currentStoreSlug,storeIdForSlug,ensureStoreMap,STORE_MAP,
+     hideAllViews,setActiveNav,showLogin,TENANT_ID,window.IS_MANAGER。
 
-   【レビュー修正の要点】
-   ・get_customer の reservations / next_reservation は to_jsonb(r.*)（生の予約行）で
-     返るため、r.menus.name / r.artists.name は存在しない（常に undefined）。
-     → menus / artists の id→name マップを別途ロードし、r.menu_id / r.artist_id で名称解決。
-   ・一覧の店舗フィルタはサーバ側で付けず RLS に委ね、クライアントで store 一致 or NULL を許容
-     （store_id=NULL のLINE顧客が脱落しないように。RLSが他店を遮断済みなので安全）。
+   一覧の作り方（中心）：
+   1) reservations を店舗スコープで取得（store_id があれば eq.、'all'/null は付けず RLS 任せ）。
+   2) customers も取得。
+   3) 予約を「顧客アイデンティティ(ckey)」でグルーピングして 1人1行に集約。
+      ckey = line_uid（非空）／ 無ければ 'nm:'+customer_name+'|'+(phone||'')。
+   4) customers 側に line_uid 一致行があれば customer_type / human_status / background_memo
+      を重ねる（無ければ予約由来で判定）。
+   5) 行クリック → line_uid があれば selectCustomer(line_uid)＝RPC get_customer でフル表示。
+      line_uid 無し → crmOpenLocal(ckey)＝予約由来の簡易カルテをクライアントで組み立て。
    ============================================================================ */
 
 /* ---- 状態 ---- */
-var CRM_LIST = [];          // 一覧の生データ（customers 行）
+var CRM_PEOPLE = [];        // 集約後の顧客配列（reservations ∪ customers）
+var CRM_BY_KEY = {};        // ckey -> person（簡易カルテ・クリック解決用）
 var CRM_CARDS = {};         // line_uid -> get_customer の戻り（キャッシュ）
 var CRM_FILTER = 'all';     // all | new | rep | att
-var CRM_SELECTED = null;    // 選択中 line_uid
+var CRM_SELECTED = null;    // 選択中（line_uid もしくは ckey）
 var CRM_SEARCH_T = null;    // 検索デバウンス
 var CRM_COLORS = ['#0f766e','#7c3aed','#db2777','#2563eb','#ea580c','#0891b2','#65a30d','#9333ea'];
 
@@ -956,7 +962,7 @@ function crmTypeLabel(t){ if(t==null||t==='') return ''; return CRM_TYPE_LABEL[S
 /* ---- 小ヘルパー（接頭辞付き：既存 initials/colorFor と衝突回避） ---- */
 function crmInitials(name){ var n = String(name||'').replace(/\s/g,''); return n ? n.slice(0,1) : '?'; }
 function crmHash(s){ var h=0; s=String(s); for(var i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))>>>0; } return h; }
-function crmColor(uid){ return CRM_COLORS[crmHash(uid) % CRM_COLORS.length]; }
+function crmColor(uid){ return CRM_COLORS[crmHash(uid||'?') % CRM_COLORS.length]; }
 function crmYen(n){ var v=(typeof n==='number')?n:parseInt(n,10); if(!isFinite(v)) v=0; return '¥' + v.toLocaleString('ja-JP'); }
 function crmDate(iso){ if(!iso) return '—'; var d=new Date(iso); if(isNaN(d.getTime())) return '—';
   return d.getFullYear()+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+('0'+d.getDate()).slice(-2); }
@@ -977,7 +983,8 @@ function crmEnsureNameMaps(){
 function crmMenuName(id){ return (id && CRM_MENU_MAP && CRM_MENU_MAP[id]) ? CRM_MENU_MAP[id] : ''; }
 function crmArtistName(id){ return (id && CRM_ARTIST_MAP && CRM_ARTIST_MAP[id]) ? CRM_ARTIST_MAP[id] : ''; }
 
-/* 来店ステータスの区分（新規/常連/要対応/VIP）。human_status があれば最優先で「要対応」。 */
+/* 来店ステータスの区分（新規/常連/要対応/VIP）。human_status があれば最優先で「要対応」。
+   c は customers 行 または 集約 person（visit_count を持つ）。 */
 function crmStatusOf(c){
   if (c && c.human_status && String(c.human_status) !== '' && String(c.human_status) !== 'done') return 'att';
   var vt = c && (c.customer_type||'');
@@ -1002,48 +1009,39 @@ function showCustomers(el){
   window.scrollTo({ top:0, behavior:'smooth' });
 }
 
-/* ===== 一覧の取得（GAS adminListCustomers の置換）=====
-   RLS が自テナント・自店に絞る。店舗フィルタはサーバに付けず RLS 任せ＋クライアントで
-   store 一致 or NULL を許容（store_id=NULL のLINE顧客を落とさない）。 */
+/* 顧客アイデンティティ：line_uid 優先、無ければ 名前+電話。 */
+function crmCKey(lineUid, name, phone){
+  if (lineUid) return String(lineUid);
+  return 'nm:' + String(name||'') + '|' + String(phone||'');
+}
+
+/* ===== 一覧の取得 =====
+   reservations（顧客導出）∪ customers（台帳）。店舗フィルタはサーバに付けず（all/null時）、
+   店舗指定時のみ store_id=eq. を付ける。さらにクライアントで「store 一致 or NULL」を許容
+   （store_id=NULL のLINE顧客を落とさない。RLSが他店は既に遮断済みなので安全）。 */
 function crmLoadList(){
   var listEl = document.getElementById('crmList');
   listEl.innerHTML = '<li class="crm-placeholder" style="min-height:30vh">読み込み中…</li>';
   document.getElementById('crmCount').textContent = '';
 
   ensureStoreMap().then(function(){
-    var kw = (document.getElementById('crmSearch').value || '').trim();
+    var slug = currentStoreSlug();
+    var storeId = storeIdForSlug(slug);   // 'all'/null は null＝全店（RLS任せ）
 
-    var path = 'customers?select=id,line_uid,line_display_name,visit_count,last_visit_at,' +
-      'customer_type,human_status,store_id&order=visit_count.desc';
+    var resvPath = 'reservations?select=line_uid,customer_name,phone,store_id,start_at,' +
+      'outcome,status,price,treatment_type&order=start_at.desc';
+    if (storeId) resvPath += '&store_id=eq.' + storeId;
 
-    // 検索：LINE表示名の部分一致（ilike）。記号を除去し、空になったら条件を付けない。
-    if (kw){
-      var safe = kw.replace(/([%_*,()\\])/g, '');
-      if (safe){
-        path += '&line_display_name=ilike.' + encodeURIComponent('*' + safe + '*');
-      }
-    }
+    var custPath = 'customers?select=id,line_uid,line_display_name,customer_type,human_status,' +
+      'human_reason,background_memo,store_id,visit_count,last_visit_at';
 
-    // 要対応：human_status が NULL でない行を粗く絞る（最終判定はクライアント crmStatusOf）。
-    if (CRM_FILTER === 'att'){
-      path += '&human_status=not.is.null';
-    }
-
-    sbGet(path).then(function(rows){
-      rows = rows || [];
-      var slug = currentStoreSlug();
-      var storeId = storeIdForSlug(slug);   // 'all' は null＝全店
-      CRM_LIST = rows.filter(function(c){
-        // 店舗スコープ：店舗指定時は「その店舗 or 店舗未設定(NULL)」のみ表示（RLSが他店は既に遮断済み）。
-        if (storeId && c.store_id && c.store_id !== storeId) return false;
-        // 区分/来店回数ベースの絞込（new/rep/att）。
-        var st = crmStatusOf(c);
-        if (CRM_FILTER === 'all') return true;
-        if (CRM_FILTER === 'new') return st === 'new';
-        if (CRM_FILTER === 'rep') return st === 'rep' || st === 'vip';
-        if (CRM_FILTER === 'att') return st === 'att';
-        return true;
-      });
+    Promise.all([
+      sbGet(resvPath),
+      sbGet(custPath).catch(function(){ return []; })   // customers が空/失敗でも予約由来は出す
+    ]).then(function(out){
+      var resvs = out[0] || [];
+      var custs = out[1] || [];
+      crmBuildPeople(resvs, custs, storeId);
       crmRenderList();
     }).catch(function(err){
       if (!TOKEN){ if (typeof showLogin === 'function') showLogin('もう一度ログインしてください。'); return; }
@@ -1054,28 +1052,161 @@ function crmLoadList(){
   });
 }
 
+/* 予約と顧客台帳を 1人1行（person）に集約。
+   person = {
+     ckey, name, line_uid, phone, store_id, visit_count, last_visit_at,
+     resv_count, has_active, resvs[]（その人の予約：簡易カルテ用・新しい順）,
+     customer_type, human_status, human_reason, background_memo,
+     hasCustomerRow（customers 台帳行が存在するか）
+   }
+   ・store_id 指定時はクライアントでも「store 一致 or NULL」を許容（多層防御）。 */
+function crmBuildPeople(resvs, custs, storeId){
+  var byKey = {};
+  var order = [];   // 初出順を保持（同点時の安定化）
+
+  function bucket(ckey){
+    if (!byKey[ckey]){
+      byKey[ckey] = {
+        ckey: ckey, name:'', line_uid:'', phone:'', store_id:null,
+        visit_count:0, last_visit_at:null, resv_count:0, has_active:false,
+        resvs:[], _newestAt:null,
+        customer_type:'', human_status:'', human_reason:'', background_memo:'',
+        hasCustomerRow:false
+      };
+      order.push(ckey);
+    }
+    return byKey[ckey];
+  }
+
+  // --- 1) 予約から導出（store_id=eq. で既に絞られているが、念のため NULL も許容で再確認） ---
+  (resvs || []).forEach(function(r){
+    if (!r) return;
+    if (storeId && r.store_id && r.store_id !== storeId) return;   // 多層防御
+    var uid = r.line_uid || '';
+    var nm = r.customer_name || '';
+    var ph = r.phone || '';
+    var ckey = crmCKey(uid, nm, ph);
+    var p = bucket(ckey);
+
+    p.resvs.push(r);
+    p.resv_count += 1;
+    if (r.status !== 'cancelled') p.has_active = true;
+    if (uid && !p.line_uid) p.line_uid = uid;
+    if (ph && !p.phone) p.phone = ph;
+
+    // 表示名・店舗は「最新予約」を優先（start_at.desc 取得なので先頭が最新だが、念のため比較）
+    var at = r.start_at ? new Date(r.start_at).getTime() : NaN;
+    if (!p._newestAt || (isFinite(at) && at > p._newestAt)){
+      p._newestAt = isFinite(at) ? at : p._newestAt;
+      if (nm) p.name = nm;
+      if (r.store_id) p.store_id = r.store_id;
+    }
+    if (!p.name && nm) p.name = nm;
+
+    // 来店回数・最終来店（outcome==='visited' 基準）
+    if (r.outcome === 'visited'){
+      p.visit_count += 1;
+      var vt = r.start_at ? new Date(r.start_at).getTime() : NaN;
+      if (isFinite(vt)){
+        var cur = p.last_visit_at ? new Date(p.last_visit_at).getTime() : -Infinity;
+        if (vt > cur) p.last_visit_at = r.start_at;
+      }
+    }
+  });
+
+  // --- 2) customers 台帳を重ねる（line_uid 一致で属性を上書き／予約に無い顧客は新規 person） ---
+  (custs || []).forEach(function(c){
+    if (!c) return;
+    if (storeId && c.store_id && c.store_id !== storeId) return;   // 多層防御（RLSが本筋）
+    var uid = c.line_uid || '';
+    var ckey = crmCKey(uid, c.line_display_name || '', '');
+    var p = byKey[ckey];
+    if (!p){
+      // 予約が1件も無い純台帳顧客
+      p = bucket(ckey);
+      p.line_uid = uid;
+      p.store_id = c.store_id || null;
+    }
+    p.hasCustomerRow = true;
+    // 台帳の属性を重ねる（無ければ予約由来のまま）
+    if (c.customer_type)   p.customer_type = c.customer_type;
+    if (c.human_status)    p.human_status = c.human_status;
+    if (c.human_reason)    p.human_reason = c.human_reason;
+    if (c.background_memo) p.background_memo = c.background_memo;
+    // 表示名・来店情報は台帳値があれば優先（台帳の方が整備されている前提）
+    if (c.line_display_name) p.name = c.line_display_name;
+    if (typeof c.visit_count === 'number') p.visit_count = c.visit_count;
+    if (c.last_visit_at) p.last_visit_at = c.last_visit_at;
+  });
+
+  // 配列化（来店回数→最終来店→予約件数の優先で降順）
+  var people = order.map(function(k){
+    var p = byKey[k];
+    if (!p.name) p.name = '（名前なし）';
+    // 予約は新しい順に整える（取得が desc でも安全側で再ソート）
+    p.resvs.sort(function(a,b){
+      var ta = a.start_at ? new Date(a.start_at).getTime() : 0;
+      var tb = b.start_at ? new Date(b.start_at).getTime() : 0;
+      return tb - ta;
+    });
+    return p;
+  });
+  people.sort(function(a,b){
+    if (b.visit_count !== a.visit_count) return b.visit_count - a.visit_count;
+    var la = a.last_visit_at ? new Date(a.last_visit_at).getTime() : 0;
+    var lb = b.last_visit_at ? new Date(b.last_visit_at).getTime() : 0;
+    if (lb !== la) return lb - la;
+    return (b.resv_count||0) - (a.resv_count||0);
+  });
+
+  CRM_PEOPLE = people;
+  CRM_BY_KEY = byKey;
+}
+
+/* 検索・チップ絞り込みを適用した表示用配列。 */
+function crmVisiblePeople(){
+  var kw = (document.getElementById('crmSearch').value || '').trim().toLowerCase();
+  return CRM_PEOPLE.filter(function(p){
+    // 検索：名前（表示名）の部分一致（クライアント側 includes）
+    if (kw){
+      var hay = String(p.name||'').toLowerCase();
+      if (hay.indexOf(kw) < 0) return false;
+    }
+    // チップ：区分/有人
+    var st = crmStatusOf(p);
+    if (CRM_FILTER === 'all') return true;
+    if (CRM_FILTER === 'new') return st === 'new';
+    if (CRM_FILTER === 'rep') return st === 'rep' || st === 'vip';
+    if (CRM_FILTER === 'att') return st === 'att';
+    return true;
+  });
+}
+
 function crmRenderList(){
   var slug = currentStoreSlug();
   var storeId = storeIdForSlug(slug);
   var scopeLbl = storeId ? ('（' + esc((STORE_MAP && STORE_MAP[slug] && STORE_MAP[slug].name) || slug) + '）') : '（全店）';
-  document.getElementById('crmCount').textContent = CRM_LIST.length + '件 ' + scopeLbl;
+
+  var people = crmVisiblePeople();
+  document.getElementById('crmCount').textContent = people.length + '件 ' + scopeLbl;
 
   var listEl = document.getElementById('crmList');
-  if (!CRM_LIST.length){
+  if (!people.length){
     listEl.innerHTML = '<li class="crm-placeholder" style="min-height:24vh">該当する顧客がいません</li>';
     return;
   }
-  listEl.innerHTML = CRM_LIST.map(function(c){
-    var uid = c.line_uid || '';
-    var name = c.line_display_name || '（名前なし）';
-    var st = crmStatusOf(c);
-    var sel = (CRM_SELECTED === uid && uid) ? ' crm-sel' : '';
-    var sub = '来店' + esc(c.visit_count || 0) + '回 ・ 最終 ' + esc(crmDate(c.last_visit_at));
-    var typeLbl = crmTypeLabel(c.customer_type);
+  listEl.innerHTML = people.map(function(p){
+    var name = p.name || '（名前なし）';
+    var st = crmStatusOf(p);
+    var keyForColor = p.line_uid || p.ckey;
+    var sel = (CRM_SELECTED && CRM_SELECTED === (p.line_uid || p.ckey)) ? ' crm-sel' : '';
+    var sub = '来店' + esc(p.visit_count || 0) + '回 ・ 最終 ' + esc(crmDate(p.last_visit_at));
+    if (!p.line_uid) sub += ' ・ 📞LINE未連携';
+    var typeLbl = crmTypeLabel(p.customer_type);
     if (typeLbl) sub += ' ・ ' + esc(typeLbl);
-    // uid は data-uid に格納（onclick への動的連結はしない＝注入対策）
-    return '<li class="crm-cust'+sel+'" data-uid="'+esc(uid)+'">' +
-      '<div class="crm-cav" style="background:'+crmColor(uid)+'">'+esc(crmInitials(name))+'</div>' +
+    // 値は data-* に格納（onclick への動的連結はしない＝注入対策）。
+    return '<li class="crm-cust'+sel+'" data-uid="'+esc(p.line_uid||'')+'" data-key="'+esc(p.ckey)+'">' +
+      '<div class="crm-cav" style="background:'+crmColor(keyForColor)+'">'+esc(crmInitials(name))+'</div>' +
       '<div class="crm-cmain">' +
         '<div class="crm-cnm">'+esc(name)+' '+crmStatusPill(st)+'</div>' +
         '<div class="crm-csub">'+sub+'</div>' +
@@ -1083,26 +1214,28 @@ function crmRenderList(){
   }).join('');
 }
 
-/* チップ絞込（区分/有人）。クリックは委譲で取る。 */
+/* チップ絞込（区分/有人）。クリックは委譲で取る。再フェッチ不要なので描画のみ更新。 */
 document.getElementById('crmChips').addEventListener('click', function(e){
   var chip = e.target.closest('.crm-chip'); if (!chip) return;
   CRM_FILTER = chip.getAttribute('data-f') || 'all';
   var chips = document.querySelectorAll('#crmChips .crm-chip');
   for (var i=0;i<chips.length;i++) chips[i].classList.toggle('crm-active', chips[i].getAttribute('data-f') === CRM_FILTER);
-  crmLoadList();
+  crmRenderList();
 });
 
-/* 検索（デバウンス）。入力値は path 側で encode＋ワイルドカード化済み。 */
+/* 検索（デバウンス）。クライアント側フィルタなので描画のみ更新。 */
 document.getElementById('crmSearch').addEventListener('input', function(){
   clearTimeout(CRM_SEARCH_T);
-  CRM_SEARCH_T = setTimeout(crmLoadList, 280);
+  CRM_SEARCH_T = setTimeout(crmRenderList, 200);
 });
 
-/* 行タップ → 詳細。uid は data-uid から取得（注入対策）。 */
+/* 行タップ → 詳細。line_uid があれば RPC、無ければ予約由来の簡易カルテ（注入対策で data-* から取得）。 */
 document.getElementById('crmList').addEventListener('click', function(e){
   var li = e.target.closest('.crm-cust'); if (!li) return;
-  var uid = li.getAttribute('data-uid'); if (!uid) return;
-  selectCustomer(uid);
+  var uid = li.getAttribute('data-uid');
+  var key = li.getAttribute('data-key');
+  if (uid) { selectCustomer(uid); return; }
+  if (key) crmOpenLocal(key);
 });
 
 document.getElementById('crmBack').addEventListener('click', crmBackToList);
@@ -1112,16 +1245,20 @@ function crmBackToList(){
   document.getElementById('crmBack').classList.remove('crm-show');
 }
 
-/* ===== カルテ1件の取得（GAS adminGetCustomer の置換 → RPC get_customer）===== */
+/* 詳細パネルを「表示状態」にする（共通）。 */
+function crmShowDetailPane(){
+  document.getElementById('crmDetail').classList.add('crm-detail-show');
+  document.getElementById('crmBack').classList.add('crm-show');
+  window.scrollTo({ top:0, behavior:'smooth' });
+}
+
+/* ===== カルテ1件の取得（line_uid あり：RPC get_customer）=====
+   予約管理のカードからも「実在の line_uid」でここが呼ばれる。 */
 function selectCustomer(lineUid){
   if (!lineUid) return;
   CRM_SELECTED = lineUid;
   crmRenderList();   // 選択ハイライト更新
-
-  // 詳細表示へ（スマホは一覧を隠す）
-  document.getElementById('crmDetail').classList.add('crm-detail-show');
-  document.getElementById('crmBack').classList.add('crm-show');
-  window.scrollTo({ top:0, behavior:'smooth' });
+  crmShowDetailPane();
 
   if (CRM_CARDS[lineUid]){ crmRenderDetail(lineUid, CRM_CARDS[lineUid]); return; }
   document.getElementById('crmDetailBody').innerHTML = '<div class="crm-placeholder">読み込み中…</div>';
@@ -1145,13 +1282,115 @@ function selectCustomer(lineUid){
   });
 }
 
-/* get_customer の戻り（jsonb）：
+/* ===== カルテ1件（line_uid なし：予約由来の簡易カルテ）=====
+   ckey から集約済み person を引き、その予約一覧でクライアント側に組み立てる。 */
+function crmOpenLocal(ckey){
+  if (!ckey) return;
+  var p = CRM_BY_KEY[ckey];
+  if (!p){ return; }
+  CRM_SELECTED = ckey;
+  crmRenderList();   // 選択ハイライト更新
+  crmShowDetailPane();
+
+  document.getElementById('crmDetailBody').innerHTML = '<div class="crm-placeholder">読み込み中…</div>';
+  // 名前マップ（メニュー/担当名解決）を確保してから描画。
+  crmEnsureNameMaps().then(function(){
+    crmRenderLocalDetail(p);
+  }).catch(function(){
+    crmRenderLocalDetail(p);   // 名前マップ失敗でも履歴は出す
+  });
+}
+
+/* 予約由来の簡易カルテを描画（問診・同意書は line_uid 前提のため表示できない旨を出す）。 */
+function crmRenderLocalDetail(p){
+  p = p || {};
+  var name = p.name || '（名前なし）';
+  var resvs = Array.isArray(p.resvs) ? p.resvs : [];
+  var visitCount = (typeof p.visit_count === 'number') ? p.visit_count
+                   : resvs.filter(function(r){ return r.outcome === 'visited'; }).length;
+  var lastVisit = p.last_visit_at || (function(){
+    var v = resvs.filter(function(r){ return r.outcome === 'visited' && r.start_at; });
+    return v.length ? v[0].start_at : null;   // resvs は新しい順
+  })();
+
+  // LTV：visited の price 合計
+  var ltv = 0;
+  resvs.forEach(function(r){
+    if (r.outcome === 'visited'){
+      var v = (typeof r.price === 'number') ? r.price : parseInt(r.price, 10);
+      if (isFinite(v)) ltv += v;
+    }
+  });
+
+  // 次回予約：status<>cancelled かつ start_at>=今 の「最も近い未来」
+  var now = Date.now();
+  var next = null, nextAt = Infinity;
+  resvs.forEach(function(r){
+    if (r.status === 'cancelled') return;
+    var t = r.start_at ? new Date(r.start_at).getTime() : NaN;
+    if (isFinite(t) && t >= now && t < nextAt){ nextAt = t; next = r; }
+  });
+
+  var st = crmStatusOf({ customer_type:p.customer_type||'', human_status:p.human_status||'', visit_count:visitCount });
+
+  var nextBox = next
+    ? '<div class="crm-sect"><div class="crm-next"><small>📅 次回予約</small>' +
+        esc(crmDateTime(next.start_at)) +
+      '</div></div>'
+    : '';
+
+  // 予約履歴（新しい順）。simple 行は menu_id/artist_id を持たないので treatment_type のみ。
+  var WDc = ['日','月','火','水','木','金','土'];
+  var history = resvs.map(function(r){
+    var d = new Date(r.start_at);
+    var dateLbl = isNaN(d.getTime()) ? '—'
+      : (d.getFullYear()+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+('0'+d.getDate()).slice(-2)+'（'+WDc[d.getDay()]+'）'+hhmm(r.start_at));
+    var tre = r.treatment_type === 'retouch' ? 'リタッチ' : (r.treatment_type === 'new' ? '新規' : '');
+    var tag = r.outcome === 'visited' ? '<span class="crm-tag crm-tag-v">来店</span>'
+            : r.outcome === 'no_show' ? '<span class="crm-tag crm-tag-n">無断キャンセル</span>'
+            : (r.status === 'cancelled' ? '<span class="crm-tag crm-tag-c">キャンセル</span>' : '');
+    var line = tre ? esc(tre) : '予約';
+    return '<li><div>'+line+tag+'</div><div class="crm-dt">'+esc(dateLbl)+'</div></li>';
+  }).join('');
+  if (!history) history = '<li><div>まだ来店・予約の記録がありません。</div></li>';
+
+  var keyForColor = p.line_uid || p.ckey;
+
+  document.getElementById('crmDetailBody').innerHTML = '' +
+    '<div class="crm-dhead">' +
+      '<div class="crm-cav" style="background:'+crmColor(keyForColor)+'">'+esc(crmInitials(name))+'</div>' +
+      '<div class="crm-dtitle">' +
+        '<h2>'+esc(name)+' 様</h2>' +
+        '<div class="crm-drow">' + crmStatusPill(st) +
+          '<span class="crm-pill crm-s-rep" style="background:#475569">📞 LINE未連携</span>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="crm-stats">' +
+      '<div class="crm-stat"><b>'+esc(visitCount)+'</b><span>来店回数</span></div>' +
+      '<div class="crm-stat"><b style="font-size:15px;padding-top:3px">'+esc(crmYen(ltv))+'</b><span>累計利用（LTV）</span></div>' +
+      '<div class="crm-stat"><b style="font-size:15px;padding-top:3px">'+esc(crmDate(lastVisit))+'</b><span>最終来店</span></div>' +
+    '</div>' +
+    nextBox +
+    '<div class="crm-sect"><h3>基本情報</h3><div class="crm-memo" style="background:#f8fafa;border-color:#e6eceb;white-space:normal">' +
+      'お名前：'+esc(name) +
+      (p.phone ? '<br>電話：'+esc(p.phone) : '') +
+      '<br><small style="color:#889">このお客様は LINE 未連携です（ブラウザ予約・電話予約など）。</small>' +
+    '</div></div>' +
+    '<div class="crm-sect"><h3>📋 事前問診票</h3><div class="crm-memo">LINE未連携のため表示できません（問診はLINE連携が前提です）。</div></div>' +
+    '<div class="crm-sect"><h3>📝 同意書（電子署名）</h3><div class="crm-memo">LINE未連携のため表示できません。</div></div>' +
+    '<div class="crm-sect"><h3>来店・対応履歴</h3><ul class="crm-timeline">'+history+'</ul></div>' +
+    '<div class="crm-foot"><div class="crm-memo" style="text-align:center;color:#889">' +
+      'このお客様は LINE 未連携のため、メモ・区分の編集はできません（電話予約など）。</div></div>';
+}
+
+/* ===== get_customer の戻り（jsonb）でフル表示（line_uid あり）=====
    { customer, display_name, reservations[], ltv, next_reservation, questionnaire, consent }
    ・reservations / next_reservation は to_jsonb(r.*)＝生の予約行（menu_id / artist_id を持つ。
      埋め込み menus / artists オブジェクトは無いので名前はマップで解決する）。 */
 function crmRenderDetail(uid, res){
   res = res || {};
-  var c = res.customer || null;                       // customers 行 or null（synth顧客）
+  var c = res.customer || null;                       // customers 行 or null（台帳未登録）
   var name = res.display_name || (c && c.line_display_name) || '（名前なし）';
   var resvs = Array.isArray(res.reservations) ? res.reservations : [];
   var ltv = res.ltv || 0;
@@ -1899,7 +2138,20 @@ function setLoadMenus(){
     .then(function(rows){
       rows = rows || [];
       var h = '';
-      if (!rows.length){ h += '<div class="set-ph">メニューがまだありません。</div>'; }
+      // ★新規メニュー追加フォーム（オーナー/管理者のみ。RLS manager_write_menus が権限判定）
+      h += '<div class="set-card set-addcard">'
+        + '<div class="set-acts"><button type="button" class="set-btn set-primary" data-act="maddtoggle">＋ 新規メニューを追加</button></div>'
+        + '<div class="set-edit" id="set-maddform">'
+        +   '<label>メニュー名（必須）</label><input type="text" id="set-maname" placeholder="例）眉アートメイク（2D/3D/4D）">'
+        +   '<label>通常価格（円）</label><input type="number" inputmode="numeric" id="set-manor" placeholder="例）55000">'
+        +   '<label>モニター価格（円・空なら通常と同額）</label><input type="number" inputmode="numeric" id="set-mamon" placeholder="例）44000">'
+        +   '<div class="set-acts">'
+        +     '<button type="button" class="set-btn set-primary" data-act="maddsave">💾 追加する</button>'
+        +     '<button type="button" class="set-btn set-ghost" data-act="maddcancel">やめる</button>'
+        +   '</div>'
+        +   '<div class="set-note" style="margin-top:6px">※ 追加後、予約ページに表示するには「アーティスト × メニュー」の担当割り当て（施術時間）が必要です（次の改善で対応予定）。</div>'
+        + '</div></div>';
+      if (!rows.length){ h += '<div class="set-ph">登録済みメニューはまだありません。</div>'; }
       rows.forEach(function(m){
         var mid = esc(m.id);
         h += '<div class="set-card'+(m.is_active?'':' set-off')+'" data-mid="'+mid+'">'
@@ -1937,6 +2189,22 @@ function setSaveMenu(mid){
   var patch = { price_normal:nNor, price_monitor:nMon, is_active:act };
   sbUpdate('menus','id=eq.'+encodeURIComponent(mid), patch)
     .then(function(){ setMsg('set-menuMsg','✅ 保存しました。', true); setLoadMenus(); })
+    .catch(function(err){ if (setHandleAuth(err)) return; setMsg('set-menuMsg', setReason(err), false); });
+}
+
+/* 新規メニューを追加（menus に insert）。tenant_id は TENANT_ID。manager のみ RLS が許可。 */
+function setAddMenu(){
+  var name = (((document.getElementById('set-maname')||{}).value)||'').trim();
+  var nor  = (document.getElementById('set-manor')||{}).value;
+  var mon  = (document.getElementById('set-mamon')||{}).value;
+  if (!name){ setMsg('set-menuMsg','メニュー名を入力してください。', false); return; }
+  var nNor = parseInt(nor,10);
+  if (nor==='' || isNaN(nNor) || nNor<0){ setMsg('set-menuMsg','通常価格は0以上の半角数字で入力してください。', false); return; }
+  var nMon = (mon==='') ? nNor : parseInt(mon,10);   // モニター価格が空なら通常と同額
+  if (isNaN(nMon) || nMon<0){ setMsg('set-menuMsg','モニター価格は0以上の半角数字で入力してください。', false); return; }
+  var row = { tenant_id: TENANT_ID, name: name, price_normal: nNor, price_monitor: nMon, is_active: true };
+  sbInsert('menus', row)
+    .then(function(){ setMsg('set-menuMsg','✅ メニューを追加しました。', true); setLoadMenus(); })
     .catch(function(err){ if (setHandleAuth(err)) return; setMsg('set-menuMsg', setReason(err), false); });
 }
 
@@ -2244,6 +2512,9 @@ function setMsg(id, text, ok){
     if (act === 'medit'){ var me = document.getElementById('set-medit-'+b.getAttribute('data-mid')); if (me) me.classList.add('set-open'); return; }
     if (act === 'mcancel'){ var mc = document.getElementById('set-medit-'+b.getAttribute('data-mid')); if (mc) mc.classList.remove('set-open'); return; }
     if (act === 'msave'){ setSaveMenu(b.getAttribute('data-mid')); return; }
+    if (act === 'maddtoggle'){ var maf = document.getElementById('set-maddform'); if (maf) maf.classList.toggle('set-open'); return; }
+    if (act === 'maddcancel'){ var maf2 = document.getElementById('set-maddform'); if (maf2) maf2.classList.remove('set-open'); return; }
+    if (act === 'maddsave'){ setAddMenu(); return; }
     // アーティスト
     if (act === 'aedit'){ var ae = document.getElementById('set-aedit-'+b.getAttribute('data-aid')); if (ae) ae.classList.add('set-open'); return; }
     if (act === 'acancel'){ var ac = document.getElementById('set-aedit-'+b.getAttribute('data-aid')); if (ac) ac.classList.remove('set-open'); return; }
