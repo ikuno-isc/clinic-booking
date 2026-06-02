@@ -54,6 +54,7 @@
   <div class="body" id="body"><div class="ph">読み込み中…</div></div>
 </div>
 
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script>
 // ===== 設定（公開キー＝埋め込みOK・RLSで保護） =====
 var SB_URL = "https://stgarheuldubyrzdqzaq.supabase.co";
@@ -61,6 +62,11 @@ var SB_KEY = "sb_publishable_e5A9MJzOCvzsfWXBd9DLzg_Wa_hJ0qb";
 var STORE_ID = "22222222-0000-0000-0000-000000000001"; // 久留米店
 var TENANT_ID = "11111111-1111-1111-1111-111111111111";
 var OPEN_H = 9, CLOSE_H = 19, INTERVAL = 30; // 営業 09:00-19:00 / 30分刻み
+// LINE連携：確定メッセージ・スタッフ通知は Supabase Edge Function に依頼（GAS不使用）。
+// LINEトークンはテナントごとにDB(tenant_secrets)に保存し、Edge Functionだけが service_role で読む。
+var LIFF_ID = "2010236479-4ANlMg3d";
+var EDGE_NOTIFY = SB_URL + "/functions/v1/notify-reservation";
+var LINE_UID = "", LINE_NAME = "";
 
 var H = { "apikey": SB_KEY, "Authorization": "Bearer " + SB_KEY };
 function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
@@ -198,7 +204,7 @@ function submitBooking(){
     tenant_id:TENANT_ID, store_id:STORE_ID, artist_id:ST.artist.id, menu_id:ST.menu.id,
     customer_name:name, phone:phone, start_at:s, end_at:e
   }).then(function(r){
-    if(r.ok){ showDone(r.ms); return; }
+    if(r.ok){ fireNotify(name); showDone(r.ms); return; }
     btn.disabled=false; btn.textContent="この内容で予約する";
     if(String(r.status)==="409" || (r.data && String(r.data.code)==="23P01")){
       m.className="msg ng"; m.textContent="申し訳ありません、その時間はちょうど埋まりました。別の時間をお選びください。";
@@ -207,6 +213,29 @@ function submitBooking(){
       m.className="msg ng"; m.textContent="送信に失敗しました："+esc((r.data&&r.data.message)||r.status);
     }
   }).catch(function(err){ btn.disabled=false; btn.textContent="この内容で予約する"; m.className="msg ng"; m.textContent="通信エラー："+esc(err&&err.message||err); });
+}
+// LIFFで本人(UID)を取得（LINE内で開いたときだけ）。失敗しても予約は続行。
+function initLiff(){
+  if(typeof liff==="undefined") return;
+  try{
+    liff.init({liffId:LIFF_ID}).then(function(){
+      if(liff.isLoggedIn && liff.isLoggedIn()){
+        liff.getProfile().then(function(p){ if(p){ LINE_UID=p.userId||""; LINE_NAME=p.displayName||""; } }).catch(function(){});
+      }
+    }).catch(function(){});
+  }catch(e){}
+}
+// 予約確定後、LINE通知をEdge Functionに依頼（裏で実行・画面の速さは止めない）。
+function fireNotify(name){
+  try{
+    var dur=ST.menu._dur||60;
+    var endt=new Date(new Date(ST.date+"T"+ST.slot+":00+09:00").getTime()+dur*60000);
+    var eh=("0"+endt.getHours()).slice(-2)+":"+("0"+endt.getMinutes()).slice(-2);
+    var when=ST.date+" "+ST.slot+"〜"+eh;
+    var price=ST.menu.price_normal!=null?("¥"+Number(ST.menu.price_normal).toLocaleString()):"";
+    fetch(EDGE_NOTIFY,{ method:"POST", headers:{ "Content-Type":"application/json", "Authorization":"Bearer "+SB_KEY, "apikey":SB_KEY },
+      body:JSON.stringify({ tenant_id:TENANT_ID, line_uid:LINE_UID, customer_name:name, artist:ST.artist.name, menu:ST.menu.name, datetime:when, price:price }) }).catch(function(){});
+  }catch(e){}
 }
 function showDone(ms){
   document.getElementById("body").innerHTML =
@@ -218,6 +247,7 @@ function showDone(ms){
 }
 
 boot();
+initLiff();
 </script>
 </body>
 </html>
