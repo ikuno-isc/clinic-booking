@@ -9,7 +9,8 @@
       LINE通知             … Supabase Edge Function（notify-reservation）へ依頼
   ・?ref=（流入元タグ）を予約に記録、?store= で店舗slug切替（既定 kurume）、LIFFでお客様UID/お名前を取得。
   ・キャンセル(s-cancel)は実装済み（?mode=cancel：自分のLINE UIDの予約のみ my_reservations/cancel_my_reservation）。
-  ・同意書(s-consent)はまだ「準備中」案内のみ（次回対応）。
+  ・同意書(s-consent)は方式A（指で署名→画像保存）で実装済み（?mode=consent：本文＋写真Y/N＋署名→submit_consent）。
+  ・※実顧客公開前に本人確認(LIFF IDトークン検証#92)を入れる前提。テスト＋対面署名運用では現状で可。
   ・GitHub Pages 等で配信する純粋な静的HTML。外部依存は LIFF SDK のCDNのみ。
 -->
 <html lang="ja">
@@ -189,6 +190,35 @@
     .soon-box { text-align:center; padding:48px 16px; color:#666; }
     .soon-box .done-icon { font-size:46px; }
 
+    /* ===== Consent（同意書：本文→写真Yes/No→指署名→送信） ===== */
+    .cs-greet { font-size:14px; font-weight:700; color:#0b5c55; margin:0 2px 6px; }
+    .cs-meta { font-size:12px; color:#888; margin:0 2px 14px; }
+    .cs-read { height:300px; overflow-y:auto; border:1px solid #ccc; border-radius:8px; padding:14px 16px; font-size:12.5px; color:#333; background:#fff; line-height:1.8; -webkit-overflow-scrolling:touch; }
+    .cs-read h3 { font-size:13px; margin:14px 0 4px; border-left:4px solid #06845a; padding-left:8px; color:#222; }
+    .cs-read h3:first-child { margin-top:2px; }
+    .cs-read p { margin:0 0 8px; }
+    .cs-read ul { margin:4px 0 10px 18px; padding:0; }
+    .cs-read li { margin-bottom:4px; }
+    .cs-read .cs-sub { font-weight:700; margin:8px 0 2px; color:#444; }
+    .cs-read .cs-note, .cs-read .cs-agree { font-weight:700; }
+    .cs-read .cs-agree { margin:14px 0 2px; color:#0b5c55; }
+    .cs-sec { font-size:13px; font-weight:700; color:#06845a; border-left:3px solid #06c755; padding-left:8px; margin:22px 0 6px; }
+    .cs-photo-note { font-size:12px; color:#666; margin:0 2px 12px; line-height:1.7; }
+    .cs-q { background:#fff; border:1px solid #e6eceb; border-radius:10px; padding:12px 14px; margin-bottom:10px; }
+    .cs-q-label { font-size:13px; color:#333; margin-bottom:8px; line-height:1.5; }
+    .cs-yn { display:flex; gap:8px; }
+    .cs-yn button { flex:1; padding:9px 4px; font-size:14px; font-weight:600; border:2px solid #ddd; border-radius:8px; background:#fff; color:#555; cursor:pointer; font-family:inherit; }
+    .cs-yn button.on-yes { border-color:#06c755; background:#06c755; color:#fff; }
+    .cs-yn button.on-no { border-color:#c2410c; background:#fdf3f1; color:#c2410c; }
+    .cs-sign-wrap { margin-top:6px; }
+    .cs-sign-hd { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+    .cs-sign-hd .lbl { font-size:13px; font-weight:700; color:#333; }
+    .cs-sign-clear { background:#f5f5f5; color:#555; border:1px solid #ddd; border-radius:8px; padding:6px 14px; font-size:13px; cursor:pointer; font-family:inherit; }
+    #consentCanvas { width:100%; height:200px; background:#fff; border:1px solid #bbb; border-radius:8px; touch-action:none; display:block; }
+    .cs-sign-hint { font-size:11.5px; color:#999; margin:6px 2px 0; }
+    .cs-submit-err { margin-top:12px; }
+    .cs-done .done-icon { font-size:52px; margin-bottom:14px; }
+
     /* ===== 他院修正の注意（経験「有」のお客様にだけ確認画面で表示） ===== */
     .fix-note { background:#fff7e6; border:1.5px solid #f0a020; border-radius:10px; padding:13px 15px; margin:16px 0; font-size:12.5px; color:#8a4b00; line-height:1.75; }
     .fix-note-hd { font-weight:800; color:#b45309; font-size:14px; margin-bottom:7px; }
@@ -234,12 +264,7 @@
 <div id="s-consent">
   <div class="app-hd"><h1>アートメイク同意書</h1></div>
   <div class="step-wrap">
-    <div class="soon-box">
-      <div class="done-icon">🛠️</div>
-      <div class="done-title">ただいま準備中です</div>
-      <div class="done-msg">同意書のご案内はスタッフより改めてお送りします。公式LINEのトーク画面をご確認ください。</div>
-      <button class="btn btn-p" onclick="backToTalk()" style="display:inline-block;margin-top:24px;padding-left:36px;padding-right:36px;">LINEのトークに戻る</button>
-    </div>
+    <div id="consentBody"><div class="cl-loading">同意書を読み込んでいます…</div></div>
   </div>
 </div>
 
@@ -903,6 +928,7 @@ function showWizardIfReady(){
 }
 function profileDone(){ bootProfDone=true; updHeader(); showWizardIfReady();
   if(MODE==='cancel') loadCancelList();   // ★LINE UID 確定後に「自分の予約一覧」を取得
+  if(MODE==='consent') loadConsentForm(); // ★LINE UID 確定後に同意書フォームを描画（氏名・UIDを使う）
 }
 
 // ===== お客様によるキャンセル（公開キャンセルRPC my_reservations / cancel_my_reservation）=====
@@ -965,6 +991,304 @@ document.addEventListener('click', function(e){
     else window.alert('キャンセルできませんでした。お手数ですが公式LINEのトークからご連絡ください。');
   }).catch(function(){ b.disabled=false; b.textContent='このご予約をキャンセル'; window.alert('通信エラーが発生しました。'); });
 });
+
+// ===== 同意書（方式A：指で署名→画像で保存。PDFは作らない） =====
+// 文面・写真項目・版は src/consent.js（GAS版・純粋ロジック）からそのまま転記。
+// ※ 本文は固定テキスト（お客様の入力値を含まない）のため、そのままHTMLとして安全。
+var CONSENT_VERSION='2026-06';
+
+// 写真使用の同意項目（紙の同意書「施術写真の使用について」4項目）。key は submit_consent の引数に対応。
+function consentPhotoQuestions(){
+  return [
+    { key:'tv_full', label:'マスメディア（TV）・雑誌への使用：顔全体の使用' },
+    { key:'tv_part', label:'マスメディア（TV）・雑誌への使用：施術部位のみの使用' },
+    { key:'sns_full', label:'SNS（Instagramなど）・HPへの使用：顔全体の使用' },
+    { key:'sns_part', label:'SNS（Instagramなど）・HPへの使用：施術部位のみの使用' },
+  ];
+}
+
+// 同意書の本文（読む内容）。src/consent.js の consentBodyHtml() と同一の固定文言。
+function consentBodyHtml(){
+  return ''
+    +'<p class="cs-intro">当院では患者様に十分な情報の提供を行い、同意の上で医療施術を行っています。</p>'
+    +'<h3>【アートメイクとは】</h3>'
+    +'<p>メディカルアートメイクとは汗や水、洗顔で落ちない持続性のあるメイクです。滅菌された特殊な針を使用し、表皮下の0.5〜2mmの浅い層に色素を定着させていきます。定着には2〜3回ほど施術が必要となりますが、刺青やタトゥーとは違い、徐々に薄くなっていきます。メディカルアートメイクの持続期間の目安は、年齢や肌質、新陳代謝により個人差はありますが、施術後1〜2年程度持続します。又、完全になくなるわけではなく、徐々に薄くなっていきますので1〜2年ごとのメンテナンスをお勧め致します。アートメイクの色素に含まれる金属は微量ですのでMRI撮影も可能です。</p>'
+    +'<h3>【合併症】</h3>'
+    +'<p>出血、肥厚性瘢痕、ケロイド、色素脱失、ヘルペス、アレルギー、ブロック注射による神経障害など。個人差はありますがインク線が拡散することがあります。<br>※拡散とはアートメイク専門用語でインクが滲むことを指します。肌質・体質等により原因は様々です。</p>'
+    +'<h3>【アートメイク施術後の症状について】</h3>'
+    +'<ul>'
+    +'<li>施術後3日間は傷の部分が赤くなったり腫れたりすることがございます。また直後は濃く見えることが多く、徐々に薄い皮がめくれ1週間〜10日ほどで次第に薄く馴染んできます。</li>'
+    +'<li>2回コース選択された方は2回目施術の有効期限は2ヶ月間です。（2ヶ月以降に行う場合は別途追加料金がかかります。）</li>'
+    +'<li>アートメイク施術後、部分修正・お色の変更を希望される場合は、2回目にて承ります。</li>'
+    +'</ul>'
+    +'<h3>【注意事項】</h3>'
+    +'<p>以下に該当される方は、施術をお断りしております。</p>'
+    +'<ul>'
+    +'<li>妊娠中・授乳中・不妊治療中・妊娠の可能性のある方。（※コース購入後に妊娠が判明した場合はご連絡日より1年間延長とさせていただきます。）</li>'
+    +'<li>感染症・ヘルペス・糖尿病・心疾患・膠原病・自己免疫性疾患などの既往歴のある方。</li>'
+    +'<li>アレルギー体質の方。</li>'
+    +'<li>施術範囲に皮膚疾患がある方、ケロイド体質の方。</li>'
+    +'<li>既にアートメイクをされており、傷の状態が治癒していないと判断した場合。</li>'
+    +'<li>抗がん剤治療中、治療後の方。</li>'
+    +'<li>日焼け直後の方、日焼けをされるご予定のある方。眉毛のティントが残っている方、2週間以内に施術範囲のカラー予定の方、またカラー後の方。</li>'
+    +'<li>アイラインご希望でまつ毛エクステを外せない方、緑内障の方。</li>'
+    +'<li>顔の整形・手術などをされる方はご相談ください。</li>'
+    +'</ul>'
+    +'<h3>【美容治療歴】</h3>'
+    +'<ul>'
+    +'<li>施術範囲近くの美容手術を受けられた方は、腫れなどのダウンタイム終了後の施術をお願いしております。また、2回コース途中での美容手術はお控えください。</li>'
+    +'<li>ヒアルロン酸・ボトックス等の注入治療は施術前1ヶ月以内はお控えください。持続期間によってはアートメイク1回目以降のデザインが大きく変わることもございますのでご注意ください。※ご心配な方は事前にご相談ください。</li>'
+    +'<li>他院にて美肌治療中の方（美肌レーザー・脱毛）は、変色などの原因にもなりますので、美肌治療時にはアートメイクが入っている旨をお伝えください。また、ピーリング等は定着不良の原因となりますので施術前後最低1ヶ月はお控えください。</li>'
+    +'<li>継続して美容治療を行われている方は事前に必ずお伝えください。</li>'
+    +'<li>ホームケア等でビタミンA・レチノール等をご使用中の方は、施術前後最低2週間はご使用をお控えください。</li>'
+    +'<li>定着の良し悪しや、デザインの左右差によっての返金はできかねます。肌質・体質等によっては定着が悪く回数がかかる場合もございます。</li>'
+    +'<li>ジムやプール、マリンスポーツなどの運動でよく汗をかく方は、退色が早まる可能性がございます。</li>'
+    +'<li>デザインの微調整やカラーチェンジは2回目の施術の際に行いますので、皮膚が癒えるまで最低3週間はお待ちください。但し、大幅なデザイン変更・カラーチェンジは出来かねる場合もございます。</li>'
+    +'<li>骨格・筋肉の付き方・癖等によって全ての方に左右差がございます。完璧すぎるデザインを求められる方は、アートメイクの施術をお断りさせていただくことがございます。</li>'
+    +'<li>アートメイクは一度入れると簡単に除去することはできません。</li>'
+    +'<li>除去・修正をご希望の場合は全て自己負担での施術となります。</li>'
+    +'</ul>'
+    +'<p class="cs-note">※1回目の定着は個人差がありますが、約50%前後です。</p>'
+    +'<h3>【患者様との位置関係】</h3>'
+    +'<p>クリニックは看護師に場所を提供するレンタルクリニック方式を採用しておりますので、患者様と看護師との施術同意となります。クリニックはあくまで患者様が施術を受けていいか判断をしてもらう形になりますのでご了承ください。</p>'
+    +'<h3>【責任所在の確認】</h3>'
+    +'<p>クリニックはあくまで施術を行っていいのかの判断と場所を貸し出す形になるので、施術後何らかの肌トラブル等があった場合は施術を担当した看護師にご連絡ください。</p>'
+    +'<h3>【キャンセル料について】</h3>'
+    +'<ul>'
+    +'<li>ご予約日前日の営業時間内にキャンセル・日にち変更のご連絡をいただいた場合は、施術予定メニュー料金の半額をキャンセル料としてご請求させていただきます。</li>'
+    +'<li>当日の日程変更・当日キャンセル・無断キャンセルにつきましては、ご予約いただいている施術メニューの全額を請求いたします。ご予約時間を15分過ぎた場合も当日キャンセル扱いとみなします。</li>'
+    +'</ul>'
+    +'<h3>【部位別の注意】</h3>'
+    +'<p class="cs-sub">◆眉</p>'
+    +'<ul>'
+    +'<li>1本1本毛並みを描くストローク技法で施術した場合、経過時にはグラデーションで施したように変化して見えることがあります。</li>'
+    +'<li>レーザートーニング等の色素に反応する治療を受ける際は、施術箇所に照射しないように注意が必要です。</li>'
+    +'</ul>'
+    +'<p class="cs-sub">◆アイライン</p>'
+    +'<ul>'
+    +'<li>目尻を伸ばしたテール付きデザインは、肌質・皮膚の弾力・目の形などにより左右差が生じる場合があります。</li>'
+    +'<li>インライン（目の生え際の内側粘膜の部分）への染色は基本的にお断りしています。</li>'
+    +'<li>毛細血管の位置を肉眼で確認することはできないため、特に目頭・目尻については色素が血管内に流入し、滲んだように見えることがあります。</li>'
+    +'<li>まつ毛エクステを装着する場合は、アイライン施術後1週間は空けるようにしてください。</li>'
+    +'</ul>'
+    +'<p class="cs-sub">◆リップ</p>'
+    +'<ul>'
+    +'<li>オーバーリップ（ご自身の口唇よりも大きく染色する場合）は基本的にお断りしています。</li>'
+    +'<li>口唇にくすみがある場合、色素を染色することでくすみが表面化し黒く発色する場合があります。</li>'
+    +'<li>施術当日は、創部に雑菌が入らないように飲み物はストローを使用し、食べ物が直接唇に触れないように気をつけてください。</li>'
+    +'<li>体質や体調により、施術後4〜5日経過するとヘルペスを発症する場合があります。発症から48時間に特定の抗ウイルス薬を内服していただくと回復が早まりますが、発症後は十分な休養をとるようにしてください。</li>'
+    +'</ul>'
+    +'<p class="cs-sub">◆ホクロ</p>'
+    +'<ul>'
+    +'<li>レーザートーニング等の色素に反応する治療を受ける際は、施術箇所に照射しないよう注意が必要です。</li>'
+    +'</ul>'
+    +'<p class="cs-agree">上記内容を理解し承諾したうえで、アートメイクの施術を希望します。</p>';
+}
+
+// 写真使用4項目の回答（既定いいえ）。送信時に submit_consent の p_tv_full 等へ渡す。
+var consentPhoto={ tv_full:'no', tv_part:'no', sns_full:'no', sns_part:'no' };
+var csCanvas=null, csCtx=null, csDrawing=false, csHasInk=false, csLastX=0, csLastY=0;
+
+// 今日の日付（yyyy年MM月dd日）。
+function consentToday(){
+  var d=new Date();
+  return d.getFullYear()+'年'+p2(d.getMonth()+1)+'月'+p2(d.getDate())+'日';
+}
+
+// 同意書フォームを描画。UID が無ければ（ブラウザ＝LINE外）案内のみ。
+function loadConsentForm(){
+  var body=document.getElementById('consentBody'); if(!body) return;
+  if(!st.uid){
+    body.innerHTML='<div class="soon-box"><div class="done-icon">📱</div><div class="done-title">LINEから開いてください</div><div class="done-msg">同意書のご署名は、公式LINEのトーク画面から開いてご利用ください。</div></div>';
+    return;
+  }
+  // 写真項目は毎回リセット（再表示時の取り違え防止）。
+  consentPhoto={ tv_full:'no', tv_part:'no', sns_full:'no', sns_part:'no' };
+
+  var greet = st.displayName ? (esc(st.displayName)+' 様') : 'お客様';
+  var h='<div class="cs-greet">'+greet+'</div>';
+  h+='<div class="cs-meta">版：'+esc(CONSENT_VERSION)+'　／　署名日：'+esc(consentToday())+'</div>';
+  // 本文（固定HTML＝安全）。スクロールして全文を読む。
+  h+='<div class="cs-read">'+consentBodyHtml()+'</div>';
+  // 写真使用 Yes/No（4項目）
+  h+='<div class="cs-sec">施術写真の使用について</div>';
+  h+='<div class="cs-photo-note">※モニター・キャンペーンご利用の患者様に関しましては、全てお写真のご提供が必要となります。また、カルテ保存・記録のため全ての方の施術前後のお写真は撮らせて頂いております。</div>';
+  consentPhotoQuestions().forEach(function(q){
+    h+='<div class="cs-q"><div class="cs-q-label">'+esc(q.label)+'</div>'
+      +'<div class="cs-yn" data-cskey="'+esc(q.key)+'">'
+      +'<button type="button" class="cs-yn-yes" data-csval="yes">はい</button>'
+      +'<button type="button" class="cs-yn-no on-no" data-csval="no">いいえ</button>'
+      +'</div></div>';
+  });
+  // 署名 canvas
+  h+='<div class="cs-sec">ご署名</div>';
+  h+='<div class="cs-sign-wrap"><div class="cs-sign-hd"><span class="lbl">下の枠内に指でご署名ください</span>'
+    +'<button type="button" class="cs-sign-clear" id="csClear">書き直す</button></div>'
+    +'<canvas id="consentCanvas"></canvas>'
+    +'<div class="cs-sign-hint">枠の中を指でなぞると署名できます。間違えたら「書き直す」で消せます。</div></div>';
+  h+='<div id="csSubmitErr" class="cs-submit-err"></div>';
+  body.innerHTML=h;
+
+  // 送信ボタンは固定フッターに出す（予約ウィザードと同じ step-nav）。s-consent には専用フッターを足す。
+  ensureConsentNav();
+  setupConsentCanvas();
+  updateConsentSubmit();
+}
+
+// s-consent 用の固定フッター（送信ボタン）を一度だけ用意。
+function ensureConsentNav(){
+  var sec=document.getElementById('s-consent');
+  if(!sec) return;
+  if(document.getElementById('csNav')) return;
+  var nav=document.createElement('nav');
+  nav.className='step-nav';
+  nav.id='csNav';
+  nav.innerHTML='<button class="btn btn-p" id="csSubmit" onclick="submitConsentForm()" disabled>同意して署名を送信</button>';
+  sec.appendChild(nav);
+}
+
+// 写真使用 はい/いいえ トグル（イベント委譲・data-* から取得＝注入対策）。
+document.addEventListener('click', function(e){
+  var btn=(e.target&&e.target.closest)?e.target.closest('.cs-yn button'):null;
+  if(!btn) return;
+  var wrap=btn.closest('.cs-yn'); if(!wrap) return;
+  var key=wrap.getAttribute('data-cskey'), val=btn.getAttribute('data-csval');
+  if(!key||!consentPhoto.hasOwnProperty(key)) return;
+  consentPhoto[key]=(val==='yes')?'yes':'no';
+  // 見た目を反映
+  var yes=wrap.querySelector('.cs-yn-yes'), no=wrap.querySelector('.cs-yn-no');
+  if(yes) yes.className='cs-yn-yes'+(consentPhoto[key]==='yes'?' on-yes':'');
+  if(no)  no.className ='cs-yn-no'+(consentPhoto[key]==='no'?' on-no':'');
+});
+
+// 「書き直す」ボタン（イベント委譲）。
+document.addEventListener('click', function(e){
+  var b=(e.target&&e.target.closest)?e.target.closest('#csClear'):null;
+  if(!b) return;
+  clearConsentCanvas();
+});
+
+// canvas を画面幅に合わせて初期化し、指/マウスの描画ハンドラを付ける。
+function setupConsentCanvas(){
+  csCanvas=document.getElementById('consentCanvas');
+  if(!csCanvas) return;
+  // 表示サイズ（CSS）に内部解像度を合わせる。Retina対応で見た目をくっきりさせる。
+  var rect=csCanvas.getBoundingClientRect();
+  var dpr=window.devicePixelRatio||1;
+  csCanvas.width=Math.round(rect.width*dpr);
+  csCanvas.height=Math.round(rect.height*dpr);
+  csCtx=csCanvas.getContext('2d');
+  csCtx.setTransform(dpr,0,0,dpr,0,0); // 以降は CSS px 座標で描ける
+  csCtx.fillStyle='#ffffff';
+  csCtx.fillRect(0,0,rect.width,rect.height);
+  csCtx.strokeStyle='#111111';
+  csCtx.lineWidth=2.2;
+  csCtx.lineCap='round';
+  csCtx.lineJoin='round';
+  csHasInk=false;
+
+  // タッチ（指）。ページスクロールを止めるため preventDefault。
+  csCanvas.addEventListener('touchstart', csTouchStart, { passive:false });
+  csCanvas.addEventListener('touchmove',  csTouchMove,  { passive:false });
+  csCanvas.addEventListener('touchend',   csTouchEnd,   { passive:false });
+  csCanvas.addEventListener('touchcancel',csTouchEnd,   { passive:false });
+  // マウス（PC確認用）。
+  csCanvas.addEventListener('mousedown', csMouseDown);
+  csCanvas.addEventListener('mousemove', csMouseMove);
+  window.addEventListener('mouseup', csMouseUp);
+}
+// canvas 上の座標（CSS px）に変換。
+function csPos(clientX, clientY){
+  var rect=csCanvas.getBoundingClientRect();
+  return { x:clientX-rect.left, y:clientY-rect.top };
+}
+function csBegin(x,y){ csDrawing=true; csLastX=x; csLastY=y; }
+function csStroke(x,y){
+  if(!csDrawing||!csCtx) return;
+  csCtx.beginPath();
+  csCtx.moveTo(csLastX,csLastY);
+  csCtx.lineTo(x,y);
+  csCtx.stroke();
+  // 点（タップだけ）でも痕が残るように小さな点を打つ
+  csCtx.beginPath(); csCtx.arc(x,y,1.1,0,Math.PI*2); csCtx.fillStyle='#111111'; csCtx.fill();
+  csLastX=x; csLastY=y; csHasInk=true; updateConsentSubmit();
+}
+function csTouchStart(e){ e.preventDefault(); if(!e.touches.length)return; var p=csPos(e.touches[0].clientX,e.touches[0].clientY); csBegin(p.x,p.y); csStroke(p.x,p.y); }
+function csTouchMove(e){ e.preventDefault(); if(!csDrawing||!e.touches.length)return; var p=csPos(e.touches[0].clientX,e.touches[0].clientY); csStroke(p.x,p.y); }
+function csTouchEnd(e){ e.preventDefault(); csDrawing=false; }
+function csMouseDown(e){ var p=csPos(e.clientX,e.clientY); csBegin(p.x,p.y); csStroke(p.x,p.y); }
+function csMouseMove(e){ if(!csDrawing)return; var p=csPos(e.clientX,e.clientY); csStroke(p.x,p.y); }
+function csMouseUp(){ csDrawing=false; }
+
+// 署名を消す（白で塗り直す）。
+function clearConsentCanvas(){
+  if(!csCanvas||!csCtx) return;
+  var rect=csCanvas.getBoundingClientRect();
+  csCtx.fillStyle='#ffffff';
+  csCtx.fillRect(0,0,rect.width,rect.height);
+  csHasInk=false;
+  csDrawing=false;
+  var err=document.getElementById('csSubmitErr'); if(err){ err.className='cs-submit-err'; err.textContent=''; }
+  updateConsentSubmit();
+}
+// 署名が空なら送信ボタンを無効化。
+function updateConsentSubmit(){
+  var b=document.getElementById('csSubmit'); if(b) b.disabled=!csHasInk;
+}
+
+// 署名送信：submit_consent RPC。成功で完了画面、失敗は日本語で再試行可能に。
+function submitConsentForm(){
+  if(!csHasInk){ return; }
+  if(!st.uid){ return; }
+  var btn=document.getElementById('csSubmit');
+  var err=document.getElementById('csSubmitErr');
+  if(err){ err.className='cs-submit-err'; err.textContent=''; }
+  var dataUrl;
+  try{ dataUrl=csCanvas.toDataURL('image/png'); }
+  catch(e){ if(err){ err.className='msg-err'; err.textContent='署名の取得に失敗しました。お手数ですが書き直してお試しください。'; } return; }
+  // ★送信前にサイズチェック（高DPR端末などで署名画像が大きくなりすぎる無駄な送信を防ぐ）
+  if(!dataUrl || dataUrl.length > 2000000){ if(err){ err.className='msg-err'; err.textContent='署名のデータが大きすぎます。「書き直す」でやり直してから送信してください。'; } return; }
+  if(btn){ btn.disabled=true; btn.textContent='送信中…'; }
+  sbRpc('submit_consent',{
+    p_line_uid: st.uid,
+    p_tenant: TENANT_ID,
+    p_customer_name: (st.displayName||''),
+    p_tv_full: consentPhoto.tv_full,
+    p_tv_part: consentPhoto.tv_part,
+    p_sns_full: consentPhoto.sns_full,
+    p_sns_part: consentPhoto.sns_part,
+    p_signature: dataUrl,
+    p_version: CONSENT_VERSION
+  }).then(function(r){
+    if(r&&r.ok){ showConsentDone(); return; }
+    consentSubmitFail(btn, consentErrMsg(r));
+  }).catch(function(){
+    consentSubmitFail(btn,'送信に失敗しました。電波の良い場所で、もう一度お試しください。');
+  });
+}
+// submit_consent の失敗メッセージ（no_uid/no_signature/signature_too_large 等）を日本語へ。
+function consentErrMsg(r){
+  var msg=(r&&r.data&&(r.data.message||r.data.hint))||'';
+  msg=String(msg);
+  if(/signature_too_large/.test(msg)) return '署名が大きすぎます。お手数ですが「書き直す」でやり直してから送信してください。';
+  if(/no_signature/.test(msg))        return '署名が空のようです。枠内にご署名のうえ、もう一度お試しください。';
+  if(/bad_signature/.test(msg))       return '署名データを読み取れませんでした。「書き直す」でやり直してお試しください。';
+  if(/no_uid/.test(msg))              return 'お客様の確認ができませんでした。公式LINEのトーク画面から開き直してお試しください。';
+  if(/no_tenant/.test(msg))           return '設定エラーが発生しました。お手数ですが公式LINEのトークからご連絡ください。';
+  if(/no_reservation/.test(msg))      return 'ご予約が確認できませんでした。先にご予約のうえ、ご来店時にスタッフへお声がけください。';
+  return '署名の送信に失敗しました。お手数ですが、もう一度お試しください。';
+}
+function consentSubmitFail(btn, msg){
+  if(btn){ btn.disabled=false; btn.textContent='同意して署名を送信'; }
+  var err=document.getElementById('csSubmitErr');
+  if(err){ err.className='msg-err'; err.textContent=msg; window.scrollTo(0,document.body.scrollHeight); }
+}
+// 送信完了画面（LINEのトークへ戻るボタン）。固定フッターは隠す。
+function showConsentDone(){
+  var body=document.getElementById('consentBody'); if(!body) return;
+  var nav=document.getElementById('csNav'); if(nav) nav.style.display='none';
+  body.innerHTML='<div class="soon-box cs-done"><div class="done-icon">✅</div><div class="done-title">同意書を受け付けました</div><div class="done-msg">ご署名ありがとうございました。<br>当日はお気をつけてお越しください。</div><button class="btn btn-p" onclick="backToTalk()" style="display:inline-block;margin-top:24px;padding-left:36px;padding-right:36px;">LINEのトークに戻る</button></div>';
+}
 
 // ===== Supabase からマスタ＋店舗設定を取得し、GAS版 options 互換の形へ組み立て =====
 // 互換キー：options = { nurses:[{nurse_id,name,is_active,profile_photo_url}],
