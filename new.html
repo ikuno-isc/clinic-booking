@@ -748,7 +748,9 @@ function doSub(){
     if(r.ok){
       fireNotify();
       showScr('s-done');
-      setTimeout(backToTalk,1200); // 予約後はLINEのトークへ自動で戻る（戻れない端末向けにボタンも用意）
+      // ★LINEの中で開いた時だけ自動でトークへ戻す。ブラウザでは戻り先が無いので、戻るボタンも隠す。
+      if(inLineClient()){ setTimeout(backToTalk,1200); }
+      else { var _bb=document.getElementById('backBtn'); if(_bb) _bb.style.display='none'; }
       return;
     }
     var code=(r.data&&r.data.code)||'', msg=(r.data&&r.data.message)||'';
@@ -799,8 +801,14 @@ function fireNotify(){
   }catch(e){}
 }
 // LIFFウィンドウを閉じてLINEのトークへ戻す。LINEアプリ外（通常ブラウザ）では何も起きない。
+// LINEアプリの中で開いているか（LIFF in-client）。ブラウザでは false。
+function inLineClient(){
+  try{ return (typeof liff!=='undefined' && liff.isInClient && liff.isInClient()); }catch(e){ return false; }
+}
 function backToTalk(){
-  try{ if(typeof liff!=='undefined'&&liff.closeWindow){ liff.closeWindow(); } }catch(e){}
+  // ★LINEの中で開いた時だけ closeWindow でトークへ戻す。
+  //   ブラウザ（LINE外）では戻り先が無いので何もしない＝「外部アプリを開きますか」ポップアップを出さない。
+  if(inLineClient()){ try{ liff.closeWindow(); }catch(e){} }
 }
 
 // ===== 利用規約 =====
