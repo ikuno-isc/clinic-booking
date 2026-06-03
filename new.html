@@ -1,265 +1,979 @@
-<!doctype html>
+<!DOCTYPE html>
+<!--
+  poc/index.html — お客様向け予約ページ（Supabase版・本番UI）。
+  ・見た目／UX／ステップ遷移は GAS版 web/index.html の5ステップ予約ウィザードをそのまま踏襲。
+  ・データ接続だけ GAS API → Supabase に差し替え：
+      担当・メニュー       … sbGet（artists / menus / artist_menus）でアーティストごとの担当コースを組み立て
+      空き日／空き枠       … sbRpc('busy_ranges') ＋ stores の営業時間・刻み・施術時間からクライアントで算出
+      予約確定             … sbRpc('create_public_reservation')（二重予約はDB側で物理的に防止）
+      LINE通知             … Supabase Edge Function（notify-reservation）へ依頼
+  ・?ref=（流入元タグ）を予約に記録、?store= で店舗slug切替（既定 kurume）、LIFFでお客様UID/お名前を取得。
+  ・キャンセル(s-cancel)／同意書(s-consent)は今回の対象外＝GASを呼ばず「準備中」案内のみ。
+  ・GitHub Pages 等で配信する純粋な静的HTML。外部依存は LIFF SDK のCDNのみ。
+-->
 <html lang="ja">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>アートメイク予約（Supabase版・お試し）</title>
-<style>
-  :root{ --g:#06c755; --gd:#06845a; --ink:#222; --sub:#888; --line:#e6eceb; }
-  *{box-sizing:border-box}
-  body{margin:0;background:#f4f6f8;color:var(--ink);font-family:-apple-system,"Hiragino Sans","Yu Gothic",sans-serif;}
-  .wrap{max-width:480px;margin:0 auto;background:#fff;min-height:100vh;}
-  .hd{background:var(--g);color:#fff;padding:16px 18px;}
-  .hd h1{margin:0;font-size:18px;}
-  .hd .sub{font-size:12px;opacity:.9;margin-top:3px}
-  .speed{display:inline-block;background:#063;color:#bff0d6;font-size:11px;font-weight:700;border-radius:999px;padding:2px 9px;margin-top:7px}
-  .body{padding:16px 18px 40px;}
-  .step{margin-bottom:22px;}
-  .step-t{font-size:13px;font-weight:800;color:var(--gd);margin:0 0 9px;display:flex;align-items:center;gap:7px}
-  .num{display:inline-flex;width:20px;height:20px;border-radius:50%;background:var(--g);color:#fff;font-size:12px;align-items:center;justify-content:center}
-  .chips{display:flex;flex-wrap:wrap;gap:8px}
-  .chip{border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px 14px;font-size:14px;font-weight:700;cursor:pointer}
-  .chip.on{background:var(--g);color:#fff;border-color:var(--g)}
-  .menu{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:9px;cursor:pointer}
-  .menu.on{border-color:var(--g);box-shadow:0 0 0 2px rgba(6,199,85,.25)}
-  .menu .nm{font-size:14px;font-weight:700;line-height:1.4}
-  .menu .meta{font-size:12px;color:var(--sub);margin-top:4px}
-  .dates{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
-  .date{flex:0 0 auto;border:1px solid var(--line);border-radius:10px;padding:8px 12px;text-align:center;cursor:pointer;min-width:58px}
-  .date.on{background:var(--g);color:#fff;border-color:var(--g)}
-  .date .d{font-size:16px;font-weight:800}.date .w{font-size:11px}
-  .slots{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-  .slot{border:1px solid var(--line);border-radius:9px;padding:9px 0;text-align:center;font-size:13px;font-weight:700;cursor:pointer}
-  .slot.on{background:var(--g);color:#fff;border-color:var(--g)}
-  .slot.x{opacity:.32;text-decoration:line-through;cursor:not-allowed}
-  .ph{color:var(--sub);font-size:13px;padding:10px 0}
-  input{width:100%;padding:11px;border:1px solid #d4dbda;border-radius:9px;font-size:15px;margin-top:6px}
-  label{font-size:13px;font-weight:700;color:#445}
-  .btn{display:block;width:100%;margin-top:18px;padding:14px;border:none;border-radius:10px;background:var(--g);color:#fff;font-size:16px;font-weight:800;cursor:pointer}
-  .btn:disabled{opacity:.5}
-  .msg{font-size:13px;font-weight:700;margin-top:12px;min-height:18px}
-  .msg.ok{color:var(--gd)} .msg.ng{color:#c2410c}
-  .done{text-align:center;padding:48px 20px}
-  .done .ic{font-size:54px}
-  .small{font-size:11px;color:#aab;margin-top:14px;line-height:1.6}
-</style>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>ご予約</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system,'Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif; background:#f5f5f5; color:#222; line-height:1.6; }
+
+    /* ===== Loading / Done ===== */
+    #s-loading { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; color:#888; font-size:14px; }
+    #s-done { display:none; min-height:100vh; padding:60px 24px; text-align:center; }
+    .done-icon { font-size:56px; margin-bottom:16px; }
+    .done-title { font-size:20px; font-weight:700; color:#06845a; margin-bottom:10px; }
+    .done-msg { font-size:14px; color:#555; line-height:1.8; }
+
+    /* ===== Wizard ===== */
+    #s-wizard { display:none; }
+
+    /* ===== Header ===== */
+    .app-hd { background:#06c755; color:#fff; padding:12px 16px; }
+    .app-hd h1 { font-size:16px; font-weight:700; }
+    .app-hd .sub { font-size:12px; opacity:.9; margin-top:1px; }
+
+    /* ===== Progress ===== */
+    .prog-wrap { background:#fff; padding:10px 16px 8px; border-bottom:1px solid #eee; }
+    .prog-dots { display:flex; gap:5px; margin-bottom:4px; }
+    .prog-dot { flex:1; height:4px; background:#e0e0e0; border-radius:2px; }
+    .prog-dot.done { background:#06c755; }
+    .prog-dot.act { background:#a8e8c0; }
+    .prog-lbl { font-size:11px; color:#888; text-align:right; }
+
+    /* ===== Content + Nav ===== */
+    .step-wrap { padding:20px 16px 90px; max-width:480px; margin:0 auto; }
+    .step-nav { position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid #eee; padding:12px 16px; display:flex; gap:10px; z-index:20; }
+    .s-title { font-size:17px; font-weight:700; margin-bottom:18px; }
+    .s-sub { font-size:13px; color:#666; margin:-12px 0 16px; }
+
+    /* ===== Nurse cards ===== */
+    .nurse-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .nurse-card { background:#fff; border:2px solid #e0e0e0; border-radius:14px; padding:20px 12px 16px; text-align:center; cursor:pointer; transition:border-color .15s,background .15s; }
+    .nurse-card.sel { border-color:#06c755; background:#f0fdf5; }
+    .n-av { width:72px; height:72px; border-radius:50%; margin:0 auto 10px; display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:800; color:#fff; overflow:hidden; }
+    .n-av img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
+    .n-nm { font-size:18px; font-weight:700; }
+    .n-pr { font-size:12px; color:#06845a; margin-top:4px; }
+
+    /* ===== Course list ===== */
+    .course-list { display:flex; flex-direction:column; gap:10px; }
+    .course-item { background:#fff; border:2px solid #e0e0e0; border-radius:10px; padding:14px 16px; cursor:pointer; display:flex; align-items:flex-start; gap:12px; }
+    .course-item.sel { border-color:#06c755; background:#f0fdf5; }
+    .c-rd { width:20px; height:20px; border-radius:50%; border:2px solid #ccc; flex-shrink:0; margin-top:2px; display:flex; align-items:center; justify-content:center; }
+    .course-item.sel .c-rd { border-color:#06c755; background:#06c755; }
+    .c-dot { width:7px; height:7px; border-radius:50%; background:#fff; }
+    .c-body { flex:1; }
+    .c-nm { font-size:14px; font-weight:600; line-height:1.4; }
+    .c-pr { font-size:15px; font-weight:700; color:#06845a; margin-top:6px; }
+    .c-dur { font-size:11px; color:#999; margin-top:3px; }
+
+    /* ===== Artist accordion (STEP 1) ===== */
+    .art-acc { display:flex; flex-direction:column; gap:12px; }
+    .art-card { background:#fff; border:2px solid #e0e0e0; border-radius:14px; overflow:hidden; transition:border-color .15s; }
+    .art-card.open { border-color:#06c755; }
+    .art-hd { display:flex; align-items:center; gap:14px; padding:14px 16px; cursor:pointer; }
+    .art-av { width:56px; height:56px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:800; color:#fff; overflow:hidden; }
+    .art-av img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
+    .art-meta { flex:1; }
+    .art-nm { font-size:17px; font-weight:700; }
+    .art-pr { font-size:12px; color:#06845a; margin-top:3px; }
+    .art-chev { font-size:15px; color:#bbb; transition:transform .2s,color .2s; flex-shrink:0; }
+    .art-card.open .art-chev { transform:rotate(180deg); color:#06c755; }
+    .art-panel { border-top:1px solid #eee; padding:12px 0 14px; background:#fafafa; }
+    .art-hint { font-size:11px; color:#999; margin:0 14px 10px; }
+    /* コースは横スクロール（カルーセル）。次のカードが少し見えることで「横に動かせる」と伝える。 */
+    .ac-list { display:flex; gap:10px; overflow-x:auto; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain; padding:2px 14px 10px; scroll-padding-left:14px; }
+    .ac-list::-webkit-scrollbar { height:4px; }
+    .ac-list::-webkit-scrollbar-thumb { background:#d0d0d0; border-radius:2px; }
+    .ac-item { scroll-snap-align:start; flex:0 0 76%; box-sizing:border-box; background:#fff; border:1px solid #e0e0e0; border-radius:12px; padding:14px; cursor:pointer; display:flex; flex-direction:column; }
+    .ac-item:active { background:#f0fdf5; border-color:#06c755; }
+    .ac-top { flex:1; }
+    .ac-cta { margin-top:12px; text-align:center; font-size:13px; font-weight:700; color:#06845a; background:#eafaf0; border:1px solid #b6e7c9; border-radius:8px; padding:9px 4px; }
+    .s1-hint { flex:1; text-align:center; font-size:12px; color:#999; padding:4px 0; }
+
+    /* ===== Calendar ===== */
+    .cal-nav { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+    .cal-btn { width:36px; height:36px; border:1px solid #ddd; border-radius:50%; background:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:22px; color:#444; flex-shrink:0; line-height:1; }
+    .cal-btn:disabled { opacity:.25; cursor:default; }
+    .cal-mo { font-size:16px; font-weight:700; }
+    .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+    .cal-dow { text-align:center; font-size:11px; font-weight:700; color:#aaa; padding:4px 0 6px; }
+    .cal-dow:first-child { color:#e44; }
+    .cal-dow:last-child { color:#44e; }
+    .cal-day { aspect-ratio:1; display:flex; align-items:center; justify-content:center; font-size:13px; border-radius:50%; color:#ccc; cursor:default; }
+    .cal-day.avail { color:#222; cursor:pointer; }
+    .cal-day.avail:active { background:#e8f8ee; }
+    .cal-day.avail.sun { color:#e44; }
+    .cal-day.avail.sat { color:#44e; }
+    .cal-day.today { font-weight:800; }
+    .cal-day.sel { background:#06c755 !important; color:#fff !important; }
+    .cal-day.phantom { visibility:hidden; }
+    .cal-info { font-size:12px; color:#888; margin-top:10px; text-align:center; }
+
+    /* ===== Time slots ===== */
+    .dt-lbl { font-size:15px; font-weight:700; margin-bottom:14px; }
+    .slot-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+    .slot-a { background:#fff; border:2px solid #06c755; border-radius:8px; color:#06845a; font-size:14px; font-weight:600; padding:10px 4px; text-align:center; cursor:pointer; }
+    .slot-a.sel { background:#06c755; color:#fff; }
+    .slot-a:active { background:#e0f7ea; }
+    .slot-x { background:#f5f5f5; border:1px solid #e5e5e5; border-radius:8px; color:#ccc; font-size:18px; padding:10px 4px; text-align:center; }
+
+    /* ===== Form ===== */
+    .field { margin-bottom:18px; }
+    .fl { display:block; font-size:14px; font-weight:600; margin-bottom:6px; }
+    .req { color:#c00; margin-left:2px; }
+    input[type=text], input[type=tel], textarea { width:100%; padding:12px; font-size:16px; border:1px solid #ccc; border-radius:8px; background:#fff; -webkit-appearance:none; font-family:inherit; }
+    textarea { resize:vertical; }
+    .ferr { font-size:12px; color:#c00; margin-top:4px; display:none; }
+    .radios { display:flex; gap:8px; }
+    .radios label { flex:1; text-align:center; padding:10px; border:2px solid #ddd; border-radius:8px; background:#fff; font-size:14px; cursor:pointer; }
+    .radios input { display:none; }
+    .radios label:has(input:checked) { border-color:#06c755; background:#f0fdf5; }
+    .radios-v { display:flex; flex-direction:column; gap:8px; }
+    .radios-v label { padding:10px 14px; border:2px solid #ddd; border-radius:8px; background:#fff; font-size:14px; display:flex; align-items:center; gap:10px; cursor:pointer; }
+    .radios-v input[type=radio] { width:18px; height:18px; flex-shrink:0; }
+    .radios-v label:has(input:checked) { border-color:#06c755; background:#f0fdf5; }
+
+    /* ===== Summary ===== */
+    .sum-box { background:#fff; border-radius:10px; padding:16px; margin-bottom:20px; }
+    .s-row { display:flex; padding:8px 0; border-bottom:1px solid #f0f0f0; }
+    .s-row:last-child { border-bottom:none; }
+    .s-key { font-size:12px; color:#888; width:80px; flex-shrink:0; padding-top:1px; }
+    .s-val { font-size:14px; font-weight:600; flex:1; }
+
+    /* ===== Terms ===== */
+    .sec-lbl { font-size:13px; font-weight:700; color:#06845a; border-left:3px solid #06c755; padding-left:8px; margin-bottom:12px; }
+    .terms-box { height:180px; overflow-y:auto; border:1px solid #ccc; border-radius:8px; padding:12px 14px; font-size:12px; color:#444; background:#fff; line-height:1.75; }
+    .terms-box p { margin-bottom:8px; }
+    .terms-box ul { margin:4px 0 10px 18px; padding:0; }
+    .terms-box li { margin-bottom:4px; }
+    .t-hd { font-weight:700; color:#222; display:block; margin:10px 0 4px; }
+    .t-sub { font-weight:700; color:#444; display:block; font-size:11px; margin:6px 0 2px; }
+    .agree-row { display:flex; align-items:flex-start; gap:10px; margin-top:14px; }
+    .agree-row input { width:18px; height:18px; flex-shrink:0; margin-top:2px; }
+    .agree-row span { font-size:13px; color:#444; }
+
+    /* ===== Buttons ===== */
+    .btn { padding:14px; font-size:16px; font-weight:700; border-radius:10px; border:none; cursor:pointer; }
+    .btn-p { flex:1; background:#06c755; color:#fff; }
+    .btn-p:disabled { background:#b5d9c4; }
+    .btn-bk { background:#f5f5f5; color:#555; border:1px solid #ddd; width:76px; flex-shrink:0; font-size:14px; }
+
+    /* ===== Spinner / Error ===== */
+    .ld-box { text-align:center; padding:36px 0; color:#888; font-size:13px; }
+    .spinner { display:inline-block; width:26px; height:26px; border:3px solid #e0e0e0; border-top-color:#06c755; border-radius:50%; animation:spin .8s linear infinite; vertical-align:middle; margin-right:6px; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .msg-err { background:#fdecea; color:#c00; padding:12px; border-radius:8px; font-size:13px; }
+    .btn-retry { background:#06c755; color:#fff; border:none; border-radius:8px; padding:10px 28px; font-size:14px; font-weight:600; cursor:pointer; }
+
+    /* ===== Cancel / Consent（今回は対象外＝準備中表示のみ） ===== */
+    #s-cancel { display:none; }
+    #s-cancel .step-wrap { min-height:60vh; }
+    #s-consent { display:none; }
+    #s-consent .step-wrap { min-height:50vh; }
+    .soon-box { text-align:center; padding:48px 16px; color:#666; }
+    .soon-box .done-icon { font-size:46px; }
+
+    /* ===== 他院修正の注意（経験「有」のお客様にだけ確認画面で表示） ===== */
+    .fix-note { background:#fff7e6; border:1.5px solid #f0a020; border-radius:10px; padding:13px 15px; margin:16px 0; font-size:12.5px; color:#8a4b00; line-height:1.75; }
+    .fix-note-hd { font-weight:800; color:#b45309; font-size:14px; margin-bottom:7px; }
+    .fix-note p { margin:0 0 6px; }
+    .fix-note ul { margin:6px 0 0 18px; padding:0; }
+    .fix-note li { margin-bottom:4px; }
+  </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="hd">
-    <h1>アートメイク ご予約</h1>
-    <div class="sub" id="storeName">久留米店</div>
-    <span class="speed" id="speed">読み込み中…</span>
+
+<div id="s-loading">
+  <div><span class="spinner"></span>読み込み中…</div>
+</div>
+
+<div id="s-wizard">
+  <div class="app-hd">
+    <h1>ご予約</h1>
+    <div class="sub" id="hSub"></div>
   </div>
-  <div class="body" id="body"><div class="ph">読み込み中…</div></div>
+  <div class="prog-wrap">
+    <div class="prog-dots" id="progDots"></div>
+    <div class="prog-lbl" id="progLbl"></div>
+  </div>
+  <div class="step-wrap" id="sc"></div>
+  <nav class="step-nav" id="sn"></nav>
+</div>
+
+<div id="s-done">
+  <div class="done-icon">✅</div>
+  <div class="done-title">ご予約を承りました</div>
+  <div class="done-msg">確認のメッセージをLINEにお送りします。<br>お会いできるのを楽しみにしております。</div>
+  <button class="btn btn-p" id="backBtn" onclick="backToTalk()" style="display:inline-block;margin-top:28px;padding-left:40px;padding-right:40px;">LINEのトークに戻る</button>
+</div>
+
+<!-- キャンセル／同意書は今回の対象外。GASを呼ばず「準備中」案内のみ表示する。 -->
+<div id="s-cancel">
+  <div class="app-hd"><h1>ご予約のキャンセル</h1></div>
+  <div class="step-wrap">
+    <div class="soon-box">
+      <div class="done-icon">🛠️</div>
+      <div class="done-title">ただいま準備中です</div>
+      <div class="done-msg">キャンセル・日時変更は、お手数ですが公式LINEのトーク画面からご連絡ください。</div>
+      <button class="btn btn-p" onclick="backToTalk()" style="display:inline-block;margin-top:24px;padding-left:36px;padding-right:36px;">LINEのトークに戻る</button>
+    </div>
+  </div>
+</div>
+
+<div id="s-consent">
+  <div class="app-hd"><h1>アートメイク同意書</h1></div>
+  <div class="step-wrap">
+    <div class="soon-box">
+      <div class="done-icon">🛠️</div>
+      <div class="done-title">ただいま準備中です</div>
+      <div class="done-msg">同意書のご案内はスタッフより改めてお送りします。公式LINEのトーク画面をご確認ください。</div>
+      <button class="btn btn-p" onclick="backToTalk()" style="display:inline-block;margin-top:24px;padding-left:36px;padding-right:36px;">LINEのトークに戻る</button>
+    </div>
+  </div>
 </div>
 
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script>
-// ===== 設定（公開キー＝埋め込みOK・RLSで保護） =====
-var SB_URL = "https://stgarheuldubyrzdqzaq.supabase.co";
-var SB_KEY = "sb_publishable_e5A9MJzOCvzsfWXBd9DLzg_Wa_hJ0qb";
-var STORE_ID = "22222222-0000-0000-0000-000000000001"; // 久留米店
+// ===== Supabase 接続設定（公開キー＝埋め込みOK・RLSで保護） =====
+var SB_URL    = "https://stgarheuldubyrzdqzaq.supabase.co";
+var SB_KEY    = "sb_publishable_e5A9MJzOCvzsfWXBd9DLzg_Wa_hJ0qb";
+var STORE_ID  = "22222222-0000-0000-0000-000000000001"; // 久留米店（store slug=kurume の既定店舗）
 var TENANT_ID = "11111111-1111-1111-1111-111111111111";
-var OPEN_H = 9, CLOSE_H = 19, INTERVAL = 30; // 営業 09:00-19:00 / 30分刻み
-// LINE連携：確定メッセージ・スタッフ通知は Supabase Edge Function に依頼（GAS不使用）。
-// LINEトークンはテナントごとにDB(tenant_secrets)に保存し、Edge Functionだけが service_role で読む。
-var LIFF_ID = "2010236479-4ANlMg3d";
+var LIFF_ID   = "2010236479-4ANlMg3d";
+// LINE連携：確定メッセージ・スタッフ通知は Supabase Edge Function（notify-reservation）に依頼。
 var EDGE_NOTIFY = SB_URL + "/functions/v1/notify-reservation";
-var LINE_UID = "", LINE_NAME = "";
+
+// LIFFは元のクエリ(?ref=...)を、環境によって location.search に直接、または ?liff.state=... に包んで渡す。
+// 両方を見て確実に取り出す。
+function getQueryParam(name){
+  try{
+    var sp = new URLSearchParams(location.search);
+    var v = sp.get(name);
+    if(v) return v;
+    var ls = sp.get('liff.state');
+    if(ls){
+      var inner = new URLSearchParams(ls.charAt(0)==='?' ? ls.slice(1) : ls);
+      var v2 = inner.get(name);
+      if(v2) return v2;
+    }
+  }catch(e){}
+  return null;
+}
+var STORE = getQueryParam('store') || 'kurume'; // 店舗slug（既定 kurume）。当面 STORE_ID は久留米店固定。
+var MODE  = getQueryParam('mode')  || 'book';   // 'book'（予約）/ 'cancel' / 'consent'（後二者は準備中表示のみ）
+var REF   = getQueryParam('ref')   || '';       // 流入元タグ（集客：?ref= で来た予約に記録）
+
+// コース選択はイベント委譲（data-* から取得）。onclick に名前を文字列連結しない＝XSS/壊れ防止。
+document.addEventListener('click', function(e){
+  var it = (e.target && e.target.closest) ? e.target.closest('.ac-item') : null;
+  if(!it) return;
+  pickCourse(it.getAttribute('data-nid'), it.getAttribute('data-nm'),
+             it.getAttribute('data-mid'), it.getAttribute('data-mn'),
+             parseInt(it.getAttribute('data-pr'),10)||0, parseInt(it.getAttribute('data-du'),10)||0);
+});
+
+// 営業時間／刻みのフォールバック（stores が取れない場合のみ使用）
+var DEF_OPEN_H = 9, DEF_CLOSE_H = 19, DEF_INTERVAL = 30;
 
 var H = { "apikey": SB_KEY, "Authorization": "Bearer " + SB_KEY };
-function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
-// Supabase REST 取得（経過msも返す）
+
+// ===== Supabase REST / RPC =====
 function sbGet(path){
-  var t0 = performance.now();
   return fetch(SB_URL + "/rest/v1/" + path, { headers: H })
-    .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, data:j, ms: Math.round(performance.now()-t0) }; }); });
+    .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, status:r.status, data:j }; }); });
 }
-function sbInsert(path, row){
-  var t0 = performance.now();
-  return fetch(SB_URL + "/rest/v1/" + path, {
-    method:"POST",
-    headers: Object.assign({ "Content-Type":"application/json", "Prefer":"return=minimal" }, H),
-    body: JSON.stringify(row)
-  }).then(function(r){ return r.text().then(function(t){ var j=null; try{ j=t?JSON.parse(t):null; }catch(e){} return { ok:r.ok, status:r.status, data:j, ms: Math.round(performance.now()-t0) }; }); });
-}
-// Supabaseの関数(RPC)を呼ぶ（空き時間取得など）。
 function sbRpc(fn, args){
-  var t0 = performance.now();
   return fetch(SB_URL + "/rest/v1/rpc/" + fn, {
     method:"POST", headers: Object.assign({ "Content-Type":"application/json" }, H), body: JSON.stringify(args||{})
-  }).then(function(r){ return r.json().then(function(j){ return { ok:r.ok, status:r.status, data:j, ms: Math.round(performance.now()-t0) }; }); });
+  }).then(function(r){ return r.json().then(function(j){ return { ok:r.ok, status:r.status, data:j }; }, function(){ return { ok:r.ok, status:r.status, data:null }; }); });
 }
 
-var ST = { artists:[], menus:[], pairs:[], artist:null, menu:null, date:null, slot:null, dayResv:[] };
-var WD = ["日","月","火","水","木","金","土"];
+// ===== 状態 =====
+var st = {
+  step:1, uid:'', displayName:'', options:null,
+  openArtist:null,
+  nurseId:null, nurseName:null,
+  menuId:null,  menuName:null,  menuPrice:null, menuDur:null, menuType:'new',
+  date:null,    time:null,
+  calYear:new Date().getFullYear(), calMonth:new Date().getMonth()+1,
+  availDates:null,  // null=未取得、Set=取得済み
+  slots:null,       // null=未取得、配列=取得済み
+  adErr:false,      // 空き日の取得に失敗したか（true=通信エラー。「空き無し」とは区別する）
+  slErr:false,      // 空き枠の取得に失敗したか（true=通信エラー。「空き無し」とは区別する）
+  slCache:{},       // 空き枠キャッシュ（nurse|menu|date → 配列）。日付タップ時の先読みもここへ保存。
+  furigana:'', custName:'', phone:'',
+  coupon:'none', artExp:'', memo:'', agreed:false,
+};
+var TODAY = (function(){ var d=new Date(); d.setHours(0,0,0,0); return d; })();
+var INIT_Y = TODAY.getFullYear(), INIT_M = TODAY.getMonth()+1;
+// 予約可能日の上限（今日から約45日先まで）。
+var MAX_DATE = (function(){ var d=new Date(TODAY.getTime()); d.setDate(d.getDate()+45); return d; })();
 
-// 起動：マスタ（担当・メニュー・担当可能ペア）を一括取得
-function boot(){
-  var t0 = performance.now();
-  Promise.all([
-    sbGet("artists?select=id,name&store_id=eq."+STORE_ID+"&is_active=eq.true&order=name"),
-    sbGet("menus?select=id,name,price_normal,price_monitor&tenant_id=eq."+TENANT_ID+"&is_active=eq.true"),
-    sbGet("artist_menus?select=artist_id,menu_id,duration_new_min&is_certified=eq.true")
-  ]).then(function(res){
-    ST.artists = res[0].data || [];
-    ST.menus   = res[1].data || [];
-    ST.pairs   = res[2].data || [];
-    var ms = Math.round(performance.now()-t0);
-    document.getElementById("speed").textContent = "⚡ Supabase（東京）で " + ms + " ミリ秒で読み込み";
-    render();
-  }).catch(function(e){
-    document.getElementById("body").innerHTML = '<div class="msg ng">読み込みに失敗しました：'+esc(e&&e.message||e)+'</div>';
+// ===== ユーティリティ =====
+function p2(n){ return n<10?'0'+n:''+n; }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function isT(v){ if(v===true||v===1)return true; if(typeof v==='string'){var t=v.trim().toLowerCase();return t==='true'||t==='1';}return false; }
+function okPhone(v){ return /^0\d{9,10}$/.test(v.replace(/[-\s]/g,'')); }
+function showScr(id){
+  ['s-loading','s-wizard','s-done','s-cancel','s-consent'].forEach(function(s){ document.getElementById(s).style.display='none'; });
+  document.getElementById(id).style.display='block';
+}
+function ymd(d){ return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate()); }
+// "09:00:00" / "09:00" / 9 → 分(int)。不正なら fb。
+function hmToMin(v, fb){
+  if(v==null) return fb;
+  if(typeof v==='number') return v*60;
+  var m=String(v).match(/^(\d{1,2}):(\d{2})/);
+  if(!m) return fb;
+  return parseInt(m[1],10)*60+parseInt(m[2],10);
+}
+
+// ===== プログレスバー =====
+var SN = ['アーティスト・コース','日付','時間','お客様情報','確認・同意'];
+function renderProg(){
+  var h=''; for(var i=1;i<=5;i++) h+='<div class="prog-dot'+(i<st.step?' done':i===st.step?' act':'')+'"></div>';
+  document.getElementById('progDots').innerHTML=h;
+  document.getElementById('progLbl').textContent='STEP '+st.step+' / 5　'+SN[st.step-1];
+}
+
+// ===== メインレンダラ =====
+// STEP 1=アーティスト＆コース(s1), 2=日付(s3), 3=時間(s4), 4=お客様情報(s5), 5=確認(s6)
+function render(){ renderProg(); window.scrollTo(0,0); [null,s1,s3,s4,s5,s6][st.step](); }
+function go(n){ st.step=n; render(); }
+
+// ===== STEP 1: アーティスト＆コース（アコーディオン） =====
+var AC=['#e07b54','#26a69a','#7c4dff','#1565c0'];
+
+// コースの並び順：①眉セット ②眉通常価格 ③眉他院修正 ④眉リタッチ再来 ⑤リップセット ⑥リップ通常価格。
+// 各グループ内は安い順（再来だけは「2回目→3回目」の回数順）。
+function sortCourses(menus){
+  function info(m){
+    var nm=m.menu_name||'';
+    var lip=nm.indexOf('リップ')>=0, ret=nm.indexOf('再来')>=0, fix=nm.indexOf('他院修正')>=0;
+    var set=nm.indexOf('セット')>=0||nm.indexOf('割引コース')>=0;
+    var base = lip ? (set?5:6) : (ret?4 : fix?3 : set?1 : 2);
+    var sub;
+    if(ret){ var mt=nm.match(/(\d+)回目/); sub=mt?parseInt(mt[1],10):99; }
+    else { var p=parseInt(m.normal_price,10); sub=isNaN(p)?9999999:p; }
+    return { base:base, sub:sub };
+  }
+  return menus.slice().sort(function(a,b){
+    var ia=info(a), ib=info(b);
+    return ia.base!==ib.base ? ia.base-ib.base : ia.sub-ib.sub;
   });
 }
-
-function menusForArtist(aid){
-  var ids = {};
-  ST.pairs.forEach(function(p){ if(p.artist_id===aid) ids[p.menu_id]=p.duration_new_min; });
-  return ST.menus.filter(function(m){ return ids[m.id]!=null; }).map(function(m){ return Object.assign({_dur:ids[m.id]}, m); });
+function s1(){
+  var ns=(st.options.nurses||[]).filter(function(n){return isT(n.is_active);});
+  var h='<div class="s-title">アーティストを選んでください</div>';
+  h+='<div class="s-sub">お名前をタップすると、コースと料金が表示されます。</div>';
+  h+='<div class="art-acc">';
+  ns.forEach(function(n,i){
+    // このアーティストが対応できるメニュー（認定済み）
+    var cert=(st.options.certified||[]).filter(function(c){return String(c.nurse_id)===String(n.nurse_id)&&isT(c.is_certified);});
+    var cm={}; cert.forEach(function(c){cm[String(c.menu_id)]=c;});
+    var menus=sortCourses((st.options.menus||[]).filter(function(m){return cm[String(m.menu_id)];}));
+    // ヘッダーの「〜」価格は全コース中の最安値。
+    var minP=null;
+    menus.forEach(function(m){
+      var p=parseInt(m.normal_price,10); if(!isNaN(p)&&p>0&&(minP===null||p<minP))minP=p;
+    });
+    var av=n.profile_photo_url
+      ?'<div class="art-av"><img src="'+esc(n.profile_photo_url)+'" alt="'+esc(n.name)+'"></div>'
+      :'<div class="art-av" style="background:'+AC[i%AC.length]+'">'+esc((n.name||'?').charAt(0).toUpperCase())+'</div>';
+    var open=String(n.nurse_id)===String(st.openArtist);
+    h+='<div class="art-card'+(open?' open':'')+'">';
+    h+='<div class="art-hd" onclick="toggleArt(\''+esc(n.nurse_id)+'\')">';
+    h+=av+'<div class="art-meta"><div class="art-nm">'+esc(n.name)+'</div>';
+    if(minP)h+='<div class="art-pr">¥'+minP.toLocaleString()+'〜</div>';
+    h+='</div><div class="art-chev">&#9660;</div></div>';
+    if(open){
+      h+='<div class="art-panel"><div class="art-hint">コースを横にスライドして選べます。タップすると日時の選択へ進みます。</div>';
+      h+='<div class="ac-list">';
+      menus.forEach(function(m){
+        var c=cm[String(m.menu_id)];
+        var isRet=m.menu_name&&m.menu_name.indexOf('再来')>=0;
+        var dm=c?parseInt(isRet?c.duration_retouch_min:c.duration_new_min,10):0;
+        var dt=dm>0?Math.floor(dm/60)+'時間'+(dm%60>0?dm%60+'分':''):'';
+        var p=parseInt(m.normal_price,10);
+        var pt=(!isNaN(p)&&p>0)?'¥'+p.toLocaleString()+'（税込）':'';
+        h+='<div class="ac-item" data-nid="'+esc(n.nurse_id)+'" data-nm="'+esc(n.name)+'" data-mid="'+esc(m.menu_id)+'" data-mn="'+esc(m.menu_name)+'" data-pr="'+(p||0)+'" data-du="'+(dm||0)+'">';
+        h+='<div class="ac-top"><div class="c-nm">'+esc(m.menu_name)+'</div>';
+        if(pt)h+='<div class="c-pr">'+pt+'</div>';
+        if(dt)h+='<div class="c-dur">施術時間：'+dt+'</div>';
+        h+='</div><div class="ac-cta">このコースで予約 →</div></div>';
+      });
+      h+='</div></div>';
+    }
+    h+='</div>';
+  });
+  h+='</div>';
+  document.getElementById('sc').innerHTML=h;
+  document.getElementById('sn').innerHTML='<div class="s1-hint">アーティストとコースをお選びください</div>';
 }
-function next14days(){
-  var out=[], now=new Date();
-  for(var i=0;i<14;i++){ var d=new Date(now.getFullYear(),now.getMonth(),now.getDate()+i); out.push(d); }
+// アコーディオンの開閉（同時に開くのは1人だけ）
+function toggleArt(id){
+  st.openArtist=(String(st.openArtist)===String(id))?null:id;
+  s1();
+}
+// コース確定：アーティスト＋コースを一度に確定し、日付選択（STEP2）へ直行する。
+function pickCourse(nid,nname,mid,mname,price,dur){
+  st.nurseId=nid; st.nurseName=nname;
+  st.menuId=mid; st.menuName=mname; st.menuPrice=price; st.menuDur=dur;
+  st.menuType=(mname&&mname.indexOf('再来')>=0)?'retouch':'new';
+  st.openArtist=nid;
+  st.date=null; st.time=null; st.availDates=null; st.slots=null; st.adErr=false; st.slErr=false;
+  st.slCache={};
+  go(2);
+}
+
+// ===== 店舗の営業時間／刻み／定休日 =====
+// stores から取得（business_hours_start / business_hours_end / slot_interval_min / closed_days）。
+// closed_days は自由記述文字列。曜日名（例「月曜」）や YYYY-MM-DD が含まれていれば該当日を除外する。
+function storeOpenMin(){ return st.options&&st.options.openMin!=null ? st.options.openMin : DEF_OPEN_H*60; }
+function storeCloseMin(){ return st.options&&st.options.closeMin!=null ? st.options.closeMin : DEF_CLOSE_H*60; }
+function storeInterval(){ var v=st.options&&st.options.interval; return (v&&v>0)?v:DEF_INTERVAL; }
+var DOWJA=['日','月','火','水','木','金','土'];
+function parseClosed(s){
+  // 戻り値 { dows:Set<0..6>, dates:Set<'YYYY-MM-DD'> }
+  var dows=new Set(), dates=new Set();
+  if(!s) return { dows:dows, dates:dates };
+  var txt=String(s);
+  // 個別日（YYYY-MM-DD / YYYY/MM/DD）
+  (txt.match(/\d{4}[-\/]\d{1,2}[-\/]\d{1,2}/g)||[]).forEach(function(d){
+    var m=d.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+    if(m) dates.add(m[1]+'-'+p2(parseInt(m[2],10))+'-'+p2(parseInt(m[3],10)));
+  });
+  // 曜日名
+  for(var i=0;i<7;i++){ if(txt.indexOf(DOWJA[i])>=0) dows.add(i); }
+  if(/日曜/.test(txt)) dows.add(0);
+  if(/[Ss]un/.test(txt)) dows.add(0);
+  if(/[Mm]on/.test(txt)) dows.add(1);
+  if(/[Tt]ue/.test(txt)) dows.add(2);
+  if(/[Ww]ed/.test(txt)) dows.add(3);
+  if(/[Tt]hu/.test(txt)) dows.add(4);
+  if(/[Ff]ri/.test(txt)) dows.add(5);
+  if(/[Ss]at/.test(txt)) dows.add(6);
+  return { dows:dows, dates:dates };
+}
+function isClosedDay(d){
+  var c=st.options&&st.options.closed; if(!c) return false;
+  if(c.dows.has(d.getDay())) return true;
+  if(c.dates.has(ymd(d))) return true;
+  return false;
+}
+// 予約可能な「候補日」か（今日〜45日先・定休日除外）。空き有無は別途 busy_ranges で判定。
+function isBookableDay(d){
+  if(d<TODAY) return false;
+  if(d>MAX_DATE) return false;
+  if(isClosedDay(d)) return false;
+  return true;
+}
+
+// ===== STEP 3: 日付選択 =====
+var DOW=['日','月','火','水','木','金','土'];
+function s3(){
+  var ms=p2(st.calMonth), dcnt=new Date(st.calYear,st.calMonth,0).getDate();
+  var first=new Date(st.calYear,st.calMonth-1,1).getDay();
+  var canPrev=!(st.calYear===INIT_Y&&st.calMonth===INIT_M);
+  // 翌月以降に候補日が無ければ「次へ」を止める（45日上限）。
+  var nextFirst=new Date(st.calYear,st.calMonth,1);
+  var canNext=(nextFirst<=MAX_DATE);
+  var h='<div class="s-title">日付を選んでください</div>';
+  h+='<div class="cal-nav">';
+  h+='<button class="cal-btn" onclick="calMv(-1)" '+(canPrev?'':'disabled')+'>&#8249;</button>';
+  h+='<div class="cal-mo">'+st.calYear+'年'+st.calMonth+'月</div>';
+  h+='<button class="cal-btn" onclick="calMv(1)" '+(canNext?'':'disabled')+'>&#8250;</button></div>';
+  h+='<div class="cal-grid">';
+  DOW.forEach(function(d){h+='<div class="cal-dow">'+d+'</div>';});
+  for(var i=0;i<first;i++) h+='<div class="cal-day phantom"></div>';
+  for(var d=1;d<=dcnt;d++){
+    var ds=st.calYear+'-'+ms+'-'+p2(d);
+    var dd=new Date(st.calYear,st.calMonth-1,d);
+    var dow=(first+d-1)%7;
+    var bookable=isBookableDay(dd);
+    var avail=bookable&&st.availDates&&st.availDates.has(ds), isSel=ds===st.date;
+    var cls='cal-day';
+    if(isSel) cls+=' sel';
+    else if(avail){ cls+=' avail'; if(dow===0)cls+=' sun'; else if(dow===6)cls+=' sat'; }
+    if(dd.getTime()===TODAY.getTime())cls+=' today';
+    var click=(avail)?' onclick="pickD(\''+ds+'\')"':'';
+    h+='<div class="'+cls+'"'+click+'>'+d+'</div>';
+  }
+  h+='</div>';
+  if(st.adErr){
+    h+='<div class="msg-err">空き情報を取得できませんでした。電波の良い場所で、もう一度お試しください。<div style="margin-top:10px"><button class="btn-retry" onclick="retryAD()">再試行</button></div></div>';
+  }else if(st.availDates===null){
+    h+='<div class="ld-box"><span class="spinner"></span>空き情報を取得中…</div>';
+    setTimeout(loadAD,0);
+  }else if(st.availDates.size===0){
+    h+='<div class="cal-info">今月は空き枠がありません。'+(canNext?'翌月をご確認ください。':'別の条件をご確認ください。')+'</div>';
+  }
+  document.getElementById('sc').innerHTML=h;
+  document.getElementById('sn').innerHTML='<button class="btn btn-bk" onclick="go(1)">戻る</button><button class="btn btn-p" onclick="st.date&&go(3)" '+(st.date?'':'disabled')+'>次へ</button>';
+}
+function calMv(dir){
+  st.calMonth+=dir;
+  if(st.calMonth>12){st.calMonth=1;st.calYear++;}
+  if(st.calMonth<1){st.calMonth=12;st.calYear--;}
+  st.availDates=null; st.adErr=false; s3();
+}
+
+// 表示中の月で「候補日」を集め、各日の busy_ranges から1枠でも空けば available_dates に入れる。
+// busy_ranges は月の全予約をまとめて1回取得し、クライアントで日別に振り分ける（高速・PII非取得）。
+function loadAD(){
+  var reqN=st.nurseId, reqM=st.menuId, reqY=st.calYear, reqMo=st.calMonth;
+  // 月内の候補日リスト
+  var dcnt=new Date(reqY,reqMo,0).getDate();
+  var cand=[];
+  for(var d=1;d<=dcnt;d++){ var dd=new Date(reqY,reqMo-1,d); if(isBookableDay(dd)) cand.push(ymd(dd)); }
+  if(!cand.length){
+    if(String(st.nurseId)===String(reqN)&&String(st.menuId)===String(reqM)&&st.calYear===reqY&&st.calMonth===reqMo){
+      st.availDates=new Set(); st.adErr=false; if(st.step===2)s3();
+    }
+    return;
+  }
+  // 月初〜月末の予約を一括取得（JST境界）。
+  var pFrom=reqY+'-'+p2(reqMo)+'-01T00:00:00+09:00';
+  var endD=new Date(reqY,reqMo,1); // 翌月1日
+  var pTo=endD.getFullYear()+'-'+p2(endD.getMonth()+1)+'-01T00:00:00+09:00';
+  sbRpc('busy_ranges',{ p_artist:reqN, p_from:pFrom, p_to:pTo }).then(function(r){
+    var same=(String(st.nurseId)===String(reqN)&&String(st.menuId)===String(reqM)&&st.calYear===reqY&&st.calMonth===reqMo);
+    if(!r.ok){ if(same){ st.adErr=true; if(st.step===2)s3(); } return; }
+    var busyByDay={};
+    (r.data||[]).forEach(function(x){
+      var s=new Date(x.start_at).getTime(), e=new Date(x.end_at).getTime();
+      // 予約をその開始日（JST）に振り分け
+      var key=jstDateKey(x.start_at);
+      (busyByDay[key]=busyByDay[key]||[]).push([s,e]);
+    });
+    var set=new Set();
+    cand.forEach(function(ds){
+      var slots=computeSlots(ds, busyByDay[ds]||[]);
+      if(slots.some(function(s){return s.available;})) set.add(ds);
+    });
+    if(same){ st.availDates=set; st.adErr=false; if(st.step===2)s3(); }
+  }).catch(function(){
+    if(String(st.nurseId)===String(reqN)&&String(st.menuId)===String(reqM)&&st.calYear===reqY&&st.calMonth===reqMo){
+      st.adErr=true; if(st.step===2)s3();
+    }
+  });
+}
+// ISO日時(+09:00やZ)を JSTの 'YYYY-MM-DD' に変換（日別振り分け用）。
+function jstDateKey(iso){
+  var d=new Date(iso);
+  var j=new Date(d.getTime()+9*3600000);
+  return j.getUTCFullYear()+'-'+p2(j.getUTCMonth()+1)+'-'+p2(j.getUTCDate());
+}
+// 「再試行」ボタン：エラー状態を解除して空き情報を取り直す。
+function retryAD(){ st.adErr=false; st.availDates=null; s3(); }
+function pickD(ds){ st.date=ds; st.time=null; st.slots=null; st.slErr=false; s3(); prefetchSl(); }
+
+// ===== 空き枠計算（GAS版 loadSlots と同じ考え方） =====
+// 店舗営業時間内を interval 刻みで作り、施術時間ぶん収まり、busy（予約済み）と重ならない枠だけ available=true。
+function computeSlots(dateStr, busy){
+  var openMin=storeOpenMin(), closeMin=storeCloseMin(), interval=storeInterval();
+  var dur=(st.menuDur&&st.menuDur>0)?st.menuDur:60;
+  var now=Date.now();
+  var out=[];
+  for(var mins=openMin; mins+dur<=closeMin; mins+=interval){
+    var hh=p2(Math.floor(mins/60)), mm=p2(mins%60), t=hh+':'+mm;
+    var s=new Date(dateStr+'T'+t+':00+09:00').getTime(), e=s+dur*60000;
+    var future=s>now; // 過去時刻は出さない（当日用）
+    var free=future && busy.every(function(b){ return e<=b[0] || s>=b[1]; });
+    out.push({ time:t, available:free });
+  }
   return out;
 }
-function ymd(d){ return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2); }
 
-function render(){
-  var h = "";
-  // STEP1 担当
-  h += '<div class="step"><div class="step-t"><span class="num">1</span>担当アーティスト</div><div class="chips">';
-  ST.artists.forEach(function(a){
-    h += '<div class="chip'+(ST.artist&&ST.artist.id===a.id?' on':'')+'" onclick="pickArtist(\''+a.id+'\')">'+esc(a.name)+'</div>';
-  });
-  h += '</div></div>';
-  // STEP2 メニュー
-  if(ST.artist){
-    h += '<div class="step"><div class="step-t"><span class="num">2</span>メニュー</div>';
-    var ms = menusForArtist(ST.artist.id);
-    ms.forEach(function(m){
-      var price = m.price_normal!=null ? ("¥"+Number(m.price_normal).toLocaleString()) : "";
-      h += '<div class="menu'+(ST.menu&&ST.menu.id===m.id?' on':'')+'" onclick="pickMenu(\''+m.id+'\')">'
-        + '<div class="nm">'+esc(m.name)+'</div>'
-        + '<div class="meta">'+price+'（税込）　／　施術 約'+m._dur+'分</div></div>';
-    });
-    h += '</div>';
-  }
-  // STEP3 日付
-  if(ST.menu){
-    h += '<div class="step"><div class="step-t"><span class="num">3</span>ご希望日</div><div class="dates">';
-    next14days().forEach(function(d){
-      var k=ymd(d);
-      h += '<div class="date'+(ST.date===k?' on':'')+'" onclick="pickDate(\''+k+'\')"><div class="d">'+d.getDate()+'</div><div class="w">'+WD[d.getDay()]+'</div></div>';
-    });
-    h += '</div></div>';
-  }
-  // STEP4 時間
-  if(ST.date){
-    h += '<div class="step"><div class="step-t"><span class="num">4</span>ご希望時間</div><div id="slotArea"><div class="ph">空き時間を計算中…</div></div></div>';
-  }
-  // STEP5 お客様情報＋確定
-  if(ST.slot){
-    h += '<div class="step"><div class="step-t"><span class="num">5</span>お客様情報</div>'
-      + '<label>お名前</label><input id="cn" placeholder="例）山田 花子" autocomplete="off">'
-      + '<label style="display:block;margin-top:10px">電話番号</label><input id="cp" placeholder="例）09012345678" autocomplete="off">'
-      + '<button class="btn" id="sub" onclick="submitBooking()">この内容で予約する（'+ST.date+' '+ST.slot+'〜）</button>'
-      + '<div class="msg" id="m"></div></div>';
-  }
-  h += '<div class="small">⚡ このページは Supabase（東京リージョン）を直接読み込んでいます。二重予約はデータベースが物理的に防ぎます。</div>';
-  document.getElementById("body").innerHTML = h;
-  if(ST.date) loadSlots();
-}
-
-function pickArtist(id){ ST.artist = ST.artists.filter(function(a){return a.id===id;})[0]; ST.menu=null; ST.date=null; ST.slot=null; render(); }
-function pickMenu(id){ var ms=menusForArtist(ST.artist.id); ST.menu = ms.filter(function(m){return m.id===id;})[0]; ST.date=null; ST.slot=null; render(); }
-function pickDate(k){ ST.date=k; ST.slot=null; render(); }
-function pickSlot(t){ ST.slot=t; render(); window.scrollTo(0,document.body.scrollHeight); }
-
-// 空き時間：営業時間内を30分刻みで作り、その日の同じ担当の予約と重ならない枠だけ出す
-function loadSlots(){
-  var dayStart = ST.date+"T00:00:00+09:00", dayEnd = ST.date+"T23:59:59+09:00";
-  // 空き時間は専用関数(busy_ranges)で取得＝予約のお客様名などは取らない（PII保護）。
-  sbRpc("busy_ranges", { p_artist: ST.artist.id, p_from: dayStart, p_to: dayEnd })
-  .then(function(r){
-    ST.dayResv = r.data || [];
-    var dur = ST.menu._dur || 60;
-    var busy = ST.dayResv.map(function(x){ return [new Date(x.start_at).getTime(), new Date(x.end_at).getTime()]; });
-    var html = "", any=false;
-    for(var mins = OPEN_H*60; mins + dur <= CLOSE_H*60; mins += INTERVAL){
-      var hh = ("0"+Math.floor(mins/60)).slice(-2), mm = ("0"+(mins%60)).slice(-2), t = hh+":"+mm;
-      var s = new Date(ST.date+"T"+t+":00+09:00").getTime(), e = s + dur*60000;
-      var free = busy.every(function(b){ return e<=b[0] || s>=b[1]; });
-      if(free) any=true;
-      html += '<div class="slot'+(free?(ST.slot===t?' on':''):' x')+'" '+(free?'onclick="pickSlot(\''+t+'\')"':'')+'>'+t+'</div>';
-    }
-    var area = document.getElementById("slotArea");
-    if(area) area.innerHTML = '<div class="slots">'+html+'</div>' + (any?'':'<div class="ph">この日は空きがありません。別の日をお選びください。</div>') + '<div class="small">空き時間も '+r.ms+'ms で計算しました。</div>';
-  });
-}
-
-function submitBooking(){
-  var name=(document.getElementById("cn")||{}).value||""; name=name.trim();
-  var phone=(document.getElementById("cp")||{}).value||"";
-  var m=document.getElementById("m");
-  if(!name){ m.className="msg ng"; m.textContent="お名前を入力してください。"; return; }
-  var s = ST.date+"T"+ST.slot+":00+09:00";
-  var btn=document.getElementById("sub"); btn.disabled=true; btn.textContent="送信中…"; m.textContent="";
-  // 予約確定は create_public_reservation RPC に集約。匿名の直 insert は廃止済み（tenant_id/store_id を
-  // クライアントが偽装できないよう、店舗・担当・メニューの正当性／席数／重複をすべてDB側(security definer)で検証する）。
-  sbRpc("create_public_reservation", {
-    p_store: STORE_ID, p_artist: ST.artist.id, p_menu: ST.menu.id,
-    p_customer_name: name, p_start: s,
-    p_treatment_type: "new", p_reservation_type: "normal",
-    p_line_uid: (LINE_UID || null), p_phone: (phone || null)
-  }).then(function(r){
-    if(r.ok){ fireNotify(name); showDone(r.ms); return; }
-    btn.disabled=false; btn.textContent="この内容で予約する";
-    var code=(r.data&&r.data.code)||"", msg=(r.data&&r.data.message)||"";
-    // 重複（排他制約 no_overlap_per_artist=23P01）・満席（seat_full）は「埋まりました」案内＋枠再読込
-    if(String(r.status)==="409" || code==="23P01" || msg==="seat_full" || /no_overlap|overlap|exclusion/i.test(msg)){
-      m.className="msg ng"; m.textContent="申し訳ありません、その時間はちょうど埋まりました。別の時間をお選びください。";
-      loadSlots();
+// ===== STEP 4: 時間選択 =====
+function s4(){
+  var pts=st.date.split('-'), dd=new Date(+pts[0],+pts[1]-1,+pts[2]);
+  var dl=+pts[1]+'月'+parseInt(pts[2])+'日（'+DOW[dd.getDay()]+'）';
+  var h='<div class="s-title">時間を選んでください</div><div class="dt-lbl">'+dl+'</div>';
+  if(st.slErr){
+    h+='<div class="msg-err">空き枠を取得できませんでした。電波の良い場所で、もう一度お試しください。<div style="margin-top:10px"><button class="btn-retry" onclick="retrySl()">再試行</button></div></div>';
+  }else if(st.slots===null){
+    h+='<div class="ld-box"><span class="spinner"></span>空き枠を取得中…</div>';
+    setTimeout(loadSl,0);
+  }else{
+    var anyA=st.slots.some(function(s){return s.available;});
+    if(!anyA){
+      h+='<div class="msg-err">この日は空き枠がありません。前の画面から別の日をお選びください。</div>';
     }else{
-      m.className="msg ng"; m.textContent="送信に失敗しました："+esc(msg||r.status);
+      h+='<div class="slot-grid">';
+      st.slots.forEach(function(s){
+        if(s.available){
+          var sel=s.time===st.time?' sel':'';
+          h+='<div class="slot-a'+sel+'" onclick="pickT(\''+s.time+'\')">'+s.time+'</div>';
+        }else{
+          h+='<div class="slot-x">—</div>';
+        }
+      });
+      h+='</div>';
     }
-  }).catch(function(err){ btn.disabled=false; btn.textContent="この内容で予約する"; m.className="msg ng"; m.textContent="通信エラー："+esc(err&&err.message||err); });
+  }
+  document.getElementById('sc').innerHTML=h;
+  document.getElementById('sn').innerHTML='<button class="btn btn-bk" onclick="go(2)">戻る</button><button class="btn btn-p" onclick="st.time&&go(4)" '+(st.time?'':'disabled')+'>次へ</button>';
 }
-// LIFFで本人(UID)を取得（LINE内で開いたときだけ）。失敗しても予約は続行。
-function initLiff(){
-  if(typeof liff==="undefined") return;
-  try{
-    liff.init({liffId:LIFF_ID}).then(function(){
-      if(liff.isLoggedIn && liff.isLoggedIn()){
-        liff.getProfile().then(function(p){ if(p){ LINE_UID=p.userId||""; LINE_NAME=p.displayName||""; } }).catch(function(){});
-      }
-    }).catch(function(){});
-  }catch(e){}
+function loadSl(){
+  // セッション内キャッシュを優先。
+  var ck=st.nurseId+'|'+st.menuId+'|'+st.date;
+  if(st.slCache[ck]){ st.slots=st.slCache[ck]; st.slErr=false; if(st.step===3)s4(); return; }
+  var reqN=st.nurseId, reqMn=st.menuId, reqD=st.date;
+  var pFrom=reqD+'T00:00:00+09:00', pTo=reqD+'T23:59:59+09:00';
+  sbRpc('busy_ranges',{ p_artist:reqN, p_from:pFrom, p_to:pTo }).then(function(r){
+    var same=(String(st.nurseId)===String(reqN)&&String(st.menuId)===String(reqMn)&&String(st.date)===String(reqD));
+    if(!r.ok){ if(same){ st.slErr=true; if(st.step===3)s4(); } return; }
+    var busy=(r.data||[]).map(function(x){ return [new Date(x.start_at).getTime(), new Date(x.end_at).getTime()]; });
+    var arr=computeSlots(reqD, busy);
+    st.slCache[reqN+'|'+reqMn+'|'+reqD]=arr;
+    if(same){ st.slots=arr; st.slErr=false; if(st.step===3)s4(); }
+  }).catch(function(){
+    if(String(st.nurseId)===String(reqN)&&String(st.menuId)===String(reqMn)&&String(st.date)===String(reqD)){
+      st.slErr=true; if(st.step===3)s4();
+    }
+  });
+}
+// 「再試行」ボタン：エラー状態を解除して空き枠を取り直す。
+function retrySl(){ st.slErr=false; st.slots=null; s4(); }
+// 日付タップ時に裏で空き枠を先読みしておく（「次へ」を押す頃には表示済みにする）。
+function prefetchSl(){
+  if(!st.date) return;
+  var ck=st.nurseId+'|'+st.menuId+'|'+st.date;
+  if(st.slCache[ck]) return;  // 取得済みなら何もしない
+  var reqN=st.nurseId, reqMn=st.menuId, reqD=st.date;
+  var pFrom=reqD+'T00:00:00+09:00', pTo=reqD+'T23:59:59+09:00';
+  sbRpc('busy_ranges',{ p_artist:reqN, p_from:pFrom, p_to:pTo }).then(function(r){
+    if(!r.ok) return;
+    var busy=(r.data||[]).map(function(x){ return [new Date(x.start_at).getTime(), new Date(x.end_at).getTime()]; });
+    var arr=computeSlots(reqD, busy);
+    st.slCache[reqN+'|'+reqMn+'|'+reqD]=arr;
+    if(String(st.nurseId)===String(reqN)&&String(st.menuId)===String(reqMn)&&String(st.date)===String(reqD)&&st.slots===null&&st.step===3){ st.slots=arr; s4(); }
+  }).catch(function(){});
+}
+function pickT(t){ st.time=t; s4(); }
+
+// ===== STEP 5: お客様情報 =====
+function s5(){
+  var h='<div class="s-title">お客様情報を入力してください</div>';
+  h+='<div class="field"><label class="fl">フリガナ<span class="req">*</span></label>';
+  h+='<input type="text" id="fk" value="'+esc(st.furigana)+'" placeholder="イクノ　ジンギ" autocomplete="off" oninput="st.furigana=this.value;v5()"></div>';
+  h+='<div class="field"><label class="fl">お名前<span class="req">*</span></label>';
+  h+='<input type="text" id="fn" value="'+esc(st.custName)+'" placeholder="生野　仁義" autocomplete="off" oninput="st.custName=this.value;v5()"></div>';
+  h+='<div class="field"><label class="fl">電話番号<span class="req">*</span></label>';
+  h+='<input type="tel" id="fp" value="'+esc(st.phone)+'" placeholder="09012345678" autocomplete="off" oninput="st.phone=this.value;v5()">';
+  h+='<div class="ferr" id="f-perr">正しい電話番号を入力してください（例：09012345678）</div></div>';
+  h+='<div class="field"><label class="fl">クーポン使用の有無<span class="req">*</span></label><div class="radios-v">';
+  h+='<label><input type="radio" name="cp" value="2set"'+(st.coupon==='2set'?' checked':'')+' onchange="st.coupon=this.value;v5()"><span>2回セット</span></label>';
+  h+='<label><input type="radio" name="cp" value="50off"'+(st.coupon==='50off'?' checked':'')+' onchange="st.coupon=this.value;v5()"><span>50%OFFクーポン</span></label>';
+  h+='<label><input type="radio" name="cp" value="none"'+(st.coupon==='none'?' checked':'')+' onchange="st.coupon=this.value;v5()"><span>なし</span></label>';
+  h+='</div></div>';
+  h+='<div class="field"><label class="fl">アートメイクの施術経験<span class="req">*</span></label><div class="radios">';
+  h+='<label><input type="radio" name="ae" value="yes"'+(st.artExp==='yes'?' checked':'')+' onchange="st.artExp=this.value;v5()"><span>有</span></label>';
+  h+='<label><input type="radio" name="ae" value="no"'+(st.artExp==='no'?' checked':'')+' onchange="st.artExp=this.value;v5()"><span>無</span></label>';
+  h+='</div></div>';
+  h+='<div class="field"><label class="fl">メモ欄</label>';
+  h+='<textarea id="fm" rows="3" placeholder="ご要望などがあればご記入ください（任意）" autocomplete="off" oninput="st.memo=this.value">'+esc(st.memo)+'</textarea></div>';
+  document.getElementById('sc').innerHTML=h;
+  document.getElementById('sn').innerHTML='<button class="btn btn-bk" onclick="go(3)">戻る</button><button class="btn btn-p" id="b5" onclick="v5()&&go(5)" disabled>次へ</button>';
+  v5();
+}
+function v5(){
+  var ph=st.phone.replace(/[-\s]/g,''), ok=okPhone(ph);
+  var err=document.getElementById('f-perr'); if(err)err.style.display=(st.phone&&!ok)?'block':'none';
+  var valid=st.furigana.trim()&&st.custName.trim()&&ok&&st.artExp;
+  var b=document.getElementById('b5'); if(b)b.disabled=!valid;
+  return !!valid;
+}
+
+// ===== STEP 6: 確認・同意・送信 =====
+var CL={'2set':'2回セット','50off':'50%OFFクーポン','none':'なし'};
+function s6(){
+  var pts=st.date.split('-'), dd=new Date(+pts[0],+pts[1]-1,+pts[2]);
+  var dtl=+pts[1]+'月'+parseInt(pts[2])+'日（'+DOW[dd.getDay()]+'）　'+st.time;
+  var h='<div class="s-title">予約内容を確認してください</div>';
+  h+='<div class="sum-box">';
+  h+=sr('アーティスト',esc(st.nurseName));
+  h+=sr('コース',esc(st.menuName));
+  h+=sr('日時',esc(dtl));
+  if(st.menuPrice&&parseInt(st.menuPrice)>0) h+=sr('料金','¥'+parseInt(st.menuPrice).toLocaleString()+'（税込）');
+  h+=sr('クーポン',esc(CL[st.coupon]||st.coupon));
+  h+=sr('お名前',esc(st.custName)+'（'+esc(st.furigana)+'）');
+  h+=sr('電話番号',esc(st.phone));
+  h+='</div>';
+  if(st.artExp==='yes') h+=FIXNOTE; // アートメイク経験「有」＝他院修正の案内を確認画面で目立たせる
+  h+='<div class="sec-lbl">ご利用規約</div>';
+  h+='<div class="terms-box">'+TERMS+'</div>';
+  h+='<div class="agree-row"><input type="checkbox" id="agc"'+(st.agreed?' checked':'')+' onchange="st.agreed=this.checked;updSub()"><span>上記の利用規約・注意事項・キャンセルポリシーをすべて確認しました。</span></div>';
+  h+='<div id="serr" style="margin-top:12px"></div>';
+  document.getElementById('sc').innerHTML=h;
+  document.getElementById('sn').innerHTML='<button class="btn btn-bk" onclick="go(4)">戻る</button><button class="btn btn-p" id="bsub" onclick="doSub()" '+(st.agreed?'':'disabled')+'>この内容で予約する</button>';
+}
+function sr(k,v){ return '<div class="s-row"><div class="s-key">'+k+'</div><div class="s-val">'+v+'</div></div>'; }
+function updSub(){ var b=document.getElementById('bsub'); if(b)b.disabled=!st.agreed; }
+function doSub(){
+  if(!st.agreed)return;
+  // ★日付・時間が未選択なら送信しない（満席で枠を捨てた後などに null:00 で送るのを防止）。時間選択へ戻す。
+  if(!st.date || !st.time){
+    var e0=document.getElementById('serr'); if(e0){e0.className='msg-err';e0.textContent='日付と時間をもう一度お選びください。';}
+    go(3); return;
+  }
+  var btn=document.getElementById('bsub');
+  if(btn){btn.disabled=true;btn.textContent='送信中…';}
+  // 予約確定は create_public_reservation RPC に集約（店舗・担当・メニューの正当性／席数／重複をDB側で検証）。
+  var startISO=st.date+'T'+st.time+':00+09:00';
+  var treatmentType=(st.menuName&&st.menuName.indexOf('再来')>=0)?'retouch':'new';
+  var reservationType=(st.coupon==='none')?'normal':'monitor';
+  // メモにクーポン種別・施術経験も残す（GAS版の補足情報を引き継ぐ）。
+  var memo=buildMemo();
+  sbRpc('create_public_reservation',{
+    p_store: STORE_ID,
+    p_artist: st.nurseId,
+    p_menu: st.menuId,
+    p_customer_name: st.custName,
+    p_start: startISO,
+    p_treatment_type: treatmentType,
+    p_reservation_type: reservationType,
+    p_line_uid: (st.uid || null),
+    p_phone: st.phone,
+    p_furigana: st.furigana,
+    p_memo: memo,
+    p_ref: (REF || null)
+  }).then(function(r){
+    if(r.ok){
+      fireNotify();
+      showScr('s-done');
+      setTimeout(backToTalk,1200); // 予約後はLINEのトークへ自動で戻る（戻れない端末向けにボタンも用意）
+      return;
+    }
+    var code=(r.data&&r.data.code)||'', msg=(r.data&&r.data.message)||'';
+    // 重複（排他制約 23P01）・満席（seat_full）→「埋まりました」案内＋枠再読込。
+    if(String(r.status)==='409' || code==='23P01' || msg==='seat_full' || /no_overlap|overlap|exclusion/i.test(msg)){
+      subFail(btn,'その時間帯はちょうど埋まりました。お手数ですが、別の時間をお選びください。');
+      // この枠は埋まったので、その日の空き枠と当月の空き日を捨て、時間選択画面へ戻して最新を取り直す。
+      delete st.slCache[st.nurseId+'|'+st.menuId+'|'+st.date];
+      st.slots=null; st.availDates=null; st.time=null;
+      setTimeout(function(){ go(3); }, 1500);   // ★時間選択へ戻して再取得（null時間での再送を防ぐ）
+    }else{
+      subFail(btn, errR(code,msg));
+    }
+  }).catch(function(err){
+    subFail(btn,'送信に失敗しました。電波の良い場所で再度お試しください。');
+  });
+}
+function buildMemo(){
+  var lines=[];
+  if(st.memo&&st.memo.trim()) lines.push(st.memo.trim());
+  lines.push('クーポン：'+(CL[st.coupon]||st.coupon));
+  lines.push('施術経験：'+(st.artExp==='yes'?'有（他院修正の可能性）':st.artExp==='no'?'無':'未回答'));
+  return lines.join('\n');
+}
+function subFail(btn,msg){
+  if(btn){btn.disabled=false;btn.textContent='この内容で予約する';}
+  var e=document.getElementById('serr'); if(e){e.className='msg-err';e.textContent=msg;}
+}
+// create_public_reservation が raise した例外コード／メッセージをお客様向け文言に変換。
+function errR(code,msg){
+  msg=String(msg||'');
+  if(/store_not_found|menu_not_in_tenant|artist_not_in_store|artist_menu_not_allowed/.test(msg))
+    return 'ただいまこの組み合わせのご予約をお受けできません。お手数ですがトーク画面からお問い合わせください。';
+  if(/seat_full/.test(msg))
+    return '申し訳ございません。その時間帯は満席です。お手数ですが、別の日時でお試しください。';
+  return '申し訳ございません、ただいまご予約をお受けできませんでした。お手数ですがトーク画面からご連絡ください。';
 }
 // 予約確定後、LINE通知をEdge Functionに依頼（裏で実行・画面の速さは止めない）。
-function fireNotify(name){
+function fireNotify(){
   try{
-    var dur=ST.menu._dur||60;
-    var endt=new Date(new Date(ST.date+"T"+ST.slot+":00+09:00").getTime()+dur*60000);
-    var eh=("0"+endt.getHours()).slice(-2)+":"+("0"+endt.getMinutes()).slice(-2);
-    var when=ST.date+" "+ST.slot+"〜"+eh;
-    var price=ST.menu.price_normal!=null?("¥"+Number(ST.menu.price_normal).toLocaleString()):"";
-    fetch(EDGE_NOTIFY,{ method:"POST", headers:{ "Content-Type":"application/json", "Authorization":"Bearer "+SB_KEY, "apikey":SB_KEY },
-      body:JSON.stringify({ tenant_id:TENANT_ID, line_uid:LINE_UID, customer_name:name, artist:ST.artist.name, menu:ST.menu.name, datetime:when, price:price }) }).catch(function(){});
+    var dur=(st.menuDur&&st.menuDur>0)?st.menuDur:60;
+    var endt=new Date(new Date(st.date+'T'+st.time+':00+09:00').getTime()+dur*60000);
+    var eh=p2(endt.getHours())+':'+p2(endt.getMinutes());
+    var when=st.date+' '+st.time+'〜'+eh;
+    var price=(st.menuPrice&&parseInt(st.menuPrice)>0)?('¥'+parseInt(st.menuPrice).toLocaleString()):'';
+    fetch(EDGE_NOTIFY,{ method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+SB_KEY, 'apikey':SB_KEY },
+      body:JSON.stringify({ tenant_id:TENANT_ID, line_uid:(st.uid||''), customer_name:st.custName, artist:st.nurseName, menu:st.menuName, datetime:when, price:price }) }).catch(function(){});
   }catch(e){}
 }
-function showDone(ms){
-  document.getElementById("body").innerHTML =
-    '<div class="done"><div class="ic">✅</div><h2>ご予約を承りました</h2>'
-    +'<p>'+esc(ST.artist.name)+' ／ '+esc(ST.menu.name)+'<br>'+esc(ST.date)+' '+esc(ST.slot)+'〜</p>'
-    +'<div class="speed" style="background:#063">⚡ 予約確定まで '+ms+' ミリ秒</div>'
-    +'<div class="small">※これはSupabase版のお試しです（実際のLINE通知等は今後つなぎます）。</div></div>';
-  window.scrollTo(0,0);
+// LIFFウィンドウを閉じてLINEのトークへ戻す。LINEアプリ外（通常ブラウザ）では何も起きない。
+function backToTalk(){
+  try{ if(typeof liff!=='undefined'&&liff.closeWindow){ liff.closeWindow(); } }catch(e){}
 }
 
-boot();
-initLiff();
+// ===== 利用規約 =====
+var TERMS='<p>ご予約の前に、以下の項目について必ずご確認いただき、該当する場合はご予約前にご連絡ください。</p>'
+  +'<span class="t-hd">施術をお受けできない方：</span><ul>'
+  +'<li>妊娠中、または妊娠の可能性がある方／授乳中の方</li>'
+  +'<li>重度の金属アレルギーをお持ちの方</li>'
+  +'<li>ケロイド体質の方</li>'
+  +'<li>重度の皮膚疾患（アトピー性皮膚炎の活発期など含む）</li>'
+  +'<li>心臓病、重度の糖尿病、免疫不全状態</li>'
+  +'<li>全身性の感染症（B型・C型肝炎、HIV 等）</li>'
+  +'<li>局所麻酔薬に対するアレルギーの既往</li>'
+  +'<li>施術部位に大きな傷、炎症、ヘルペス・ニキビ等がある方</li>'
+  +'<li>施術部位に直近で美容施術のダウンタイムがある方（レーザー/ピーリング/ボトックス等）</li>'
+  +'<li>重大な血液凝固障害や抗凝固剤・ステロイド内服中の方</li>'
+  +'</ul>'
+  +'<span class="t-hd">ご予約前にご連絡が必要な場合：</span><ul>'
+  +'<li>発熱、風邪・感染症に罹患している状態</li>'
+  +'<li>施術部位の軽度な炎症や痒み・皮膚トラブルがある</li>'
+  +'<li>激しい運動やサウナ、長時間の入浴を直前に行った</li>'
+  +'<li>施術日直前に飲酒した</li>'
+  +'<li>当日に体調不良を感じる場合</li>'
+  +'</ul>'
+  +'<p>※上記は施術の安全性・定着率に影響する可能性があります。</p>'
+  +'<span class="t-hd">【モニター・クーポン使用でのご予約について】</span><ul>'
+  +'<li>キャンペーンモニター、クーポン使用しご予約されるお客様はBefore/Afterの症例写真を撮影させていただきます。</li>'
+  +'<li>症例写真はSNS等で使用する場合がございます。</li>'
+  +'<li>InstagramストーリーまたはGoogle口コミ投稿のいずれかが必須条件となっております。</li>'
+  +'</ul>'
+  +'<span class="t-hd">【キャンセルポリシー】</span>'
+  +'<span class="t-sub">1. キャンセル・日時変更の方法</span>'
+  +'<p>こちらの公式LINEにてご連絡ください。ご予約日から3日前まで料金は発生しません。</p>'
+  +'<span class="t-sub">2. キャンセル料（クレジット・現地決済）</span><ul>'
+  +'<li>3日前〜前日：お支払い金額の50%を返金</li>'
+  +'<li>当日のキャンセル・日時変更：返金なし</li>'
+  +'<li>ご連絡なしキャンセル：返金なし</li>'
+  +'<li>当院都合のキャンセル：全額返金</li>'
+  +'</ul>'
+  +'<span class="t-sub">3. キャンセル料（現地決済のみ）</span><ul>'
+  +'<li>3日前〜前日：お支払い金額の30%をご請求</li>'
+  +'<li>当日：施術料金の100%をご請求</li>'
+  +'<li>当日15分以上の遅刻：無断キャンセル扱いで施術料金の100%をご請求</li>'
+  +'</ul>'
+  +'<span class="t-hd">他院修正の注意点</span>'
+  +'<p>他院でアートメイクを受けた方は以下のリスクをご了承ください。</p><ul>'
+  +'<li>ストロークの間から既存の色が見える場合があります。</li>'
+  +'<li>大幅なデザイン変更ははみ出す場合があります。</li>'
+  +'<li>皮膚の状態によっては色が入りにくく抜けやすい可能性があります。</li>'
+  +'<li>インクが拡散しやすく、毛並み感が出づらい可能性があります。</li>'
+  +'<li>濃く残っている場合は担当者の判断で見送る可能性があります。</li>'
+  +'</ul>';
+
+// 確認画面で、アートメイク経験「有」のお客様にだけ出す注意ボックス（他院修正になる旨）。
+var FIXNOTE='<div class="fix-note">'
+  +'<div class="fix-note-hd">⚠️ 今回の施術は「他院修正」になります</div>'
+  +'<p>他院でアートメイクを受けたことがある方は、今回の施術が「他院修正」となります。仕上がりに次のような影響が出る場合がありますので、ご了承のうえご予約ください。</p>'
+  +'<ul>'
+  +'<li>ストロークの間から既存の色が見える場合があります。</li>'
+  +'<li>大幅なデザイン変更ははみ出す場合があります。</li>'
+  +'<li>皮膚の状態によっては色が入りにくく抜けやすい可能性があります。</li>'
+  +'<li>インクが拡散しやすく、毛並み感が出づらい可能性があります。</li>'
+  +'<li>濃く残っている場合は担当者の判断で見送る可能性があります。</li>'
+  +'</ul></div>';
+
+// ===== 起動 =====
+// 担当・メニュー・店舗営業時間の取得（Supabase）と LIFF初期化を「並行」で走らせる。
+var bootOpt=null, bootOptDone=false, bootProfDone=false, wizardShown=false;
+
+function updHeader(){
+  var el=document.getElementById('hSub');
+  if(el&&bootOpt) el.textContent=(bootOpt.store_name||STORE)+(st.displayName?'　'+st.displayName+' 様':'');
+}
+function showWizardIfReady(){
+  if(wizardShown) return;
+  // 同意書・キャンセルは今回対象外＝準備中画面を出す（データ取得を待たない）。
+  if(MODE==='consent'){ wizardShown=true; showScr('s-consent'); return; }
+  if(MODE==='cancel'){  wizardShown=true; showScr('s-cancel');  return; }
+  // 予約モードはオプション（メニュー・担当）が必須。
+  if(!bootOptDone) return;
+  if(!bootOpt){
+    wizardShown=true;
+    document.getElementById('s-loading').innerHTML='<div class="msg-err" style="margin:40px 24px">情報の取得に失敗しました。<br>時間をおいて再度お試しください。</div>';
+    return;
+  }
+  st.options=bootOpt; wizardShown=true; updHeader(); showScr('s-wizard'); render();
+}
+function profileDone(){ bootProfDone=true; updHeader(); showWizardIfReady(); }
+
+// ===== Supabase からマスタ＋店舗設定を取得し、GAS版 options 互換の形へ組み立て =====
+// 互換キー：options = { nurses:[{nurse_id,name,is_active,profile_photo_url}],
+//   menus:[{menu_id,menu_name,normal_price,monitor_price}],
+//   certified:[{nurse_id,menu_id,is_certified,duration_new_min,duration_retouch_min}],
+//   store_name, openMin, closeMin, interval, closed }
+function loadOptions(){
+  Promise.all([
+    sbGet("artists?select=id,name,is_active,profile_photo_url&store_id=eq."+STORE_ID+"&is_active=eq.true&order=name"),
+    sbGet("menus?select=id,name,price_normal,price_monitor,duration_new_min,duration_retouch_min&tenant_id=eq."+TENANT_ID+"&is_active=eq.true"),
+    sbGet("artist_menus?select=artist_id,menu_id,duration_new_min,duration_retouch_min&is_certified=eq.true"),
+    sbGet("stores?select=name,business_hours_start,business_hours_end,slot_interval_min,closed_days&id=eq."+STORE_ID)
+  ]).then(function(res){
+    // ★Array.isArray でガード（RLS/列名ミスでエラーJSONが返っても .map で落ちない）
+    var artists=(res[0]&&Array.isArray(res[0].data))?res[0].data:[];
+    var menus  =(res[1]&&Array.isArray(res[1].data))?res[1].data:[];
+    var am     =(res[2]&&Array.isArray(res[2].data))?res[2].data:[];
+    var store=(res[3]&&Array.isArray(res[3].data)&&res[3].data[0])||null;
+    if(!artists.length){ bootOptDone=true; showWizardIfReady(); return; }
+
+    // 担当できるメニューだけを artist_menus で絞る（poc/index.html boot() と同じ考え方）。
+    // 施術時間は artist_menus の duration を優先。
+    var nurses=artists.map(function(a){
+      return { nurse_id:a.id, name:a.name, is_active:a.is_active, profile_photo_url:a.profile_photo_url||'' };
+    });
+    var menusC=menus.map(function(m){
+      return { menu_id:m.id, menu_name:m.name, normal_price:m.price_normal, monitor_price:m.price_monitor,
+               _dnew:m.duration_new_min, _dret:m.duration_retouch_min };
+    });
+    var certified=am.map(function(p){
+      // artist_menus に duration が無ければ menus 側を使う。
+      var mm=menusC.filter(function(x){return String(x.menu_id)===String(p.menu_id);})[0]||{};
+      return {
+        nurse_id:p.artist_id, menu_id:p.menu_id, is_certified:true,
+        duration_new_min:(p.duration_new_min!=null?p.duration_new_min:mm._dnew),
+        duration_retouch_min:(p.duration_retouch_min!=null?p.duration_retouch_min:mm._dret)
+      };
+    });
+
+    var openMin=hmToMin(store&&store.business_hours_start, DEF_OPEN_H*60);
+    var closeMin=hmToMin(store&&store.business_hours_end, DEF_CLOSE_H*60);
+    var interval=(store&&store.slot_interval_min&&store.slot_interval_min>0)?store.slot_interval_min:DEF_INTERVAL;
+
+    bootOpt={
+      nurses:nurses, menus:menusC, certified:certified,
+      store_name:(store&&store.name)||'',
+      openMin:openMin, closeMin:closeMin, interval:interval,
+      closed:parseClosed(store&&store.closed_days)
+    };
+    bootOptDone=true;
+    if(wizardShown){ st.options=bootOpt; updHeader(); if(MODE==='book'&&st.step===1) render(); }
+    else showWizardIfReady();
+  }).catch(function(){
+    bootOptDone=true; if(!wizardShown) showWizardIfReady();
+  });
+}
+
+// ===== LIFF：本人(UID・表示名)を取得（LINE内で開いたときだけ。失敗しても予約は続行） =====
+function initLiff(){
+  if(!LIFF_ID || typeof liff==='undefined'){ profileDone(); return; }
+  var advanced=false;
+  var tid=setTimeout(function(){ if(!advanced){ advanced=true; profileDone(); } },8000);
+  function advance(){ if(advanced)return; advanced=true; clearTimeout(tid); profileDone(); }
+  function applyLateProfile(p){
+    if(!p) return;
+    if(p.userId)      st.uid=p.userId;
+    if(p.displayName) st.displayName=p.displayName;
+    updHeader();
+  }
+  try{
+    liff.init({liffId:LIFF_ID}).then(function(){
+      if(!liff.isLoggedIn||!liff.isLoggedIn()){ advance(); return; }
+      liff.getProfile().then(function(p){ applyLateProfile(p); })
+                       .catch(function(){})
+                       .then(advance);
+    }).catch(function(){ advance(); });
+  }catch(e){ advance(); }
+}
+
+(function boot(){
+  // 予約モードのみマスタ取得（キャンセル・同意書は準備中画面なので不要）。
+  if(MODE==='book') loadOptions();
+  initLiff();
+  // キャンセル・同意書モードは即「準備中」を表示。
+  if(MODE!=='book') showWizardIfReady();
+})();
 </script>
 </body>
 </html>
