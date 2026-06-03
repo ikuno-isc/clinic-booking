@@ -1612,12 +1612,24 @@ function crmRenderDetail(uid, res){
   /* 同意書（電子署名）。pdf_url があれば別タブで開く（target=_blank）。 */
   var consentSect;
   if (consent && consent.signed_at){
+    // PDF（移行データにあれば）。http/https のみ許可（危険URL対策）。方式Aの新規署名はPDF無し。
     var pdf = (consent.pdf_url && /^https?:\/\//.test(consent.pdf_url))
-      ? '<a class="rbtn" href="'+esc(consent.pdf_url)+'" target="_blank" rel="noopener">📄 PDFを開く</a>'
-      : '<span class="crm-cs-when">（PDFのリンクが見つかりません）</span>';   // ★http/https のみ許可（javascript: 等の危険URLを弾く＝クリック型XSS対策）
+      ? '<a class="rbtn" href="'+esc(consent.pdf_url)+'" target="_blank" rel="noopener">📄 PDFを開く</a>' : '';
+    // ★署名画像（data:image/ のみ許可＝XSS対策）
+    var sig = (consent.signature_png && /^data:image\/png;base64,/.test(consent.signature_png))
+      ? '<div style="margin:8px 0"><img src="'+esc(consent.signature_png)+'" alt="署名" style="max-width:100%;border:1px solid #e6eceb;border-radius:8px;background:#fff"></div>' : '';
+    // 写真使用の同意（はい/いいえ）
+    function csYN(v){ return (String(v).toLowerCase()==='yes') ? '<b style="color:#15803d">はい</b>' : '<span style="color:#999">いいえ</span>'; }
+    var photos = '<div style="font-size:12.5px;color:#555;line-height:1.8;margin:6px 0">'
+      + 'TV・雑誌（顔全体）：'+csYN(consent.photo_tv_full)+'<br>'
+      + 'TV・雑誌（部位のみ）：'+csYN(consent.photo_tv_part)+'<br>'
+      + 'SNS・HP（顔全体）：'+csYN(consent.photo_sns_full)+'<br>'
+      + 'SNS・HP（部位のみ）：'+csYN(consent.photo_sns_part)+'</div>';
     consentSect = '<div class="crm-sect"><h3>📝 同意書（電子署名）</h3>' +
-      '<div class="crm-cs-ok">✅ 署名済み <span class="crm-cs-when">'+esc(crmDateTime(consent.signed_at))+'</span></div>' +
-      '<div class="cs-acts" style="display:flex;gap:8px;flex-wrap:wrap">'+pdf+'</div></div>';
+      '<div class="crm-cs-ok">✅ 署名済み <span class="crm-cs-when">'+esc(crmDateTime(consent.signed_at))+(consent.consent_version?'（版 '+esc(consent.consent_version)+'）':'')+'</span></div>' +
+      sig + photos +
+      (pdf?'<div class="cs-acts" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">'+pdf+'</div>':'') +
+      '</div>';
   } else if (consent){
     consentSect = '<div class="crm-sect"><h3>📝 同意書（電子署名）</h3><div class="crm-cs-ng">未署名</div></div>';
   } else {
