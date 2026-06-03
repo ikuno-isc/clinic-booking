@@ -8,7 +8,8 @@
       予約確定             … sbRpc('create_public_reservation')（二重予約はDB側で物理的に防止）
       LINE通知             … Supabase Edge Function（notify-reservation）へ依頼
   ・?ref=（流入元タグ）を予約に記録、?store= で店舗slug切替（既定 kurume）、LIFFでお客様UID/お名前を取得。
-  ・キャンセル(s-cancel)／同意書(s-consent)は今回の対象外＝GASを呼ばず「準備中」案内のみ。
+  ・キャンセル(s-cancel)は実装済み（?mode=cancel：自分のLINE UIDの予約のみ my_reservations/cancel_my_reservation）。
+  ・同意書(s-consent)はまだ「準備中」案内のみ（次回対応）。
   ・GitHub Pages 等で配信する純粋な静的HTML。外部依存は LIFF SDK のCDNのみ。
 -->
 <html lang="ja">
@@ -170,11 +171,21 @@
     .msg-err { background:#fdecea; color:#c00; padding:12px; border-radius:8px; font-size:13px; }
     .btn-retry { background:#06c755; color:#fff; border:none; border-radius:8px; padding:10px 28px; font-size:14px; font-weight:600; cursor:pointer; }
 
-    /* ===== Cancel / Consent（今回は対象外＝準備中表示のみ） ===== */
+    /* ===== Cancel（お客様によるキャンセル） ===== */
     #s-cancel { display:none; }
     #s-cancel .step-wrap { min-height:60vh; }
     #s-consent { display:none; }
     #s-consent .step-wrap { min-height:50vh; }
+    .cl-loading { text-align:center; color:#888; padding:48px 0; }
+    .cl-intro { font-weight:700; color:#0b5c55; margin:0 4px 12px; }
+    .cl-sub { font-weight:400; font-size:12px; color:#888; }
+    .cl-late { font-size:12.5px; color:#c2410c; background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:8px 10px; line-height:1.5; }
+    .cl-card { background:#fff; border:1px solid #e6eceb; border-radius:14px; padding:14px 16px; margin:0 0 12px; box-shadow:0 1px 3px rgba(0,0,0,.05); }
+    .cl-dt { font-weight:800; font-size:16px; color:#1f2937; }
+    .cl-meta { font-size:13px; color:#555; line-height:1.5; margin:4px 0 10px; }
+    .cl-x { width:100%; background:#fdf3f1; color:#c2410c; border:1px solid #f0c8c2; }
+    .cl-x:disabled { opacity:.6; }
+    .cl-note { font-size:11.5px; color:#aab; margin:8px 4px; line-height:1.5; }
     .soon-box { text-align:center; padding:48px 16px; color:#666; }
     .soon-box .done-icon { font-size:46px; }
 
@@ -212,16 +223,11 @@
   <button class="btn btn-p" id="backBtn" onclick="backToTalk()" style="display:inline-block;margin-top:28px;padding-left:40px;padding-right:40px;">LINEのトークに戻る</button>
 </div>
 
-<!-- キャンセル／同意書は今回の対象外。GASを呼ばず「準備中」案内のみ表示する。 -->
+<!-- キャンセル(s-cancel)は実装済み（中身はJSが描画）。同意書(s-consent)はまだ準備中案内のみ。 -->
 <div id="s-cancel">
   <div class="app-hd"><h1>ご予約のキャンセル</h1></div>
   <div class="step-wrap">
-    <div class="soon-box">
-      <div class="done-icon">🛠️</div>
-      <div class="done-title">ただいま準備中です</div>
-      <div class="done-msg">キャンセル・日時変更は、お手数ですが公式LINEのトーク画面からご連絡ください。</div>
-      <button class="btn btn-p" onclick="backToTalk()" style="display:inline-block;margin-top:24px;padding-left:36px;padding-right:36px;">LINEのトークに戻る</button>
-    </div>
+    <div id="cancelBody"><div class="cl-loading">ご予約を確認しています…</div></div>
   </div>
 </div>
 
@@ -265,7 +271,7 @@ function getQueryParam(name){
   return null;
 }
 var STORE = getQueryParam('store') || 'kurume'; // 店舗slug（既定 kurume）。当面 STORE_ID は久留米店固定。
-var MODE  = getQueryParam('mode')  || 'book';   // 'book'（予約）/ 'cancel' / 'consent'（後二者は準備中表示のみ）
+var MODE  = getQueryParam('mode')  || 'book';   // 'book'（予約）/ 'cancel'（実装済み）/ 'consent'（準備中）
 var REF   = getQueryParam('ref')   || '';       // 流入元タグ（集客：?ref= で来た予約に記録）
 
 // コース選択はイベント委譲（data-* から取得）。onclick に名前を文字列連結しない＝XSS/壊れ防止。
@@ -883,7 +889,7 @@ function updHeader(){
 }
 function showWizardIfReady(){
   if(wizardShown) return;
-  // 同意書・キャンセルは今回対象外＝準備中画面を出す（データ取得を待たない）。
+  // 同意書は準備中画面。キャンセルは画面を出し、UID確定後(profileDone)に loadCancelList で一覧取得。
   if(MODE==='consent'){ wizardShown=true; showScr('s-consent'); return; }
   if(MODE==='cancel'){  wizardShown=true; showScr('s-cancel');  return; }
   // 予約モードはオプション（メニュー・担当）が必須。
@@ -895,7 +901,70 @@ function showWizardIfReady(){
   }
   st.options=bootOpt; wizardShown=true; updHeader(); showScr('s-wizard'); render();
 }
-function profileDone(){ bootProfDone=true; updHeader(); showWizardIfReady(); }
+function profileDone(){ bootProfDone=true; updHeader(); showWizardIfReady();
+  if(MODE==='cancel') loadCancelList();   // ★LINE UID 確定後に「自分の予約一覧」を取得
+}
+
+// ===== お客様によるキャンセル（公開キャンセルRPC my_reservations / cancel_my_reservation）=====
+function clDtText(iso){
+  var d=new Date(iso); if(isNaN(d.getTime())) return '';
+  var w=['日','月','火','水','木','金','土'][d.getDay()];
+  return (d.getMonth()+1)+'月'+d.getDate()+'日（'+w+'）'+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+}
+function loadCancelList(){
+  var body=document.getElementById('cancelBody'); if(!body) return;
+  if(!st.uid){
+    // LINE外（ブラウザ）ではお客様を特定できない＝LINEから開いてもらう案内
+    body.innerHTML='<div class="soon-box"><div class="done-icon">📱</div><div class="done-title">LINEから開いてください</div><div class="done-msg">ご予約のキャンセルは、公式LINEのトーク画面（予約メニュー）から開いてご利用ください。</div></div>';
+    return;
+  }
+  body.innerHTML='<div class="cl-loading">ご予約を確認しています…</div>';
+  sbRpc('my_reservations',{p_line_uid:st.uid, p_tenant:TENANT_ID}).then(function(r){
+    // 取得失敗（HTTPエラー/RPC例外）と「予約ゼロ件」を区別する
+    if(!r||!r.ok||!Array.isArray(r.data)){ body.innerHTML='<div class="msg-err" style="margin:24px">ご予約の取得に失敗しました。時間をおいて再度お試しください。</div>'; return; }
+    renderCancelList(r.data);
+  }).catch(function(){ body.innerHTML='<div class="msg-err" style="margin:24px">ご予約の取得に失敗しました。電波の良い場所で再度お試しください。</div>'; });
+}
+function renderCancelList(rows){
+  var body=document.getElementById('cancelBody'); if(!body) return;
+  if(!rows.length){
+    body.innerHTML='<div class="soon-box"><div class="done-icon">🗓️</div><div class="done-title">キャンセルできるご予約はありません</div><div class="done-msg">今後のご予約が見つかりませんでした。</div><button class="btn btn-p" onclick="backToTalk()" style="display:inline-block;margin-top:24px;padding-left:36px;padding-right:36px;">LINEに戻る</button></div>';
+    return;
+  }
+  var h='<div class="cl-intro">キャンセルするご予約をお選びください。<br><span class="cl-sub">Webでのキャンセルは、ご予約の3日前まで承ります。</span></div>';
+  rows.forEach(function(r){
+    var dt=clDtText(r.start_at);
+    // ★3日前(72時間前)を過ぎた予約はキャンセルボタンを出さない（GAS版と同じ運用）
+    var action = r.cancellable
+      ? '<button class="btn cl-x" data-rid="'+esc(r.id)+'" data-dt="'+esc(dt)+'">このご予約をキャンセル</button>'
+      : '<div class="cl-late">ご予約3日前を過ぎているため、Webからのキャンセルはできません。お手数ですが公式LINEのトークからご連絡ください。</div>';
+    h+='<div class="cl-card"><div class="cl-dt">'+esc(dt)+'</div>'
+      +'<div class="cl-meta">'+esc(r.menu_name||'—')+'<br>担当：'+esc(r.artist_name||'—')+'</div>'
+      + action + '</div>';
+  });
+  h+='<div class="cl-note">※ キャンセル後の取り消しはできません。日時変更をご希望の場合は、キャンセル後にもう一度ご予約ください。</div>';
+  body.innerHTML=h;
+}
+function showCancelDone(dt){
+  var body=document.getElementById('cancelBody'); if(!body) return;
+  body.innerHTML='<div class="soon-box"><div class="done-icon">✅</div><div class="done-title">キャンセルを承りました</div><div class="done-msg">'+esc(dt||'')+' のご予約をキャンセルしました。<br>またのご予約をお待ちしております。</div><button class="btn btn-p" onclick="backToTalk()" style="display:inline-block;margin-top:24px;padding-left:36px;padding-right:36px;">LINEに戻る</button></div>';
+}
+// キャンセルボタン（イベント委譲・data-* から取得＝注入対策）
+document.addEventListener('click', function(e){
+  var b=(e.target&&e.target.closest)?e.target.closest('.cl-x'):null;
+  if(!b) return;
+  var rid=b.getAttribute('data-rid'), dt=b.getAttribute('data-dt');
+  if(!window.confirm((dt||'このご予約')+' をキャンセルします。よろしいですか？')) return;
+  b.disabled=true; b.textContent='キャンセル中…';
+  sbRpc('cancel_my_reservation',{p_line_uid:st.uid, p_resv:rid, p_tenant:TENANT_ID}).then(function(r){
+    if(r&&r.ok){ showCancelDone(dt); return; }
+    b.disabled=false; b.textContent='このご予約をキャンセル';
+    var msg=(r&&r.data&&r.data.message)||'';
+    if(/too_late/.test(msg)) window.alert('ご予約時間が近い／過ぎているため、Web上ではキャンセルできません。お手数ですが公式LINEのトークからご連絡ください。');
+    else if(/already_cancelled/.test(msg)){ window.alert('このご予約はすでにキャンセル済みです。'); loadCancelList(); }
+    else window.alert('キャンセルできませんでした。お手数ですが公式LINEのトークからご連絡ください。');
+  }).catch(function(){ b.disabled=false; b.textContent='このご予約をキャンセル'; window.alert('通信エラーが発生しました。'); });
+});
 
 // ===== Supabase からマスタ＋店舗設定を取得し、GAS版 options 互換の形へ組み立て =====
 // 互換キー：options = { nurses:[{nurse_id,name,is_active,profile_photo_url}],
@@ -976,10 +1045,10 @@ function initLiff(){
 }
 
 (function boot(){
-  // 予約モードのみマスタ取得（キャンセル・同意書は準備中画面なので不要）。
+  // 予約モードのみマスタ取得（キャンセルは自分の予約一覧をUID確定後に取得・同意書は準備中）。
   if(MODE==='book') loadOptions();
   initLiff();
-  // キャンセル・同意書モードは即「準備中」を表示。
+  // 予約以外（キャンセル/同意書）は即この画面を表示（キャンセルは続いてUID確定後に一覧取得）。
   if(MODE!=='book') showWizardIfReady();
 })();
 </script>
