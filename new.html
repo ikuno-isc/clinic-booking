@@ -331,8 +331,10 @@ function sbRpc(fn, args){
 var EDGE_LIFF = SB_URL + "/functions/v1/super-api";
 function sbEdge(action, args){
   var body = Object.assign({ action: action, id_token: (st.idToken||'') }, args||{});
+  // ★apikey/Authorization(anonキー)も送る＝Edge FunctionのVerify JWTがON/OFFどちらでも通る。
+  //   本人確認はあくまでサーバ側のLINE IDトークン検証で担保（anonキーは公開前提・ゲート通過用）。
   return fetch(EDGE_LIFF, {
-    method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(body)
+    method:"POST", headers: Object.assign({ "Content-Type":"application/json" }, H), body: JSON.stringify(body)
   }).then(function(r){
     return r.json().then(function(j){
       return { ok: !!(j && j.ok), status:r.status, data:(j ? j.data : null) };
