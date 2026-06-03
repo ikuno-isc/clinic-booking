@@ -323,10 +323,25 @@ function sbRpc(fn, args){
     method:"POST", headers: Object.assign({ "Content-Type":"application/json" }, H), body: JSON.stringify(args||{})
   }).then(function(r){ return r.json().then(function(j){ return { ok:r.ok, status:r.status, data:j }; }, function(){ return { ok:r.ok, status:r.status, data:null }; }); });
 }
+// ===== 本人確認つき操作（#92）：キャンセル・同意書は Edge Function(liff-action) 経由 =====
+// LINEのIDトークン(st.idToken)を送り、サーバー側でLINEに照合→確認できた本人だけが実行できる。
+// 戻り値は sbRpc と同じ { ok, status, data } 形（失敗時 data.message にエラー種別）。
+// ※Supabase上の関数スラッグは super-api（表示名は liff-action）。エンドポイントはスラッグ側を使う。
+var EDGE_LIFF = SB_URL + "/functions/v1/super-api";
+function sbEdge(action, args){
+  var body = Object.assign({ action: action, id_token: (st.idToken||'') }, args||{});
+  return fetch(EDGE_LIFF, {
+    method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(body)
+  }).then(function(r){
+    return r.json().then(function(j){
+      return { ok: !!(j && j.ok), status:r.status, data:(j ? j.data : null) };
+    }, function(){ return { ok:false, status:r.status, data:null }; });
+  });
+}
 
 // ===== 状態 =====
 var st = {
-  step:1, uid:'', displayName:'', options:null,
+  step:1, uid:'', displayName:'', idToken:'', options:null,
   openArtist:null,
   nurseId:null, nurseName:null,
   menuId:null,  menuName:null,  menuPrice:null, menuDur:null, menuType:'new',
@@ -939,13 +954,13 @@ function clDtText(iso){
 }
 function loadCancelList(){
   var body=document.getElementById('cancelBody'); if(!body) return;
-  if(!st.uid){
-    // LINE外（ブラウザ）ではお客様を特定できない＝LINEから開いてもらう案内
+  if(!st.idToken){
+    // LINE外（ブラウザ）／本人確認トークン未取得＝LINEから開いてもらう案内（#92）
     body.innerHTML='<div class="soon-box"><div class="done-icon">📱</div><div class="done-title">LINEから開いてください</div><div class="done-msg">ご予約のキャンセルは、公式LINEのトーク画面（予約メニュー）から開いてご利用ください。</div></div>';
     return;
   }
   body.innerHTML='<div class="cl-loading">ご予約を確認しています…</div>';
-  sbRpc('my_reservations',{p_line_uid:st.uid, p_tenant:TENANT_ID}).then(function(r){
+  sbEdge('list',{}).then(function(r){
     // 取得失敗（HTTPエラー/RPC例外）と「予約ゼロ件」を区別する
     if(!r||!r.ok||!Array.isArray(r.data)){ body.innerHTML='<div class="msg-err" style="margin:24px">ご予約の取得に失敗しました。時間をおいて再度お試しください。</div>'; return; }
     renderCancelList(r.data);
@@ -982,7 +997,7 @@ document.addEventListener('click', function(e){
   var rid=b.getAttribute('data-rid'), dt=b.getAttribute('data-dt');
   if(!window.confirm((dt||'このご予約')+' をキャンセルします。よろしいですか？')) return;
   b.disabled=true; b.textContent='キャンセル中…';
-  sbRpc('cancel_my_reservation',{p_line_uid:st.uid, p_resv:rid, p_tenant:TENANT_ID}).then(function(r){
+  sbEdge('cancel',{p_resv:rid}).then(function(r){
     if(r&&r.ok){ showCancelDone(dt); return; }
     b.disabled=false; b.textContent='このご予約をキャンセル';
     var msg=(r&&r.data&&r.data.message)||'';
@@ -1239,7 +1254,12 @@ function updateConsentSubmit(){
 // 署名送信：submit_consent RPC。成功で完了画面、失敗は日本語で再試行可能に。
 function submitConsentForm(){
   if(!csHasInk){ return; }
-  if(!st.uid){ return; }
+  if(!st.idToken){
+    // 本人確認トークンが無い（LINE外/openid未許可）→ LINEから開き直しを促す（#92）
+    var e0=document.getElementById('csSubmitErr');
+    if(e0){ e0.className='msg-err'; e0.textContent='本人確認ができませんでした。公式LINEのトーク画面から開き直してお試しください。'; }
+    return;
+  }
   var btn=document.getElementById('csSubmit');
   var err=document.getElementById('csSubmitErr');
   if(err){ err.className='cs-submit-err'; err.textContent=''; }
@@ -1249,9 +1269,7 @@ function submitConsentForm(){
   // ★送信前にサイズチェック（高DPR端末などで署名画像が大きくなりすぎる無駄な送信を防ぐ）
   if(!dataUrl || dataUrl.length > 2000000){ if(err){ err.className='msg-err'; err.textContent='署名のデータが大きすぎます。「書き直す」でやり直してから送信してください。'; } return; }
   if(btn){ btn.disabled=true; btn.textContent='送信中…'; }
-  sbRpc('submit_consent',{
-    p_line_uid: st.uid,
-    p_tenant: TENANT_ID,
+  sbEdge('consent',{
     p_customer_name: (st.displayName||''),
     p_tv_full: consentPhoto.tv_full,
     p_tv_part: consentPhoto.tv_part,
@@ -1361,6 +1379,8 @@ function initLiff(){
   try{
     liff.init({liffId:LIFF_ID}).then(function(){
       if(!liff.isLoggedIn||!liff.isLoggedIn()){ advance(); return; }
+      // ★#92：本人確認用のIDトークンを取得（openidスコープが必要）。キャンセル/同意書で使う。
+      try{ st.idToken = (liff.getIDToken && liff.getIDToken()) || ''; }catch(e){ st.idToken=''; }
       liff.getProfile().then(function(p){ applyLateProfile(p); })
                        .catch(function(){})
                        .then(advance);
