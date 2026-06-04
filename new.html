@@ -795,10 +795,12 @@ function doSub(){
     p_phone: st.phone,
     p_furigana: st.furigana,
     p_memo: memo,
-    p_ref: (REF || null)
+    p_ref: (REF || null),
+    p_coupon: (st.coupon || 'none'),
+    p_art_experience: (st.artExp || '')
   }).then(function(r){
     if(r.ok){
-      fireNotify();
+      // 通知はDBトリガ→notify-reservation が内部トークンで実行（クライアントからは送らない＝なりすまし/改ざん対策）。
       showScr('s-done');
       // ★LINEの中で開いた時だけ自動でトークへ戻す。ブラウザでは戻り先が無いので、戻るボタンも隠す。
       if(inLineClient()){ setTimeout(backToTalk,1200); }
@@ -821,11 +823,8 @@ function doSub(){
   });
 }
 function buildMemo(){
-  var lines=[];
-  if(st.memo&&st.memo.trim()) lines.push(st.memo.trim());
-  lines.push('クーポン：'+(CL[st.coupon]||st.coupon));
-  lines.push('施術経験：'+(st.artExp==='yes'?'有（他院修正の可能性）':st.artExp==='no'?'無':'未回答'));
-  return lines.join('\n');
+  // クーポン・施術経験は予約レコードの専用列(coupon/art_experience)に保存するため、ここはお客様メモのみ。
+  return (st.memo && st.memo.trim()) ? st.memo.trim() : '';
 }
 function subFail(btn,msg){
   if(btn){btn.disabled=false;btn.textContent='この内容で予約する';}
@@ -840,32 +839,8 @@ function errR(code,msg){
     return '申し訳ございません。その時間帯は満席です。お手数ですが、別の日時でお試しください。';
   return '申し訳ございません、ただいまご予約をお受けできませんでした。お手数ですがトーク画面からご連絡ください。';
 }
-// 予約確定後、LINE通知をEdge Functionに依頼（裏で実行・画面の速さは止めない）。
-function fireNotify(){
-  try{
-    var dur=(st.menuDur&&st.menuDur>0)?st.menuDur:60;
-    var endt=new Date(new Date(st.date+'T'+st.time+':00+09:00').getTime()+dur*60000);
-    var eh=p2(endt.getHours())+':'+p2(endt.getMinutes());
-    var when=st.date+' '+st.time+'〜'+eh;
-    var price=(st.menuPrice&&parseInt(st.menuPrice)>0)?('¥'+parseInt(st.menuPrice).toLocaleString()):'';
-    // ▼ スタッフグループ通知のリッチ表示用（GAS版と同じ体裁）。曜日はカレンダー日付から算出。
-    var wd=['日','月','火','水','木','金','土'][new Date(st.date+'T00:00:00Z').getUTCDay()];
-    var dateLabel=st.date.slice(0,4)+'年'+st.date.slice(5,7)+'月'+st.date.slice(8,10)+'日（'+wd+'）';
-    var timeLabel=st.time+'-'+eh;
-    var treatmentType=(st.menuName&&st.menuName.indexOf('再来')>=0)?'retouch':'new';
-    var reservationType=(st.coupon==='none')?'normal':'monitor';
-    fetch(EDGE_NOTIFY,{ method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+SB_KEY, 'apikey':SB_KEY },
-      body:JSON.stringify({
-        tenant_id:TENANT_ID, line_uid:(st.uid||''),
-        customer_name:st.custName, artist:st.nurseName, menu:st.menuName, datetime:when, price:price,
-        furigana:(st.furigana||''), phone:(st.phone||''), store_name:STORE_NAME,
-        treatment_type:treatmentType, reservation_type:reservationType,
-        coupon:(st.coupon||'none'), art_experience:(st.artExp||''),
-        memo:((st.memo||'').trim()), price_num:(st.menuPrice?parseInt(st.menuPrice):null),
-        date_label:dateLabel, time_label:timeLabel
-      }) }).catch(function(){});
-  }catch(e){}
-}
+// （旧 fireNotify は廃止）予約通知は DBトリガ → notify-reservation が内部トークンで実行する。
+// クライアントから公開キーで通知関数を叩く方式は、なりすまし/改ざん/スパムの温床のため撤去した。
 // LIFFウィンドウを閉じてLINEのトークへ戻す。LINEアプリ外（通常ブラウザ）では何も起きない。
 // LINEアプリの中で開いているか（LIFF in-client）。ブラウザでは false。
 function inLineClient(){
