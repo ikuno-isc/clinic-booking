@@ -74,15 +74,16 @@
     .c-dur { font-size:11px; color:#999; margin-top:3px; }
 
     /* ===== Artist accordion (STEP 1) ===== */
-    .art-acc { display:flex; flex-direction:column; gap:12px; }
-    .art-card { background:#fff; border:2px solid #e0e0e0; border-radius:14px; overflow:hidden; transition:border-color .15s; }
-    .art-card.open { border-color:#06c755; }
-    .art-hd { display:flex; align-items:center; gap:14px; padding:14px 16px; cursor:pointer; }
-    .art-av { width:56px; height:56px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:800; color:#fff; overflow:hidden; }
+    .art-acc { display:flex; flex-direction:column; gap:14px; max-width:600px; margin:0 auto; }
+    .art-card { background:#fff; border:2px solid #e0e0e0; border-radius:16px; overflow:hidden; transition:border-color .15s,box-shadow .15s; box-shadow:0 1px 4px rgba(0,0,0,.04); }
+    .art-card.open { border-color:#06c755; box-shadow:0 3px 12px rgba(6,199,85,.12); }
+    .art-hd { display:flex; align-items:center; gap:16px; padding:18px 18px; cursor:pointer; }
+    .art-av { width:72px; height:72px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:26px; font-weight:800; color:#fff; overflow:hidden; }
     .art-av img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
     .art-meta { flex:1; }
-    .art-nm { font-size:17px; font-weight:700; }
-    .art-pr { font-size:12px; color:#06845a; margin-top:3px; }
+    .art-nm { font-size:18px; font-weight:700; }
+    .art-spec { font-size:12.5px; color:#777; margin-top:3px; line-height:1.45; }
+    .art-pr { font-size:13px; color:#06845a; font-weight:700; margin-top:4px; }
     .art-chev { font-size:15px; color:#bbb; transition:transform .2s,color .2s; flex-shrink:0; }
     .art-card.open .art-chev { transform:rotate(180deg); color:#06c755; }
     .art-panel { border-top:1px solid #eee; padding:12px 0 14px; background:#fafafa; }
@@ -437,7 +438,9 @@ function s1(){
     var open=String(n.nurse_id)===String(st.openArtist);
     h+='<div class="art-card'+(open?' open':'')+'">';
     h+='<div class="art-hd" onclick="toggleArt(\''+esc(n.nurse_id)+'\')">';
+    var specBits=[]; if(n.qualification)specBits.push(n.qualification); if(n.specialty)specBits.push(n.specialty);
     h+=av+'<div class="art-meta"><div class="art-nm">'+esc(n.name)+'</div>';
+    if(specBits.length)h+='<div class="art-spec">'+esc(specBits.join('・'))+'</div>';
     if(minP)h+='<div class="art-pr">¥'+minP.toLocaleString()+'〜</div>';
     h+='</div><div class="art-chev">&#9660;</div></div>';
     if(open){
@@ -1332,7 +1335,7 @@ function showConsentDone(){
 //   store_name, openMin, closeMin, interval, closed }
 function loadOptions(){
   Promise.all([
-    sbGet("artists?select=id,name,is_active,profile_photo_url&store_id=eq."+STORE_ID+"&is_active=eq.true&order=name"),
+    sbGet("artists?select=id,name,is_active,profile_photo_url,qualification,specialty&store_id=eq."+STORE_ID+"&is_active=eq.true&order=name"),
     sbGet("menus?select=id,name,price_normal,price_monitor,duration_new_min,duration_retouch_min&tenant_id=eq."+TENANT_ID+"&is_active=eq.true"),
     sbGet("artist_menus?select=artist_id,menu_id,duration_new_min,duration_retouch_min&is_certified=eq.true"),
     sbGet("stores?select=name,business_hours_start,business_hours_end,slot_interval_min,closed_days&id=eq."+STORE_ID)
@@ -1347,7 +1350,8 @@ function loadOptions(){
     // 担当できるメニューだけを artist_menus で絞る（poc/index.html boot() と同じ考え方）。
     // 施術時間は artist_menus の duration を優先。
     var nurses=artists.map(function(a){
-      return { nurse_id:a.id, name:a.name, is_active:a.is_active, profile_photo_url:a.profile_photo_url||'' };
+      return { nurse_id:a.id, name:a.name, is_active:a.is_active, profile_photo_url:a.profile_photo_url||'',
+               qualification:a.qualification||'', specialty:a.specialty||'' };
     });
     var menusC=menus.map(function(m){
       return { menu_id:m.id, menu_name:m.name, normal_price:m.price_normal, monitor_price:m.price_monitor,
