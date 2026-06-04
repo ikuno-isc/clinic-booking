@@ -274,6 +274,83 @@
 .set-ex-off input{width:auto}
 .set-ex-x{padding:6px 10px;border:none;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;background:#eef2f1;color:#557}
 
+/* ===== setup タブ CSS ===== */
+#setupView{max-width:760px;margin:0 auto;padding:12px}
+.setup-head{background:#fff;border:1px solid #d7e6e3;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.setup-title{font-size:16px;font-weight:800;color:#0b5c55;margin:0 0 8px}
+.setup-summary{display:grid;grid-template-columns:1fr;gap:6px;margin-top:8px}
+.setup-kv{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #f0f0f0;padding:6px 0;font-size:13px}
+.setup-kv:last-child{border-bottom:none}
+.setup-kv span:first-child{color:#666;flex:0 0 auto}
+.setup-kv span:last-child{text-align:right;font-weight:800;color:#1f2937}
+.setup-ready-ng{color:#c2410c!important}
+.setup-ready-ok{color:#15803d!important}
+.setup-tenant-select{display:none;margin-top:10px}
+.setup-tenant-select label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
+.setup-tenant-select select{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid #cdd6d4;border-radius:9px;background:#fff;font-size:14px;color:#1f2937}
+.setup-next{background:#ecfdf5;border:1px solid #bbf7d0;border-radius:10px;padding:10px 12px;color:#065f46;font-size:13px;font-weight:800;line-height:1.5;margin-top:10px}
+.setup-section{background:#fff;border:1px solid #e6eceb;border-radius:12px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.04);overflow:hidden}
+.setup-step{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-bottom:1px solid #f0f0f0}
+.setup-step:last-child{border-bottom:none}
+.setup-num{flex:0 0 30px;height:30px;border-radius:50%;display:grid;place-items:center;background:#eef2f1;color:#0b5c55;font-weight:800;font-size:13px}
+.setup-main{flex:1;min-width:0}
+.setup-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:3px}
+.setup-name{font-size:14px;font-weight:800;color:#1f2937}
+.setup-badge{flex:0 0 auto;font-size:11px;font-weight:800;border-radius:999px;padding:2px 8px}
+.setup-badge.todo{background:#f1f5f9;color:#64748b}
+.setup-badge.doing{background:#fef3c7;color:#92400e}
+.setup-badge.check{background:#e0f2fe;color:#0369a1}
+.setup-badge.done{background:#dcfce7;color:#15803d}
+.setup-badge.err{background:#fee2e2;color:#b91c1c}
+.setup-desc{font-size:12.5px;color:#666;line-height:1.5}
+.setup-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 14px 14px}
+.setup-link{display:inline-block;border:1px solid #cfe0dd;background:#f2f8f7;color:#0b5c55;border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:800;text-decoration:none}
+.setup-note{font-size:11.5px;color:#9ca3af;line-height:1.6;margin:10px 4px 0}
+
+/* ===== steps タブ CSS（接頭辞 .stp- 専用。他タブと非衝突）===== */
+#stepsView{max-width:760px;margin:0 auto;padding:12px}
+#stepsView h3{font-size:14px;font-weight:800;color:#0b5c55;margin:14px 4px 8px}
+.stp-note{font-size:12px;color:#6b7280;line-height:1.7;background:#f0f7f5;border:1px solid #d6e8e3;border-radius:10px;padding:10px 12px;margin:0 4px 12px}
+.stp-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 4px 12px}
+.stp-card{background:#fff;border:1px solid #e6eceb;border-radius:12px;padding:12px 14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.stp-card.active{border-color:#0b5c55;box-shadow:0 2px 10px rgba(11,92,85,.12)}
+.stp-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.stp-name{font-size:14.5px;font-weight:800;color:#1f2937;flex:1;min-width:120px}
+.stp-badge{font-size:11px;font-weight:700;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.stp-badge.on{background:#dcfce7;color:#15803d}
+.stp-badge.off{background:#f3f4f6;color:#9ca3af}
+.stp-badge.trg{background:#eef2ff;color:#4338ca}
+.stp-meta{font-size:11.5px;color:#9ca3af;margin-top:4px}
+.stp-btn{border:none;border-radius:9px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer}
+.stp-btn.primary{background:#0b5c55;color:#fff}
+.stp-btn.ghost{background:#fff;color:#0b5c55;border:1px solid #cfe0dc}
+.stp-btn.danger{background:#fff;color:#c2410c;border:1px solid #f0c8b4}
+.stp-btn.sm{padding:6px 10px;font-size:12px}
+.stp-btn:disabled{opacity:.5;cursor:default}
+.stp-toggle{cursor:pointer;user-select:none;font-size:12px;font-weight:700;color:#0b5c55}
+.stp-editor{margin-top:12px;border-top:1px dashed #e2e8e6;padding-top:12px}
+.stp-field{margin:8px 0}
+.stp-field>label{display:block;font-size:12px;font-weight:700;color:#475569;margin-bottom:4px}
+.stp-field input[type=text],.stp-field select{width:100%;box-sizing:border-box;padding:9px;border:1px solid #d1d5db;border-radius:9px;font-size:14px}
+.stp-grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stp-msgcard{background:#fafafa;border:1px solid #eceeed;border-radius:10px;padding:10px 12px;margin:8px 0}
+.stp-msghead{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.stp-msgno{width:22px;height:22px;border-radius:50%;background:#0b5c55;color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.stp-delay{display:flex;align-items:center;gap:5px;font-size:12px;color:#475569}
+.stp-delay input{width:54px;padding:5px;border:1px solid #d1d5db;border-radius:7px;font-size:13px;text-align:center}
+.stp-msgcard textarea{width:100%;box-sizing:border-box;min-height:74px;padding:9px;border:1px solid #d1d5db;border-radius:9px;font-size:14px;line-height:1.6;resize:vertical;font-family:inherit}
+.stp-thumbs{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.stp-thumb{position:relative;width:60px;height:60px;border-radius:8px;overflow:hidden;border:1px solid #e2e8e6}
+.stp-thumb img{width:100%;height:100%;object-fit:cover}
+.stp-thumb button{position:absolute;top:1px;right:1px;width:18px;height:18px;border:none;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:12px;line-height:1;cursor:pointer;padding:0}
+.stp-msgactions{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.stp-msg-line{font-size:12px;min-height:16px;margin:4px 4px 0}
+.stp-msg-line.ok{color:#15803d}
+.stp-msg-line.ng{color:#c2410c}
+.stp-enroll{margin-top:14px;border-top:1px dashed #e2e8e6;padding-top:10px}
+.stp-enroll .stp-row{gap:6px}
+.stp-enroll input{flex:1;min-width:140px;padding:8px;border:1px solid #d1d5db;border-radius:9px;font-size:13px}
+
 /* ===== acq タブ CSS ===== */
 /* ===== 集客（流入経路）タブ（接頭辞 .acq- 専用。既存 .resv-/.rev-/.rtab/.rcard/.mb-/.rbtn と非衝突）=====
    元 src/admin.html #acqView を忠実に移植。owner/admin 専用タブ。 */
@@ -381,7 +458,9 @@
     <button data-v="dash"   onclick="showDashboard(this)">📊 経営</button>
     <button data-v="review" onclick="showReviews(this)">⭐ 口コミ</button>
     <button data-v="acq"    class="nav-mgr" style="display:none" onclick="showAcq(this)">📣 集客</button>
+    <button data-v="steps"  class="nav-mgr" style="display:none" onclick="showSteps(this)">📨 ステップ配信</button>
     <button data-v="users"  class="nav-mgr" style="display:none" onclick="showUsers(this)">👥 ユーザー管理</button>
+    <button data-v="setup"  class="nav-mgr" style="display:none" onclick="showSetup(this)">🧭 セットアップ</button>
     <button data-v="set"    onclick="showSettings(this)">⚙️ 設定</button>
   </nav>
 
@@ -569,6 +648,49 @@
   <div id="acqStats"><div class="placeholder">読み込み中…</div></div>
 </div>
 
+  <!-- ============================================================================
+       ステップ配信タブ（接頭辞 .stp- 専用）— owner/admin 専用
+       友だち追加などをきっかけに順番にメッセージを自動配信。予約で自動停止（patch-14）。
+       Edge Function manage-steps（staff認証・service_role）でCRUD。画像は Storage(step-images)。
+       ============================================================================ -->
+<div id="stepsView" style="display:none">
+  <div class="stp-note">
+    友だち追加をきっかけに、決めた順番でメッセージを自動配信します。各メッセージに<b>画像も添付</b>でき、
+    <b>予約が入ったら自動で停止</b>します（追わない＝ブロック対策）。配信は朝〜夜の時間帯のみ。
+  </div>
+  <div class="stp-toolbar">
+    <button type="button" class="stp-btn primary" onclick="stpNewScenario()">＋ 新しいシナリオ</button>
+    <button type="button" class="stp-btn ghost" onclick="stpReload()">🔄 更新</button>
+  </div>
+  <div class="stp-msg-line" id="stpTopMsg"></div>
+  <div id="stpList"><div class="placeholder">読み込み中…</div></div>
+</div>
+
+  <!-- ===== setup ===== -->
+<div id="setupView" style="display:none">
+  <div class="setup-head">
+    <div class="setup-title" id="setupTitle">セットアップ</div>
+    <div class="setup-summary">
+      <div class="setup-kv"><span>状態</span><span id="setupState">未完了</span></div>
+      <div class="setup-kv"><span>本番開始</span><span class="setup-ready-ng" id="setupReady">まだ不可</span></div>
+      <div class="setup-kv"><span>対象</span><span id="setupTarget">読み込み中</span></div>
+    </div>
+    <div class="setup-tenant-select" id="setupTenantSelectWrap">
+      <label for="setupTenantSelect">対象テナント</label>
+      <select id="setupTenantSelect" onchange="loadSetupStatus(this.value)"></select>
+    </div>
+    <div class="setup-next" id="setupNext">次にやること: セットアップ状況を確認してください</div>
+    <div class="setup-note" id="setupNote">この画面はMVPの初期表示です。現時点では保存・送信・本番反映は行いません。</div>
+  </div>
+
+  <div class="setup-section" id="setupSteps"></div>
+
+  <div class="setup-actions">
+    <a class="setup-link" href="https://developers.line.biz/console/" target="_blank" rel="noopener">LINE Developersを開く</a>
+    <a class="setup-link" href="https://calendar.google.com/" target="_blank" rel="noopener">Googleカレンダーを開く</a>
+  </div>
+</div>
+
   <!-- ===== users ===== -->
 <!-- ============================================================================
      ユーザー管理タブ（Supabase版）HTML — owner/admin 専用
@@ -696,10 +818,187 @@ function sbDelete(table, filter){
 }
 
 // ===== ビュー切替（全タブ共通）=====
-function hideAllViews(){ ["resvView","custView","dashView","reviewView","setView","acqView","usersView"].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display="none"; }); }
+function hideAllViews(){ ["resvView","custView","dashView","reviewView","setView","acqView","stepsView","setupView","usersView"].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display="none"; }); }
 function setActiveNav(el){ var bs=document.querySelectorAll("#nav button"); for(var i=0;i<bs.length;i++) bs[i].classList.toggle("active", bs[i]===el); }
 // owner/admin のときだけ「📣集客」「👥ユーザー管理」ナビを出す（IS_MANAGER は initResvStoreBar が設定）
 function applyManagerNav(){ var bs=document.querySelectorAll(".nav-mgr"); for(var i=0;i<bs.length;i++) bs[i].style.display = window.IS_MANAGER ? "" : "none"; }
+
+function showSetup(el){
+  if (typeof hideAllViews === 'function') hideAllViews();
+  if (el && typeof setActiveNav === 'function') setActiveNav(el);
+  var v = document.getElementById("setupView");
+  if (v) v.style.display = "";
+  renderSetupSteps(setupDefaultStatus());
+  loadSetupStatus();
+  if (typeof window !== "undefined") window.scrollTo({ top:0, behavior:"smooth" });
+}
+
+function setupDefaultStatus(){
+  return {
+    tenant_name: "",
+    store_name: "",
+    current_step: "tenant",
+    tenant_done: false,
+    store_done: false,
+    line_done: false,
+    liff_done: false,
+    calendar_done: false,
+    staff_done: false,
+    menu_done: false,
+    test_done: false,
+    production_ready: false,
+    last_error: ""
+  };
+}
+
+function setupStepRows(status){
+  status = status || setupDefaultStatus();
+  var defs = [
+    { key:"tenant", field:"tenant_done", name:"テナント作成", desc:"tenant_id / store_id を作る準備です。" },
+    { key:"store", field:"store_done", name:"店舗情報", desc:"住所、営業時間、予約間隔、席数、休業日を設定します。" },
+    { key:"line", field:"line_done", name:"LINE接続", desc:"Webhook URL、チャネルシークレット、アクセストークン、通知先を設定します。" },
+    { key:"liff", field:"liff_done", name:"LIFF接続", desc:"予約、問診、同意書のLIFF URLを設定します。" },
+    { key:"calendar", field:"calendar_done", name:"Googleカレンダー", desc:"店舗専用カレンダーIDを設定します。" },
+    { key:"staff", field:"staff_done", name:"スタッフ", desc:"ユーザー管理タブで、管理者とスタッフを登録します。" },
+    { key:"menu", field:"menu_done", name:"メニュー/アーティスト", desc:"設定タブで、予約に出すメニューと担当者を登録します。" },
+    { key:"test", field:"test_done", name:"テスト", desc:"LINE送信、予約ページ、カレンダー、問診、同意書を確認します。" },
+    { key:"production", field:"production_ready", name:"本番開始チェック", desc:"必須項目がすべて完了した時だけ、本番開始可能にします。" }
+  ];
+  return defs.map(function(d){
+    var done = !!status[d.field];
+    var current = status.current_step === d.key;
+    var row = {
+      name: d.name,
+      desc: d.desc,
+      status: done ? "完了" : (current ? "入力中" : "未着手"),
+      cls: done ? "done" : (current ? "doing" : "todo")
+    };
+    if (!done && (d.key === "staff" || d.key === "menu")) {
+      row.status = current ? "入力中" : "要確認";
+      row.cls = current ? "doing" : "check";
+    }
+    if (status.last_error && current) {
+      row.status = "エラー";
+      row.cls = "err";
+    }
+    return row;
+  });
+}
+
+function setupNextLabel(status){
+  var rows = setupStepRows(status);
+  for (var i=0; i<rows.length; i++) {
+    if (rows[i].status !== "完了") return rows[i].name;
+  }
+  return "最終確認";
+}
+
+function renderSetupSummary(status, fromDb){
+  status = status || setupDefaultStatus();
+  var title = document.getElementById("setupTitle");
+  var state = document.getElementById("setupState");
+  var ready = document.getElementById("setupReady");
+  var target = document.getElementById("setupTarget");
+  var next = document.getElementById("setupNext");
+  var note = document.getElementById("setupNote");
+  var label = status.store_name || status.tenant_name || "";
+  if (title) title.textContent = label ? (label + "セットアップ") : "セットアップ";
+  if (state) state.textContent = status.production_ready ? "完了" : "未完了";
+  if (ready) {
+    ready.textContent = status.production_ready ? "可能" : "まだ不可";
+    ready.className = status.production_ready ? "setup-ready-ok" : "setup-ready-ng";
+  }
+  if (target) target.textContent = status.tenant_name ? status.tenant_name : "未選択";
+  if (next) {
+    next.textContent = status.production_ready
+      ? "次にやること: 本番案内前の最終確認をしてください"
+      : "次にやること: " + setupNextLabel(status) + "を進めてください";
+  }
+  if (note) {
+    note.textContent = fromDb
+      ? "セットアップ進捗をDBから読み込みました。送信・本番反映はこの画面だけでは実行しません。"
+      : "この画面はMVPの初期表示です。現時点では保存・送信・本番反映は行いません。";
+  }
+}
+
+function renderSetupSteps(status){
+  var box = document.getElementById("setupSteps");
+  if (!box) return;
+  status = status || setupDefaultStatus();
+  renderSetupSummary(status, !!status._fromDb);
+  var steps = setupStepRows(status);
+  box.innerHTML = steps.map(function(s, i){
+    return '<div class="setup-step">'
+      + '<div class="setup-num">' + esc(i + 1) + '</div>'
+      + '<div class="setup-main">'
+        + '<div class="setup-row">'
+          + '<div class="setup-name">' + esc(s.name) + '</div>'
+          + '<span class="setup-badge ' + esc(s.cls) + '">' + esc(s.status) + '</span>'
+        + '</div>'
+        + '<div class="setup-desc">' + esc(s.desc) + '</div>'
+      + '</div>'
+    + '</div>';
+  }).join("");
+}
+
+var SETUP_STATUS_ROWS = [];
+
+function setupPickDefaultTenant(rows, selectedTenant){
+  rows = Array.isArray(rows) ? rows : [];
+  if (selectedTenant) return selectedTenant;
+  var current = document.getElementById("setupTenantSelect");
+  if (current && current.value) return current.value;
+  for (var i=0; i<rows.length; i++) {
+    if (rows[i] && (rows[i].store_name === "小倉店" || rows[i].store_code === "kokura")) return rows[i].tenant_id;
+  }
+  return rows[0] ? rows[0].tenant_id : "";
+}
+
+function renderSetupTenantSelect(rows, selectedTenant){
+  var wrap = document.getElementById("setupTenantSelectWrap");
+  var sel = document.getElementById("setupTenantSelect");
+  if (!wrap || !sel) return;
+  rows = Array.isArray(rows) ? rows : [];
+  if (rows.length <= 1) {
+    wrap.style.display = "none";
+    sel.innerHTML = "";
+    return;
+  }
+  wrap.style.display = "";
+  sel.innerHTML = rows.map(function(r){
+    var label = (r.store_name || r.tenant_name || r.tenant_id || "未選択");
+    var selected = r.tenant_id === selectedTenant ? " selected" : "";
+    return '<option value="' + esc(r.tenant_id) + '"' + selected + '>' + esc(label) + '</option>';
+  }).join("");
+}
+
+function loadSetupStatus(selectedTenant){
+  if (typeof sbRpc !== "function" || !TOKEN) return;
+  sbRpc("list_tenant_setup_status", {})
+    .then(function(rows){
+      rows = Array.isArray(rows) ? rows : [];
+      SETUP_STATUS_ROWS = rows;
+      var tenantId = setupPickDefaultTenant(rows, selectedTenant);
+      renderSetupTenantSelect(rows, tenantId);
+      var row = null;
+      for (var i=0; i<rows.length; i++) {
+        if (rows[i] && rows[i].tenant_id === tenantId) { row = rows[i]; break; }
+      }
+      if (!row) return;
+      row._fromDb = true;
+      renderSetupSteps(row);
+    })
+    .catch(function(){
+      sbRpc("get_tenant_setup_status", selectedTenant ? { p_tenant: selectedTenant } : {})
+        .then(function(rows){
+          var row = Array.isArray(rows) ? rows[0] : null;
+          if (!row) return;
+          row._fromDb = true;
+          renderSetupSteps(row);
+        })
+        .catch(function(){ renderSetupSteps(setupDefaultStatus()); });
+    });
+}
 
 // ===== ログイン画面の再表示（各タブのエラーフックから呼ばれる）=====
 function showLogin(msg){ var ov=document.getElementById("login"); if(ov) ov.style.display="flex"; var e=document.getElementById("lerr"); if(e&&msg) e.textContent=msg; }
@@ -1152,10 +1451,15 @@ function mbReason(r){
 /* オーナー/管理者なら店舗バーを表示（current_staff で role を確認）。staff は1店固定なので隠す。
    showReservations の前後で1回呼べばよい。 */
 function initResvStoreBar(){
-  sbRpc('current_staff', {}).then(function(rows){
+  Promise.all([
+    sbRpc('current_staff', {}).catch(function(){ return []; }),
+    sbRpc('is_platform_admin', {}).catch(function(){ return false; })
+  ]).then(function(results){
+    var rows = results[0] || [];
+    var isPlatformAdmin = results[1] === true;
     var me = (rows && rows[0]) || null;
     // ★owner/admin か＝全タブ共通の編集権限フラグ（顧客カルテ等が参照）。
-    window.IS_MANAGER = !!(me && (me.role === 'owner' || me.role === 'admin'));
+    window.IS_MANAGER = isPlatformAdmin || !!(me && (me.role === 'owner' || me.role === 'admin'));
     if (typeof applyManagerNav === 'function') applyManagerNav();   // 集客/ユーザー管理ナビの出し分け
     var bar = document.getElementById('resvStoreBar');
     if (!bar) return;
@@ -2984,6 +3288,304 @@ function showAcq(el){
   if(nav) nav.addEventListener('click', onNavClick);
   else document.addEventListener('click', onNavClick);
 })();
+
+/* ============================================================================
+   ステップ配信タブ JS（owner/admin 専用）。Edge Function manage-steps を呼ぶ。
+   ・状態：STP.scenarios/STP.messages（一覧）／STP.editing（編集中id）／STP.draft（編集下書き）
+   ・delay は画面では「○日○時間後」、保存時に分(delay_minutes)へ換算。
+   ・画像は Supabase Storage(step-images・公開バケット)へ直アップロード→公開URLを image_urls に保存。
+   ============================================================================ */
+var STP = { scenarios: [], messages: [], editing: null, draft: null };
+var STP_TRG = { friend_add:'友だち追加', reservation:'予約', manual:'手動' };
+
+function stpTopMsg(t, ok){
+  var el = document.getElementById('stpTopMsg'); if(!el) return;
+  el.textContent = t || '';
+  el.className = 'stp-msg-line' + (t ? (ok ? ' ok' : ' ng') : '');
+}
+function stpReason(r){
+  r = String(r||'');
+  if(/forbidden_manager|forbidden/i.test(r)) return 'オーナー／管理者のみ利用できます';
+  if(/no_auth|invalid_token|401|JWT|expired/i.test(r)) return 'もう一度ログインしてください';
+  return r || '処理に失敗しました';
+}
+/* manage-steps 呼び出し（staff の access_token 認証）。 */
+function stpCall(action, extra){
+  if(!TOKEN){ if(typeof showLogin==='function') showLogin('もう一度ログインしてください。'); return Promise.resolve({ok:false,reason:'no_auth'}); }
+  var body = Object.assign({ action: action }, extra||{});
+  return fetch(SB_URL + '/functions/v1/manage-steps', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'apikey':SB_KEY, 'Authorization':'Bearer '+TOKEN },
+    body: JSON.stringify(body)
+  }).then(function(r){ return r.json().catch(function(){ return {ok:false,reason:'bad_json'}; }); })
+    .catch(function(e){ return {ok:false,reason:String(e)}; });
+}
+
+function showSteps(el){
+  hideAllViews();
+  if(el && typeof setActiveNav==='function') setActiveNav(el);
+  var v = document.getElementById('stepsView'); if(v) v.style.display='';
+  stpTopMsg('');
+  stpReload();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+/* 他タブのナビが押されたら stepsView を隠す自己完結ガード（acq と同じ二重ガード）。 */
+(function bindStpNavHide(){
+  function onNavClick(e){
+    var btn = e.target.closest('#nav button'); if(!btn) return;
+    if(/showSteps/.test(btn.getAttribute('onclick')||'')) return;
+    var v=document.getElementById('stepsView'); if(v) v.style.display='none';
+  }
+  var nav=document.getElementById('nav'); if(nav) nav.addEventListener('click', onNavClick);
+})();
+
+/* ───────── 一覧の読み込み・描画 ───────── */
+function stpReload(){
+  var list=document.getElementById('stpList');
+  if(list) list.innerHTML='<div class="placeholder">読み込み中…</div>';
+  return stpCall('scenario_list', {}).then(function(d){
+    if(!d.ok){ stpTopMsg(stpReason(d.reason), false); if(list) list.innerHTML=''; return; }
+    STP.scenarios = Array.isArray(d.scenarios)?d.scenarios:[];
+    STP.messages  = Array.isArray(d.messages)?d.messages:[];
+    stpRenderList();
+  });
+}
+function stpMessagesOf(sid){
+  return STP.messages.filter(function(m){ return m.scenario_id===sid; })
+    .sort(function(a,b){ return (a.order_number||0)-(b.order_number||0); });
+}
+function stpRenderList(){
+  var list=document.getElementById('stpList'); if(!list) return;
+  if(!STP.scenarios.length){
+    list.innerHTML='<div class="placeholder">まだシナリオがありません。「＋ 新しいシナリオ」から作成してください。</div>';
+    return;
+  }
+  list.innerHTML='';
+  STP.scenarios.forEach(function(s){
+    var msgs=stpMessagesOf(s.id);
+    var card=document.createElement('div');
+    card.className='stp-card'+(STP.editing===s.id?' active':'');
+    var head=document.createElement('div'); head.className='stp-row';
+    var nm=document.createElement('span'); nm.className='stp-name'; nm.textContent=s.name||'(無題)'; head.appendChild(nm);
+    var tg=document.createElement('span'); tg.className='stp-badge trg'; tg.textContent=STP_TRG[s.trigger_type]||s.trigger_type; head.appendChild(tg);
+    var st=document.createElement('span'); st.className='stp-badge '+(s.is_active?'on':'off'); st.textContent=s.is_active?'配信中':'停止中'; head.appendChild(st);
+    card.appendChild(head);
+    var meta=document.createElement('div'); meta.className='stp-meta';
+    meta.textContent=msgs.length+'通 ・ 配信時間 '+(s.send_hour_from||9)+'〜'+(s.send_hour_to||21)+'時';
+    card.appendChild(meta);
+    var acts=document.createElement('div'); acts.className='stp-row'; acts.style.marginTop='10px';
+    var bEdit=document.createElement('button'); bEdit.className='stp-btn ghost sm'; bEdit.textContent=(STP.editing===s.id?'閉じる':'編集');
+    bEdit.onclick=function(){ if(STP.editing===s.id){ STP.editing=null; STP.draft=null; } else { stpStartEdit(s.id); } stpRenderList(); };
+    acts.appendChild(bEdit);
+    var bTgl=document.createElement('button'); bTgl.className='stp-btn ghost sm'; bTgl.textContent=(s.is_active?'停止する':'配信開始');
+    bTgl.onclick=function(){ stpToggleActive(s); };
+    acts.appendChild(bTgl);
+    var bDel=document.createElement('button'); bDel.className='stp-btn danger sm'; bDel.textContent='削除';
+    bDel.onclick=function(){ stpDeleteScenario(s); };
+    acts.appendChild(bDel);
+    card.appendChild(acts);
+    if(STP.editing===s.id) card.appendChild(stpBuildEditor());
+    list.appendChild(card);
+  });
+}
+
+/* ───────── 編集（下書き draft はローカル。保存で manage-steps へ）───────── */
+function stpStartEdit(sid){
+  var s=STP.scenarios.filter(function(x){return x.id===sid;})[0]; if(!s) return;
+  STP.editing=sid;
+  STP.draft={
+    id:s.id, name:s.name||'', trigger_type:s.trigger_type||'friend_add',
+    is_active:!!s.is_active, send_hour_from:(s.send_hour_from==null?9:s.send_hour_from), send_hour_to:(s.send_hour_to==null?21:s.send_hour_to),
+    steps: stpMessagesOf(sid).map(function(m){
+      var min=Math.max(0, Number(m.delay_minutes)||0);
+      return { days:Math.floor(min/1440), hours:Math.floor((min%1440)/60), content:m.content||'', image_urls:Array.isArray(m.image_urls)?m.image_urls.slice():[] };
+    })
+  };
+}
+function stpNewScenario(){
+  return stpCall('scenario_save', { scenario:{ name:'新しいシナリオ', trigger_type:'friend_add', is_active:false, send_hour_from:9, send_hour_to:21 } })
+    .then(function(d){
+      if(!d.ok || !d.scenario){ stpTopMsg(stpReason(d.reason), false); return; }
+      return stpReload().then(function(){ stpStartEdit(d.scenario.id); stpRenderList(); });
+    });
+}
+function stpFieldText(label, val, on){
+  var f=document.createElement('div'); f.className='stp-field';
+  var l=document.createElement('label'); l.textContent=label; f.appendChild(l);
+  var i=document.createElement('input'); i.type='text'; i.value=val||''; i.oninput=function(){ on(i.value); };
+  f.appendChild(i); return f;
+}
+function stpFieldSelect(label, opts, val, on){
+  var f=document.createElement('div'); f.className='stp-field';
+  var l=document.createElement('label'); l.textContent=label; f.appendChild(l);
+  var sel=document.createElement('select');
+  opts.forEach(function(o){ var op=document.createElement('option'); op.value=o[0]; op.textContent=o[1]; if(o[0]===val) op.selected=true; sel.appendChild(op); });
+  sel.onchange=function(){ on(sel.value); };
+  f.appendChild(sel); return f;
+}
+function stpFieldHours(d){
+  var f=document.createElement('div'); f.className='stp-field';
+  var l=document.createElement('label'); l.textContent='配信してよい時間帯（夜間早朝は送らない）'; f.appendChild(l);
+  var row=document.createElement('div'); row.className='stp-row';
+  function hourSel(cur, on){
+    var s=document.createElement('select'); s.style.flex='1';
+    for(var h=0;h<=23;h++){ var op=document.createElement('option'); op.value=h; op.textContent=h+'時'; if(h===cur) op.selected=true; s.appendChild(op); }
+    s.onchange=function(){ on(parseInt(s.value,10)); }; return s;
+  }
+  row.appendChild(hourSel(d.send_hour_from, function(v){ d.send_hour_from=v; }));
+  var t=document.createElement('span'); t.textContent='〜'; row.appendChild(t);
+  row.appendChild(hourSel(d.send_hour_to, function(v){ d.send_hour_to=v; }));
+  f.appendChild(row); return f;
+}
+function stpBuildStepCard(st, i){
+  var card=document.createElement('div'); card.className='stp-msgcard';
+  var head=document.createElement('div'); head.className='stp-msghead';
+  var no=document.createElement('div'); no.className='stp-msgno'; no.textContent=(i+1); head.appendChild(no);
+  var delay=document.createElement('div'); delay.className='stp-delay';
+  var lbl=document.createElement('span'); lbl.textContent=(i===0?'登録から':'前の通から'); delay.appendChild(lbl);
+  var di=document.createElement('input'); di.type='number'; di.min='0'; di.value=(st.days||0);
+  di.oninput=function(){ st.days=Math.max(0, parseInt(di.value||'0',10)||0); };
+  delay.appendChild(di); var ds=document.createElement('span'); ds.textContent='日'; delay.appendChild(ds);
+  var hi=document.createElement('input'); hi.type='number'; hi.min='0'; hi.max='23'; hi.value=(st.hours||0);
+  hi.oninput=function(){ st.hours=Math.max(0, parseInt(hi.value||'0',10)||0); };
+  delay.appendChild(hi); var hs=document.createElement('span'); hs.textContent='時間後'; delay.appendChild(hs);
+  head.appendChild(delay); card.appendChild(head);
+  var ta=document.createElement('textarea'); ta.value=st.content||''; ta.placeholder='メッセージ本文（空にして画像だけ送ることもできます）';
+  ta.oninput=function(){ st.content=ta.value; }; card.appendChild(ta);
+  var thumbs=document.createElement('div'); thumbs.className='stp-thumbs';
+  (st.image_urls||[]).forEach(function(url, idx){
+    var t=document.createElement('div'); t.className='stp-thumb';
+    var img=document.createElement('img'); img.src=url; t.appendChild(img);
+    var x=document.createElement('button'); x.textContent='×';
+    x.onclick=function(){ st.image_urls.splice(idx,1); stpRenderList(); };
+    t.appendChild(x); thumbs.appendChild(t);
+  });
+  card.appendChild(thumbs);
+  var acts=document.createElement('div'); acts.className='stp-msgactions';
+  var line=document.createElement('div'); line.className='stp-msg-line'; line.style.flexBasis='100%';
+  var fi=document.createElement('input'); fi.type='file'; fi.accept='image/*'; fi.style.display='none';
+  fi.onchange=function(){ var f=fi.files&&fi.files[0]; if(f) stpUploadImage(f, st, line); fi.value=''; };
+  var bImg=document.createElement('button'); bImg.className='stp-btn ghost sm'; bImg.textContent='🖼 画像を追加';
+  bImg.onclick=function(){ if((st.image_urls||[]).length>=4){ line.textContent='画像は1通4枚までです'; line.className='stp-msg-line ng'; return; } fi.click(); };
+  acts.appendChild(bImg); acts.appendChild(fi);
+  var bDel=document.createElement('button'); bDel.className='stp-btn danger sm'; bDel.textContent='この通を削除';
+  bDel.onclick=function(){ STP.draft.steps.splice(i,1); stpRenderList(); };
+  acts.appendChild(bDel); acts.appendChild(line);
+  card.appendChild(acts); return card;
+}
+function stpBuildEnroll(d){
+  var box=document.createElement('div'); box.className='stp-enroll';
+  var l=document.createElement('label'); l.style.cssText='display:block;font-size:12px;font-weight:700;color:#475569;margin-bottom:6px';
+  l.textContent='手動でこのシナリオに登録（テスト用：LINEユーザーID）'; box.appendChild(l);
+  var row=document.createElement('div'); row.className='stp-row';
+  var uid=document.createElement('input'); uid.type='text'; uid.placeholder='LINEユーザーID（Uから始まる）'; row.appendChild(uid);
+  var nm=document.createElement('input'); nm.type='text'; nm.placeholder='お名前（任意）'; row.appendChild(nm);
+  var b=document.createElement('button'); b.className='stp-btn ghost sm'; b.textContent='登録';
+  b.onclick=function(){
+    var u=(uid.value||'').trim(); if(!u){ stpTopMsg('LINEユーザーIDを入力してください', false); return; }
+    stpCall('enroll_manual', { scenario_id:d.id, line_uid:u, name:(nm.value||'').trim() }).then(function(r){
+      if(!r.ok){ stpTopMsg(stpReason(r.reason), false); return; }
+      stpTopMsg('登録しました（このシナリオの1通目の予定がセットされます）✅', true); uid.value=''; nm.value='';
+    });
+  };
+  row.appendChild(b); box.appendChild(row); return box;
+}
+function stpBuildEditor(){
+  var d=STP.draft; var w=document.createElement('div'); w.className='stp-editor';
+  w.appendChild(stpFieldText('シナリオ名', d.name, function(v){ d.name=v; }));
+  var g=document.createElement('div'); g.className='stp-grid2';
+  g.appendChild(stpFieldSelect('きっかけ', [['friend_add','友だち追加したとき'],['manual','手動で登録した人だけ']], d.trigger_type, function(v){ d.trigger_type=v; }));
+  g.appendChild(stpFieldHours(d));
+  w.appendChild(g);
+  var h=document.createElement('h3'); h.textContent='配信するメッセージ'; h.style.fontSize='13px'; w.appendChild(h);
+  d.steps.forEach(function(st,i){ w.appendChild(stpBuildStepCard(st,i)); });
+  var row=document.createElement('div'); row.className='stp-row'; row.style.margin='10px 0';
+  var bAdd=document.createElement('button'); bAdd.className='stp-btn ghost sm'; bAdd.textContent='＋ メッセージを追加';
+  bAdd.onclick=function(){ d.steps.push({ days:(d.steps.length?1:0), hours:0, content:'', image_urls:[] }); stpRenderList(); };
+  row.appendChild(bAdd);
+  var bTpl=document.createElement('button'); bTpl.className='stp-btn ghost sm'; bTpl.textContent='💡 おすすめ6通を入れる';
+  bTpl.onclick=function(){ stpApplyTemplate(); };
+  row.appendChild(bTpl);
+  w.appendChild(row);
+  var save=document.createElement('button'); save.className='stp-btn primary'; save.textContent='💾 保存する';
+  save.onclick=function(){ stpSaveDraft(); };
+  w.appendChild(save);
+  w.appendChild(stpBuildEnroll(d));
+  return w;
+}
+
+/* ───────── 画像アップロード（Storage step-images へ直アップ→公開URLを保存）───────── */
+function stpUploadImage(file, st, line){
+  if(!file) return;
+  if(!TOKEN){ if(typeof showLogin==='function') showLogin('もう一度ログインしてください。'); return; }
+  if(file.size > 5*1024*1024){ line.textContent='画像は5MBまでにしてください'; line.className='stp-msg-line ng'; return; }
+  var ext=((file.name||'').split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg';
+  var path=(STP.draft&&STP.draft.id?STP.draft.id:'misc')+'/'+Date.now()+'-'+Math.random().toString(36).slice(2,8)+'.'+ext;
+  line.textContent='アップロード中…'; line.className='stp-msg-line';
+  fetch(SB_URL+'/storage/v1/object/step-images/'+path, {
+    method:'POST',
+    headers:{ 'apikey':SB_KEY, 'Authorization':'Bearer '+TOKEN, 'Content-Type':(file.type||'image/jpeg'), 'x-upsert':'true' },
+    body:file
+  }).then(function(r){
+    if(!r.ok) return r.text().then(function(t){ throw new Error(t||('HTTP '+r.status)); });
+    st.image_urls=(st.image_urls||[]);
+    st.image_urls.push(SB_URL+'/storage/v1/object/public/step-images/'+path);
+    stpRenderList();
+  }).catch(function(e){
+    var msg=String(e&&e.message||e);
+    if(/Bucket not found|404/i.test(msg)) msg='画像置き場（step-images）が未作成です。patch-17 を適用してください';
+    else if(/row-level|violates|403|Unauthorized/i.test(msg)) msg='アップロード権限がありません（オーナー／管理者のみ）';
+    line.textContent=msg; line.className='stp-msg-line ng';
+  });
+}
+
+/* ───────── 保存・トグル・削除 ───────── */
+function stpSaveDraft(){
+  var d=STP.draft; if(!d) return;
+  stpTopMsg('保存中…');
+  return stpCall('scenario_save', { scenario:{ id:d.id, name:d.name, trigger_type:d.trigger_type, is_active:d.is_active, send_hour_from:d.send_hour_from, send_hour_to:d.send_hour_to } })
+  .then(function(r1){
+    if(!r1.ok) throw new Error(r1.reason||'save_failed');
+    var steps=d.steps.map(function(st){
+      return { delay_minutes:(Number(st.days)||0)*1440+(Number(st.hours)||0)*60, content:st.content||'', image_urls:(st.image_urls||[]).slice(0,4) };
+    });
+    return stpCall('steps_save', { scenario_id:d.id, steps:steps });
+  }).then(function(r2){
+    if(!r2 || !r2.ok) throw new Error((r2&&r2.reason)||'steps_failed');
+    stpTopMsg('保存しました ✅', true);
+    return stpReload().then(function(){ stpStartEdit(d.id); stpRenderList(); });
+  }).catch(function(e){ stpTopMsg(stpReason(e&&e.message||e), false); });
+}
+function stpToggleActive(s){
+  if(!s.is_active && !stpMessagesOf(s.id).length){ stpTopMsg('先にメッセージを1通以上つくって保存してください', false); return; }
+  stpCall('scenario_save', { scenario:{ id:s.id, name:s.name, trigger_type:s.trigger_type, is_active:!s.is_active, send_hour_from:s.send_hour_from, send_hour_to:s.send_hour_to } })
+    .then(function(d){ if(!d.ok){ stpTopMsg(stpReason(d.reason), false); return; } stpTopMsg(!s.is_active?'配信を開始しました ✅':'配信を停止しました', true); stpReload(); });
+}
+function stpDeleteScenario(s){
+  if(!window.confirm('「'+(s.name||'(無題)')+'」を削除します。よろしいですか？')) return;
+  stpCall('scenario_delete', { scenario_id:s.id }).then(function(d){
+    if(!d.ok){ stpTopMsg(stpReason(d.reason), false); return; }
+    if(STP.editing===s.id){ STP.editing=null; STP.draft=null; }
+    stpTopMsg('削除しました', true); stpReload();
+  });
+}
+
+/* ───────── おすすめテンプレ（ai-customer-playbook.md E項：即決層・1通=不安1つ・煽らない）───────── */
+var STP_TEMPLATE = [
+  { days:0,  hours:0, content:'友だち追加ありがとうございます😊\n眉のことで気になっていることはありますか？\n①似合う形 ②料金 ③痛み ④アーティスト\nどれでもお気軽にメッセージしてくださいね🪞' },
+  { days:1,  hours:0, content:'初めての方がほとんどなのでご安心ください😊\n当院は骨格や黄金比に合わせて、あなたに似合う眉をご提案します。\nすっぴんでも自然な毛並みも選べます。左右差もていねいに整えます🪞' },
+  { days:3,  hours:0, content:'「痛そう…」というご不安、よく分かります。\n麻酔を使うのでチクチクする程度の方が多いです。\nダウンタイムは数日〜1週間ほどで自然に馴染みます。\n「思っていたより楽でした」というお声を多くいただきます😊' },
+  { days:7,  hours:0, content:'料金についてのご案内です。\nアーティストや回数で変わりますが、きれいに定着させるには2回がおすすめです（2回セットもご用意）。\n他院で入れた眉の修正にも対応しています。\n気になる点はお気軽にご相談くださいね💁‍♀️' },
+  { days:14, hours:0, content:'迷われていませんか？😊\nカウンセリングだけでも大丈夫です。お話を聞いて、納得してから決めていただけます。\nご希望の日があれば空き枠をお探しします。お気軽にどうぞ🌷' },
+  { days:30, hours:0, content:'その後いかがお過ごしですか🌱\n季節のキャンペーンやおすすめの情報をお届けしています。\n「やってみようかな」と思った時が始めどき。いつでもご相談くださいね😊' }
+];
+function stpApplyTemplate(){
+  if(!STP.draft) return;
+  if(STP.draft.steps.length && !window.confirm('いまのメッセージを、おすすめの6通で置きかえます。よろしいですか？')) return;
+  STP.draft.steps = STP_TEMPLATE.map(function(t){ return { days:t.days, hours:t.hours, content:t.content, image_urls:[] }; });
+  stpRenderList();
+  stpTopMsg('おすすめ6通を入れました。文面を調整して「保存する」を押してください💡', true);
+}
 
 /* DBの raise/PostgREST エラーを日本語へ。manager 権限拒否を最優先で判定。 */
 function acqReason(err){
