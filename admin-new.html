@@ -644,6 +644,37 @@ var SB_KEY    = "sb_publishable_e5A9MJzOCvzsfWXBd9DLzg_Wa_hJ0qb";
 var TENANT_ID = "11111111-1111-1111-1111-111111111111";
 var TOKEN     = ""; // ログイン後のアクセストークン。これが無いとPIIは読めない（RLS保護）。
 function hdr(){ return { "apikey": SB_KEY, "Authorization": "Bearer " + (TOKEN || SB_KEY) }; }
+
+// ===== ログイン維持（localStorageにセッション保存→リロードしても自動ログイン）=====
+var SESS_KEY = "dion_admin_sess_v1";
+function saveSession(d){ try{ if(d&&d.access_token) localStorage.setItem(SESS_KEY, JSON.stringify({access_token:d.access_token, refresh_token:d.refresh_token})); }catch(e){} }
+function clearSession(){ try{ localStorage.removeItem(SESS_KEY); }catch(e){} }
+function loadSession(){ try{ return JSON.parse(localStorage.getItem(SESS_KEY)||"null"); }catch(e){ return null; } }
+// refresh_token で新しい access_token を取得。done(成功bool) を呼ぶ。
+function refreshAuth(done){
+  var s=loadSession();
+  if(!s||!s.refresh_token){ if(done)done(false); return; }
+  fetch(SB_URL+"/auth/v1/token?grant_type=refresh_token",{ method:"POST", headers:{ "Content-Type":"application/json", "apikey":SB_KEY }, body:JSON.stringify({ refresh_token:s.refresh_token }) })
+    .then(function(r){ return r.json(); }).then(function(d){
+      if(d&&d.access_token){ TOKEN=d.access_token; saveSession(d); if(done)done(true); }
+      else { clearSession(); if(done)done(false); }
+    }).catch(function(){ if(done)done(false); });
+}
+// 起動時：保存済みセッションがあれば自動ログインしてダッシュボードを開く。
+function tryAutoLogin(){
+  refreshAuth(function(ok){
+    if(ok){
+      var lg=document.getElementById("login"); if(lg) lg.style.display="none";
+      var nv=document.getElementById("nav"); if(nv) nv.style.display="";
+      if(typeof initResvStoreBar==="function") initResvStoreBar();
+      if(typeof showReservations==="function") showReservations(document.querySelector("#nav button"));
+    } else { if(typeof showLogin==="function") showLogin(); }
+  });
+}
+window.addEventListener("load", function(){
+  tryAutoLogin();
+  setInterval(function(){ refreshAuth(); }, 45*60*1000); // 約45分ごとに更新し失効を防ぐ
+});
 function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;"); }
 function ymd(d){ return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2); }
 function hhmm(iso){ var d=new Date(iso); return ("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2); }
@@ -683,6 +714,7 @@ function login(){
     .then(function(r){ return r.json(); }).then(function(d){
       if(d&&d.access_token){
         TOKEN=d.access_token;
+        saveSession(d); // ★リロードしても再ログイン不要にするため保存
         document.getElementById("login").style.display="none";
         document.getElementById("nav").style.display="";
         if(typeof initResvStoreBar==="function") initResvStoreBar();
