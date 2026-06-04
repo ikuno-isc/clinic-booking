@@ -989,15 +989,16 @@ function handleBoardAction(act, rid){
     .catch(function(err){ window.alert('できませんでした：' + (err&&err.message||err)); });
 }
 
-/* 問診リマインドの LINE push は Edge Function 経由（任意・未デプロイなら no-op）。
-   Edge Function 名 'questionnaire-reminder' を Bearer(TOKEN) で叩く想定。 */
+/* 問診リマインドの LINE push は manage-staff（staff認証）の questionnaire_reminder アクションで実行。
+   対象予約のお客様LINEへ、事前問診フォームのリンクを送る。 */
 function pushQuestionnaireReminder(rid){
-  return fetch(SB_URL + '/functions/v1/questionnaire-reminder', {
+  return fetch(SB_URL + '/functions/v1/manage-staff', {
     method:'POST',
     headers: Object.assign({ 'Content-Type':'application/json' }, hdr()),
-    body: JSON.stringify({ reservation_id: rid })
-  }).then(function(res){ if(!res.ok){ /* Edge Function 未配備でも状態更新は成立させる */ } })
-    .catch(function(){ /* 通知失敗は致命でない（状態は reminded 済み） */ });
+    body: JSON.stringify({ action:'questionnaire_reminder', reservation_id: rid })
+  }).then(function(res){ return res.json().catch(function(){ return {}; }); })
+    .then(function(j){ if(!j || j.ok!==true){ /* 送信失敗でも状態(reminded)は成立済み */ } })
+    .catch(function(){ /* 通信失敗は致命でない */ });
 }
 
 /* ============================================================================
