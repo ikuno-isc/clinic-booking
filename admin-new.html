@@ -964,7 +964,9 @@ function renderSetupTenantSelect(rows, selectedTenant){
     sel.innerHTML = "";
     return;
   }
-  wrap.style.display = "";
+  // CSS .setup-tenant-select{display:none} を上書きして確実に表示する。
+  // 空文字("")だとCSSのdisplay:noneが復活し、複数テナントでもセレクトが出ない。
+  wrap.style.display = "block";
   sel.innerHTML = rows.map(function(r){
     var label = (r.store_name || r.tenant_name || r.tenant_id || "未選択");
     var selected = r.tenant_id === selectedTenant ? " selected" : "";
