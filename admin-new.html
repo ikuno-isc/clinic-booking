@@ -2437,7 +2437,7 @@ function setLoadArtists(){
   var body = document.getElementById('setBody');
   body.innerHTML = '<div class="set-ph">読み込み中…</div>';
   ensureStoreMap().then(function(){
-    var path = 'artists?select=id,name,qualification,specialty,career,nomination_fee,is_active,store_id&order=name';
+    var path = 'artists?select=id,name,qualification,specialty,career,nomination_fee,is_active,store_id,profile_photo_url&order=name';
     return sbGet(path);
   }).then(function(rows){
     rows = rows || [];
@@ -2461,7 +2461,9 @@ function setLoadArtists(){
     rows.forEach(function(a){
       var aid = esc(a.id);
       h += '<div class="set-card'+(a.is_active?'':' set-off')+'" data-aid="'+aid+'">'
-        + '<div class="set-name">'+esc(a.name)+(a.is_active?'':' <span class="set-tag set-tagng">停止中</span>')+'</div>'
+        + '<div class="set-name">'
+        +   (a.profile_photo_url ? '<img src="'+esc(a.profile_photo_url)+'" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px">' : '')
+        +   esc(a.name)+(a.is_active?'':' <span class="set-tag set-tagng">停止中</span>')+'</div>'
         + '<div class="set-meta"><span>'+esc(a.qualification||'—')+'</span><span>得意：'+esc(a.specialty||'—')+'</span>'
         +   '<span>指名料 '+(a.nomination_fee?setYen(a.nomination_fee):'—')+'</span></div>'
         + '<div class="set-id">ID：'+aid+'</div>'
@@ -2470,6 +2472,17 @@ function setLoadArtists(){
         +   '<button type="button" class="set-btn set-ghost" data-act="atoggle" data-aid="'+aid+'" data-to="'+(a.is_active?'0':'1')+'">'+(a.is_active?'⏸ 停止':'▶️ 稼働')+'</button>'
         + '</div>'
         + '<div class="set-edit" id="set-aedit-'+aid+'">'
+        +   '<label>アイコン写真（予約ページのアーティスト選択に表示）</label>'
+        +   '<div style="display:flex;align-items:center;gap:12px;margin:4px 0 12px">'
+        +     '<div style="width:56px;height:56px;border-radius:50%;overflow:hidden;background:#eef0f2;display:inline-flex;align-items:center;justify-content:center;color:#9aa0a6;font-weight:800;flex-shrink:0">'
+        +       (a.profile_photo_url ? '<img src="'+esc(a.profile_photo_url)+'" alt="" style="width:100%;height:100%;object-fit:cover">' : esc((a.name||'?').charAt(0)))
+        +     '</div>'
+        +     '<div class="set-acts" style="margin:0">'
+        +       '<button type="button" class="set-btn set-ghost" data-act="aphoto" data-aid="'+aid+'">📷 写真を選ぶ</button>'
+        +       (a.profile_photo_url ? '<button type="button" class="set-btn set-ghost" data-act="aphotodel" data-aid="'+aid+'" style="color:#c2410c">🗑 消す</button>' : '')
+        +     '</div>'
+        +     '<input type="file" accept="image/*" id="set-aphotofile-'+aid+'" style="display:none">'
+        +   '</div>'
         +   '<label>名前（表示名）</label><input type="text" id="set-aname-'+aid+'" value="'+esc(a.name||'')+'">'
         +   '<label>資格</label><input type="text" id="set-aqual-'+aid+'" value="'+esc(a.qualification||'')+'">'
         +   '<label>得意・専門</label><input type="text" id="set-aspec-'+aid+'" value="'+esc(a.specialty||'')+'">'
@@ -2505,6 +2518,37 @@ function setSaveArtist(aid){
   };
   sbUpdate('artists','id=eq.'+encodeURIComponent(aid), patch)
     .then(function(){ setMsg('set-artistMsg','✅ 保存しました。', true); setLoadArtists(); })
+    .catch(function(err){ if (setHandleAuth(err)) return; setMsg('set-artistMsg', setReason(err), false); });
+}
+
+/* アイコン写真：選択された画像を正方形・最大320pxへ縮小しJPEGで圧縮→data URL→artists.profile_photo_url を更新。
+   ※軽量化のためStorageは使わず data URL（小さいので予約ページの読み込みに影響小）。多店舗で増えたらStorage化を検討。 */
+function setPickArtistPhoto(aid, file){
+  if (!file || !/^image\//.test(file.type)){ setMsg('set-artistMsg','画像ファイルを選んでください。', false); return; }
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    var img = new Image();
+    img.onload = function(){
+      var size = 320;
+      var cn = document.createElement('canvas'); cn.width = size; cn.height = size;
+      var ctx = cn.getContext('2d');
+      var s = Math.min(img.width, img.height);
+      var sx = (img.width - s)/2, sy = (img.height - s)/2;
+      ctx.drawImage(img, sx, sy, s, s, 0, 0, size, size); // 中央正方形でトリミング
+      var dataUrl = cn.toDataURL('image/jpeg', 0.82);
+      if (dataUrl.length > 200000) dataUrl = cn.toDataURL('image/jpeg', 0.6); // 大きすぎる時はさらに圧縮
+      setSaveArtistPhoto(aid, dataUrl);
+    };
+    img.onerror = function(){ setMsg('set-artistMsg','画像を読み込めませんでした。別の画像でお試しください。', false); };
+    img.src = ev.target.result;
+  };
+  reader.onerror = function(){ setMsg('set-artistMsg','ファイルを読み込めませんでした。', false); };
+  reader.readAsDataURL(file);
+}
+function setSaveArtistPhoto(aid, dataUrl){
+  if (dataUrl === null && !window.confirm('このアーティストの写真を消して、頭文字アイコンに戻します。よろしいですか？')) return;
+  sbUpdate('artists','id=eq.'+encodeURIComponent(aid), { profile_photo_url: dataUrl })
+    .then(function(){ setMsg('set-artistMsg', dataUrl===null?'✅ 写真を消しました。':'✅ 写真を更新しました（予約ページにも反映されます）。', true); setLoadArtists(); })
     .catch(function(err){ if (setHandleAuth(err)) return; setMsg('set-artistMsg', setReason(err), false); });
 }
 
@@ -2781,6 +2825,8 @@ function setMsg(id, text, ok){
     if (act === 'aaddcancel'){ var aaf2 = document.getElementById('set-aaddform'); if (aaf2) aaf2.classList.remove('set-open'); return; }
     if (act === 'aaddsave'){ setAddArtist(); return; }
     if (act === 'atoggle'){ setToggleArtist(b.getAttribute('data-aid'), b.getAttribute('data-to')); return; }
+    if (act === 'aphoto'){ var fi = document.getElementById('set-aphotofile-'+b.getAttribute('data-aid')); if (fi) fi.click(); return; }
+    if (act === 'aphotodel'){ setSaveArtistPhoto(b.getAttribute('data-aid'), null); return; }
     // 受付時間
     if (act === 'sedit'){ var se = document.getElementById('set-sedit-'+b.getAttribute('data-store')); if (se) se.classList.add('set-open'); return; }
     if (act === 'scancel'){ var sc = document.getElementById('set-sedit-'+b.getAttribute('data-store')); if (sc) sc.classList.remove('set-open'); return; }
@@ -2791,6 +2837,15 @@ function setMsg(id, text, ok){
     if (act === 'shaddex'){ setAddException(); return; }
     if (act === 'shdelex'){ var row = b.closest('.set-ex-row'); if (row) row.remove(); return; }
     if (act === 'shsave'){ setSaveShift(b.getAttribute('data-aid')); return; }
+  });
+  // アイコン写真：ファイル選択（input[type=file]）の検知（クリックではなくchange）。
+  root.addEventListener('change', function(e){
+    var inp = e.target;
+    if (!inp || inp.tagName !== 'INPUT' || inp.type !== 'file' || inp.id.indexOf('set-aphotofile-') !== 0) return;
+    var aid = inp.id.slice('set-aphotofile-'.length);
+    var f = inp.files && inp.files[0];
+    if (f) setPickArtistPhoto(aid, f);
+    inp.value = '';
   });
 })();
 
