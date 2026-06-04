@@ -2325,36 +2325,68 @@ function setYen(n){
 function setLoadInfo(){
   var body = document.getElementById('setBody');
   body.innerHTML = '<div class="set-ph">読み込み中…</div>';
+  var now = new Date();
+  var nowISO = now.toISOString();
+  var mStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  var mEnd   = new Date(now.getFullYear(), now.getMonth()+1, 1).toISOString();
+  // 件数は個別にcatch（1つ失敗しても画面全体は落とさない。失敗はnull＝「—」表示）。
+  function cnt(path){ return sbGet(path).then(function(r){ return (r&&r.length!=null)?r.length:0; }).catch(function(){ return null; }); }
   ensureStoreMap().then(function(){
     var storesPath = 'stores?select=id,name,code,business_hours_start,business_hours_end,slot_interval_min,seat_count,closed_days,google_calendar_id,accept_outside_business_hours&order=name';
     return Promise.all([
-      sbGet(storesPath),
-      sbGet('menus?select=id'),
-      sbGet('artists?select=id'),
-      sbGet('reviews?select=id')
+      sbGet(storesPath).catch(function(){ return []; }),
+      cnt('menus?select=id'), cnt('artists?select=id'), cnt('reviews?select=id'),
+      cnt('customers?select=id'),
+      cnt('reservations?select=id&status=neq.cancelled'),
+      cnt('reservations?select=id&status=neq.cancelled&start_at=gte.'+encodeURIComponent(nowISO)),
+      cnt('reservations?select=id&status=neq.cancelled&start_at=gte.'+encodeURIComponent(mStart)+'&start_at=lt.'+encodeURIComponent(mEnd)),
+      cnt('questionnaires?select=id'), cnt('consents?select=id')
     ]);
   }).then(function(res){
-    var stores = res[0]||[], menus = res[1]||[], artists = res[2]||[], reviews = res[3]||[];
+    var stores = res[0]||[];
+    var nMenu=res[1], nArt=res[2], nRev=res[3], nCust=res[4], nResvAll=res[5], nResvUp=res[6], nResvMo=res[7], nQ=res[8], nCon=res[9];
     var okb = function(ok,okt,ngt){ return ok
       ? '<span class="set-okb">✅ '+esc(okt||'設定済み')+'</span>'
       : '<span class="set-ngb">⚠️ '+esc(ngt||'未設定')+'</span>'; };
     var row = function(l,v){ return '<div class="set-row"><span class="set-l">'+esc(l)+'</span><span class="set-v">'+v+'</span></div>'; };
+    var num = function(v){ return v==null ? '—' : ('<b>'+esc(v)+'</b> 件'); };
+    var lk  = function(u,t){ return '<a href="'+u+'" target="_blank" rel="noopener" style="color:#06845a;word-break:break-all">'+esc(t)+'</a>'; };
     var h = '';
+
+    // 📈 利用状況（経営の健康診断）
+    h += '<div class="set-sect"><h3>📈 利用状況</h3>'
+      + row('顧客数', num(nCust))
+      + row('今後の予約', (nResvUp==null?'—':'<b style="color:#06845a;font-size:16px">'+esc(nResvUp)+'</b> 件'))
+      + row('今月の予約', num(nResvMo))
+      + row('累計の予約（キャンセル除く）', num(nResvAll))
+      + row('問診票', num(nQ))
+      + row('同意書', num(nCon))
+      + '</div>';
+
+    // 🏪 店舗
     h += '<div class="set-sect"><h3>🏪 店舗</h3>' + (stores.length ? stores.map(function(s){
       return row('店舗名', esc(s.name||'—'))
         + row('予約受付', esc(s.business_hours_start||'—')+' 〜 '+esc(s.business_hours_end||'—'))
         + row('予約の刻み', esc(s.slot_interval_min||'—')+'分ごと')
-        + row('席数', s.seat_count>0 ? ('<b>'+esc(s.seat_count)+'席</b>') : '制限なし')
+        + row('席数', s.seat_count>0 ? ('<b>'+esc(s.seat_count)+'</b>席') : '制限なし')
         + row('定休日', esc(s.closed_days||'—'))
         + row('営業時間外の受付', okb(s.accept_outside_business_hours,'許可','不可'))
         + row('カレンダー連携', okb(!!s.google_calendar_id));
     }).join('') : '<div class="set-row"><span class="set-v">店舗が登録されていません</span></div>') + '</div>';
+
+    // 📊 登録データ
     h += '<div class="set-sect"><h3>📊 登録データ</h3>'
-      + row('メニュー', esc(menus.length)+'件')
-      + row('アーティスト', esc(artists.length)+'件')
-      + row('口コミ', esc(reviews.length)+'件')
+      + row('メニュー', num(nMenu)) + row('アーティスト', num(nArt)) + row('口コミ', num(nRev))
       + '</div>';
-    h += '<div class="set-note">※ システム情報は確認用の読み取り画面です。メニュー・料金、アーティスト、受付時間、シフトは上の各タブで編集できます（オーナー／管理者のみ）。カレンダーIDなどの機微情報は安全のため表示していません。</div>';
+
+    // 🔗 公開ページ（鍵情報ではないので表示OK・毎回URLを探さなくて済む）
+    h += '<div class="set-sect"><h3>🔗 公開ページ</h3>'
+      + row('予約ページ（お客様用）', lk('https://liff.line.me/2010236479-4ANlMg3d','LINEで開く'))
+      + row('予約ページ（直リンク）', lk('https://ikuno-isc.github.io/clinic-booking/new.html','new.html'))
+      + row('この管理画面', lk('https://ikuno-isc.github.io/clinic-booking/admin-new.html','admin-new.html'))
+      + '</div>';
+
+    h += '<div class="set-note">※ 読み取り専用の確認画面です。数字は開いた時点の集計。LINEのトークンなど鍵情報は安全のため表示していません。各種編集は上の各タブから（オーナー／管理者のみ）。</div>';
     body.innerHTML = h;
   }).catch(function(err){
     if (setHandleAuth(err)) return;
