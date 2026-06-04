@@ -903,6 +903,7 @@ function renderBoard(rows){
         var rid = esc(it.reservation_id);
         var acts = '<div class="rc-acts">' +
           ((it.questionnaireDone || manual) ? '' : '<button type="button" class="rbtn" data-act="remind" data-rid="'+rid+'">📨 問診リマインド</button>') +
+          (manual ? '' : '<button type="button" class="rbtn" data-act="consent" data-rid="'+rid+'">📝 同意書を送る</button>') +
           '<button type="button" class="rbtn" data-act="visited" data-rid="'+rid+'">✅ 来店済み</button>' +
           '<button type="button" class="rbtn" data-act="noshow" data-rid="'+rid+'">⚠️ 無断</button>' +
           '<button type="button" class="rbtn danger" data-act="cancel" data-rid="'+rid+'">❌ キャンセル</button>' +
@@ -975,6 +976,8 @@ function handleBoardAction(act, rid){
     remind:  { q:'このお客様に「問診リマインド」をLINEで送信しますか？',
                run:function(){ return sbRpc('set_status', { p_resv:rid, p_status:'questionnaire_reminded' })
                                  .then(function(){ return pushQuestionnaireReminder(rid); }); } },
+    consent: { q:'このお客様に「施術同意書」の記入リンクをLINEで送信しますか？',
+               run:function(){ return pushConsentLink(rid); } },
     cancel:  { q:'この予約をキャンセルしますか？\nカレンダーの枠も解放します。\n（お客様への自動連絡はしません）',
                run:function(){ return sbRpc('staff_cancel_reservation', { p_resv:rid, p_reason:'staff_admin' }); } },
     visited: { q:'この予約を「来店済み」として記録しますか？',
@@ -999,6 +1002,26 @@ function pushQuestionnaireReminder(rid){
   }).then(function(res){ return res.json().catch(function(){ return {}; }); })
     .then(function(j){ if(!j || j.ok!==true){ /* 送信失敗でも状態(reminded)は成立済み */ } })
     .catch(function(){ /* 通信失敗は致命でない */ });
+}
+
+/* 同意書リンクの LINE push は manage-staff（staff認証）の consent_link アクションで実行。
+   対象予約のお客様LINEへ、電子同意書（指で署名）の記入リンクを送る。 */
+function pushConsentLink(rid){
+  return fetch(SB_URL + '/functions/v1/manage-staff', {
+    method:'POST',
+    headers: Object.assign({ 'Content-Type':'application/json' }, hdr()),
+    body: JSON.stringify({ action:'consent_link', reservation_id: rid })
+  }).then(function(res){ return res.json().catch(function(){ return {}; }); })
+    .then(function(j){
+      if(j && j.ok===true && j.sent===false && j.reason==='no_line_uid'){
+        window.alert('このお客様はLINEと連携していないため、同意書リンクを送れませんでした。');
+      } else if(!j || j.ok!==true){
+        window.alert('同意書リンクを送信できませんでした。時間をおいて再度お試しください。');
+      } else {
+        window.alert('同意書の記入リンクをLINEに送信しました。');
+      }
+    })
+    .catch(function(){ window.alert('通信に失敗しました。電波状況をご確認ください。'); });
 }
 
 /* ============================================================================
