@@ -178,6 +178,14 @@
     #s-cancel .step-wrap { min-height:60vh; }
     #s-consent { display:none; }
     #s-consent .step-wrap { min-height:50vh; }
+    #s-questionnaire { display:none; }
+    #s-questionnaire .step-wrap { min-height:50vh; }
+    .q-f { margin:0 0 16px; }
+    .q-l { display:block; font-size:14px; font-weight:600; color:#333; margin:0 0 6px; }
+    .q-req { font-size:11px; color:#c0392b; font-weight:700; margin-left:4px; }
+    .q-in { width:100%; box-sizing:border-box; padding:11px 12px; border:1px solid #ccc; border-radius:8px; font-size:15px; }
+    .q-opts { display:flex; flex-wrap:wrap; gap:8px 14px; }
+    .q-opt { font-size:14px; color:#333; display:inline-flex; align-items:center; gap:5px; }
     .cl-loading { text-align:center; color:#888; padding:48px 0; }
     .cl-intro { font-weight:700; color:#0b5c55; margin:0 4px 12px; }
     .cl-sub { font-weight:400; font-size:12px; color:#888; }
@@ -266,6 +274,13 @@
   <div class="app-hd"><h1>アートメイク同意書</h1></div>
   <div class="step-wrap">
     <div id="consentBody"><div class="cl-loading">同意書を読み込んでいます…</div></div>
+  </div>
+</div>
+
+<div id="s-questionnaire">
+  <div class="app-hd"><h1>事前問診票</h1></div>
+  <div class="step-wrap">
+    <div id="qBody"><div class="cl-loading">読み込んでいます…</div></div>
   </div>
 </div>
 
@@ -370,7 +385,7 @@ function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,
 function isT(v){ if(v===true||v===1)return true; if(typeof v==='string'){var t=v.trim().toLowerCase();return t==='true'||t==='1';}return false; }
 function okPhone(v){ return /^0\d{9,10}$/.test(v.replace(/[-\s]/g,'')); }
 function showScr(id){
-  ['s-loading','s-wizard','s-done','s-cancel','s-consent'].forEach(function(s){ document.getElementById(s).style.display='none'; });
+  ['s-loading','s-wizard','s-done','s-cancel','s-consent','s-questionnaire'].forEach(function(s){ document.getElementById(s).style.display='none'; });
   document.getElementById(id).style.display='block';
 }
 function ymd(d){ return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate()); }
@@ -927,6 +942,7 @@ function showWizardIfReady(){
   // 同意書は準備中画面。キャンセルは画面を出し、UID確定後(profileDone)に loadCancelList で一覧取得。
   if(MODE==='consent'){ wizardShown=true; showScr('s-consent'); return; }
   if(MODE==='cancel'){  wizardShown=true; showScr('s-cancel');  return; }
+  if(MODE==='questionnaire'){ wizardShown=true; showScr('s-questionnaire'); return; }
   // 予約モードはオプション（メニュー・担当）が必須。
   if(!bootOptDone) return;
   if(!bootOpt){
@@ -939,6 +955,7 @@ function showWizardIfReady(){
 function profileDone(){ bootProfDone=true; updHeader(); showWizardIfReady();
   if(MODE==='cancel') loadCancelList();   // ★LINE UID 確定後に「自分の予約一覧」を取得
   if(MODE==='consent') loadConsentForm(); // ★LINE UID 確定後に同意書フォームを描画（氏名・UIDを使う）
+  if(MODE==='questionnaire') qLoad();     // ★LINE UID 確定後に事前問診フォームを描画
 }
 
 // ===== お客様によるキャンセル（公開キャンセルRPC my_reservations / cancel_my_reservation）=====
@@ -1001,6 +1018,63 @@ document.addEventListener('click', function(e){
     else window.alert('キャンセルできませんでした。お手数ですが公式LINEのトークからご連絡ください。');
   }).catch(function(){ b.disabled=false; b.textContent='このご予約をキャンセル'; window.alert('通信エラーが発生しました。'); });
 });
+
+// ===== 事前問診票（?mode=questionnaire）：本人のLINE IDトークンで送信→カルテ自動反映 =====
+function qRadio(name,opts){ return '<div class="q-opts">'+opts.map(function(o,i){ return '<label class="q-opt"><input type="radio" name="'+name+'" value="'+esc(o)+'"'+(i===0?' checked':'')+'> '+esc(o)+'</label>'; }).join('')+'</div>'; }
+function qCheck(name,opts){ return '<div class="q-opts">'+opts.map(function(o){ return '<label class="q-opt"><input type="checkbox" name="'+name+'" value="'+esc(o)+'"> '+esc(o)+'</label>'; }).join('')+'</div>'; }
+function qVal(name){ var el=document.querySelector('input[name="'+name+'"]:checked'); return el?el.value:''; }
+function qChecks(name){ var a=[]; var els=document.querySelectorAll('input[name="'+name+'"]:checked'); for(var i=0;i<els.length;i++) a.push(els[i].value); return a; }
+function qLoad(){
+  var body=document.getElementById('qBody'); if(!body) return;
+  if(!st.idToken){
+    body.innerHTML='<div class="soon-box"><div class="done-icon">📱</div><div class="done-title">LINEから開いてください</div><div class="done-msg">事前問診は、公式LINEのトーク画面（問診のご案内）から開いてご記入ください。</div></div>';
+    return;
+  }
+  var dz=['高血圧','糖尿病','心臓の病気','アレルギー体質','ケロイド体質','皮膚の病気','感染症（肝炎等）','その他'];
+  var h=''
+    +'<div class="cl-intro">ご来店前に、下記の事前問診をご記入ください。<br><span class="cl-sub">※未記入の場合、当日施術ができないことがあります。</span></div>'
+    +'<div class="q-f"><label class="q-l">お名前<span class="q-req">必須</span></label><input id="q_name" class="q-in" type="text" value="'+esc(st.displayName||'')+'"></div>'
+    +'<div class="q-f"><label class="q-l">電話番号<span class="q-req">必須</span></label><input id="q_phone" class="q-in" type="tel" inputmode="numeric" placeholder="09012345678"></div>'
+    +'<div class="q-f"><label class="q-l">生年月日</label><input id="q_birth" class="q-in" type="date"></div>'
+    +'<div class="q-f"><label class="q-l">性別</label>'+qRadio('q_gender',['女性','男性','その他'])+'</div>'
+    +'<div class="q-f"><label class="q-l">ご住所（市区町村まで）</label><input id="q_area" class="q-in" type="text" placeholder="例：久留米市〇〇町"></div>'
+    +'<div class="q-f"><label class="q-l">既往歴・持病（あてはまるもの全て）</label>'+qCheck('q_dz',dz)+'</div>'
+    +'<div class="q-f"><label class="q-l">現在服用中のお薬</label><input id="q_meds" class="q-in" type="text" placeholder="無ければ「なし」"></div>'
+    +'<div class="q-f"><label class="q-l">妊娠中・授乳中ですか？</label>'+qRadio('q_preg',['いいえ','妊娠中','授乳中'])+'</div>'
+    +'<div class="q-f"><label class="q-l">金属・麻酔のアレルギー</label>'+qRadio('q_alg',['なし','あり','わからない'])+'</div>'
+    +'<div id="q_err" class="msg-err" style="display:none;margin:8px 0;"></div>'
+    +'<button class="btn btn-p" id="q_submit" onclick="qSubmit()" style="width:100%;margin-top:8px;">この内容で送信する</button>'
+    +'<div class="cl-note">送信後、内容はクリニックのカルテに反映されます。</div>';
+  body.innerHTML=h;
+}
+function qSubmit(){
+  var nameEl=document.getElementById('q_name'), phoneEl=document.getElementById('q_phone'), err=document.getElementById('q_err');
+  var name=(nameEl.value||'').trim();
+  var phone=(phoneEl.value||'').replace(/[^0-9]/g,'');
+  if(!name||phone.length<10){ err.style.display='block'; err.textContent='お名前と電話番号（数字10桁以上）をご入力ください。'; return; }
+  err.style.display='none';
+  var dz=qChecks('q_dz');
+  var answers={
+    '氏名':name,
+    '生年月日':(document.getElementById('q_birth').value||''),
+    '性別':qVal('q_gender'),
+    'ご住所':(document.getElementById('q_area').value||'').trim(),
+    '既往歴・持病': dz.length?dz.join('、'):'なし',
+    '服用中のお薬':(document.getElementById('q_meds').value||'').trim()||'なし',
+    '妊娠・授乳':qVal('q_preg'),
+    '金属・麻酔アレルギー':qVal('q_alg')
+  };
+  var btn=document.getElementById('q_submit'); btn.disabled=true; btn.textContent='送信中…';
+  sbEdge('questionnaire',{p_phone:phone,p_answers:answers}).then(function(r){
+    if(r&&r.ok){ qDone(); return; }
+    btn.disabled=false; btn.textContent='この内容で送信する';
+    err.style.display='block'; err.textContent='送信できませんでした。お手数ですが時間をおいて再度お試しください。';
+  }).catch(function(){ btn.disabled=false; btn.textContent='この内容で送信する'; err.style.display='block'; err.textContent='通信エラーが発生しました。電波の良い場所で再度お試しください。'; });
+}
+function qDone(){
+  var body=document.getElementById('qBody'); if(!body) return;
+  body.innerHTML='<div class="soon-box"><div class="done-icon">✅</div><div class="done-title">ご記入ありがとうございました</div><div class="done-msg">事前問診を受け付けました。<br>当日お会いできるのを楽しみにしております。</div><button class="btn btn-p" onclick="backToTalk()" style="display:inline-block;margin-top:24px;padding-left:36px;padding-right:36px;">LINEに戻る</button></div>';
+}
 
 // ===== 同意書（方式A：指で署名→画像で保存。PDFは作らない） =====
 // 文面・写真項目・版は src/consent.js（GAS版・純粋ロジック）からそのまま転記。
