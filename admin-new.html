@@ -452,6 +452,44 @@
 <div class="wrap">
   <div class="hd"><h1>管理ダッシュボード</h1></div>
 
+  <!-- ===== マルチテナント：コンソール（親画面・仁義のみ）＋ 店ヘッダー ===== -->
+  <style>
+    #consoleView{position:fixed;inset:0;background:#f1f5f4;z-index:40;overflow:auto;padding:32px 16px}
+    .console-wrap{max-width:680px;margin:0 auto}
+    .console-title{font-size:20px;font-weight:700;color:#0b5c55;margin:8px 0 4px}
+    .console-lead{color:#5b6b69;font-size:13px;margin:0 0 20px}
+    .console-card{display:flex;align-items:center;justify-content:space-between;gap:12px;
+      background:#fff;border:1px solid #dde7e5;border-radius:14px;padding:16px 18px;margin-bottom:12px;
+      box-shadow:0 1px 2px rgba(0,0,0,.04)}
+    .console-card-name{font-size:16px;font-weight:700;color:#143a36}
+    .console-card-sub{margin-top:6px}
+    .console-badge{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px}
+    .console-badge.ok{background:#dcfce7;color:#166534}
+    .console-badge.prep{background:#fef3c7;color:#92400e}
+    .console-open{background:#0b5c55;color:#fff;border:0;border-radius:10px;padding:11px 16px;
+      font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap}
+    .console-open:hover{background:#0a4f49}
+    .console-empty{color:#5b6b69;text-align:center;padding:24px}
+    #tenantHeader{display:none;align-items:center;gap:10px;background:#0b5c55;color:#fff;
+      padding:7px 14px;font-size:13px}
+    #tenantHeader .th-name{font-weight:700}
+    #tenantHeader .th-back{margin-left:auto;background:rgba(255,255,255,.16);color:#fff;border:0;
+      border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer}
+    #tenantHeader .th-back:hover{background:rgba(255,255,255,.28)}
+  </style>
+  <div id="consoleView" style="display:none">
+    <div class="console-wrap">
+      <div class="console-title">テナント管理コンソール</div>
+      <p class="console-lead">管理したい店を選んでください。「管理画面を開く」でその店の予約・顧客・配信などを操作できます。</p>
+      <div id="consoleList"><div class="console-empty">読み込み中…</div></div>
+    </div>
+  </div>
+
+  <div id="tenantHeader">
+    <span>店：</span><span class="th-name" id="tenantHeaderName"></span>
+    <button class="th-back" onclick="showConsole()">← コンソールに戻る</button>
+  </div>
+
   <nav class="nav" id="nav" style="display:none">
     <button data-v="resv"   onclick="showReservations(this)">📋 予約管理</button>
     <button data-v="cust"   onclick="showCustomers(this)">🗂 顧客カルテ</button>
@@ -770,9 +808,16 @@
 </div>
 <script>
 // ===== 設定・認証・共有ヘルパー（全タブ共通。各タブはこれを再定義しない）=====
+// ⚠️【デプロイ順序・厳守】この画面は顧客カルテ/経営集計/集客分析/スタッフ一覧/流入元追加を
+//   「新しい形（p_tenant付き／list_my_tenants 等）」で呼ぶ。これらは DB パッチ
+//   patch-20（横断RLS＋list_my_tenants）と patch-21（RPCのp_tenant対応）に依存する。
+//   ★必ず DB に patch-20 → patch-21 を適用してから、この admin.html をデプロイすること。
+//   逆順（HTML先デプロイ）にすると DB 側に新形の関数が無く、久留米も含め上記タブが
+//   全てエラーで開かなくなる（PostgREST: function not found）。
 var SB_URL    = "https://stgarheuldubyrzdqzaq.supabase.co";
 var SB_KEY    = "sb_publishable_e5A9MJzOCvzsfWXBd9DLzg_Wa_hJ0qb";
-var TENANT_ID = "11111111-1111-1111-1111-111111111111";
+var TENANT_ID = "11111111-1111-1111-1111-111111111111"; // 「選択中の店(テナント)」。ログイン後に list_my_tenants で確定。既定=久留米（1店運用の後方互換）。
+var MY_TENANTS = [];   // ログイン者が扱えるテナント [{tenant_id,tenant_name}]。1件以下＝自店直行／2件以上＝コンソール表示（仁義）。
 var TOKEN     = ""; // ログイン後のアクセストークン。これが無いとPIIは読めない（RLS保護）。
 function hdr(){ return { "apikey": SB_KEY, "Authorization": "Bearer " + (TOKEN || SB_KEY) }; }
 
@@ -796,9 +841,8 @@ function tryAutoLogin(){
   refreshAuth(function(ok){
     if(ok){
       var lg=document.getElementById("login"); if(lg) lg.style.display="none";
-      var nv=document.getElementById("nav"); if(nv) nv.style.display="";
-      if(typeof initResvStoreBar==="function") initResvStoreBar();
-      if(typeof showReservations==="function") showReservations(document.querySelector("#nav button"));
+      // 扱えるテナントを確認 → 1件以下は自店直行／2件以上はコンソール（仁義）
+      if(typeof resolveTenantsThenEnter==="function") resolveTenantsThenEnter();
     } else { if(typeof showLogin==="function") showLogin(); }
   });
 }
@@ -1351,12 +1395,92 @@ function login(){
         TOKEN=d.access_token;
         saveSession(d); // ★リロードしても再ログイン不要にするため保存
         document.getElementById("login").style.display="none";
-        document.getElementById("nav").style.display="";
-        if(typeof initResvStoreBar==="function") initResvStoreBar();
-        var first=document.querySelector("#nav button");
-        showReservations(first);
+        // 扱えるテナントを確認 → 1件以下は自店直行／2件以上はコンソール（仁義）
+        resolveTenantsThenEnter();
       } else { err.textContent="ログインできませんでした（メール・パスワードをご確認ください）。"; }
     }).catch(function(e){ err.textContent="通信エラー："+(e&&e.message||e); });
+}
+
+/* ============================================================================
+   マルチテナント：コンソール（親）→ 店を選ぶ → 管理画面（子）
+   ・list_my_tenants() … 扱えるテナント。仁義(platform_admin)=全件／owner・admin・staff=自店。
+   ・1件以下 … これまで通り自店の管理画面へ直行（コンソールは出さない）。
+   ・2件以上 … コンソール（店一覧）を表示。「管理画面を開く」で TENANT_ID を切り替えて子へ。
+   ・店を切り替えたら前の店のキャッシュ（STORE_MAP/CRM 等）を必ず破棄する。
+   ============================================================================ */
+function resetTenantScopedCaches(){
+  STORE_MAP = null;
+  if (typeof CRM_MENU_MAP   !== 'undefined') CRM_MENU_MAP = null;
+  if (typeof CRM_ARTIST_MAP !== 'undefined') CRM_ARTIST_MAP = null;
+  if (typeof CRM_PEOPLE     !== 'undefined') CRM_PEOPLE = [];
+  if (typeof CRM_BY_KEY     !== 'undefined') CRM_BY_KEY = {};
+  if (typeof CRM_CARDS      !== 'undefined') CRM_CARDS = {};
+  var sel = document.getElementById('resvStore'); if (sel) sel.value = 'all';
+}
+/* ログイン後の入口：扱えるテナントを取得して分岐。失敗時は従来どおり自店運用。 */
+function resolveTenantsThenEnter(){
+  sbRpc('list_my_tenants', {}).then(function(rows){
+    MY_TENANTS = Array.isArray(rows) ? rows : [];
+    if (MY_TENANTS.length >= 2){ showConsole(); return; }
+    if (MY_TENANTS.length === 1) TENANT_ID = MY_TENANTS[0].tenant_id;
+    enterDashboard(null);
+  }).catch(function(){ enterDashboard(null); });
+}
+/* 管理画面（子）を開く。tid 指定でその店に切り替え。 */
+function enterDashboard(tid){
+  if (tid){ TENANT_ID = tid; resetTenantScopedCaches(); }
+  var cv=document.getElementById('consoleView'); if(cv) cv.style.display='none';
+  var lg=document.getElementById('login');       if(lg) lg.style.display='none';
+  var nv=document.getElementById('nav');         if(nv) nv.style.display='';
+  renderTenantHeader();
+  if(typeof initResvStoreBar==='function') initResvStoreBar();
+  if(typeof showReservations==='function') showReservations(document.querySelector('#nav button'));
+}
+function openTenant(tid){ enterDashboard(tid); }
+/* コンソール（親）。扱えるテナントを setup 状況つきで一覧表示。 */
+function showConsole(){
+  var nv=document.getElementById('nav'); if(nv) nv.style.display='none';
+  var th=document.getElementById('tenantHeader'); if(th) th.style.display='none';
+  if(typeof hideAllViews==='function') hideAllViews();
+  var cv=document.getElementById('consoleView'); if(!cv) return;
+  cv.style.display='';
+  var list=document.getElementById('consoleList'); if(list) list.innerHTML='<div class="console-empty">読み込み中…</div>';
+  sbRpc('list_tenant_setup_status', {})
+    .then(function(rows){ renderConsole(Array.isArray(rows)?rows:[]); })
+    .catch(function(){ renderConsole([]); });   // 状況が取れなくても list_my_tenants で名前だけ出す
+}
+/* テナント単位に集約してカードを描く（list_tenant_setup_status は (tenant,store) 単位で来る）。 */
+function renderConsole(rows){
+  var list=document.getElementById('consoleList'); if(!list) return;
+  var byT={}, order=[];
+  rows.forEach(function(r){
+    var id=r.tenant_id; if(!id) return;
+    if(!byT[id]){ byT[id]={ tenant_id:id, tenant_name:r.tenant_name||'(無名)', ready:!!r.production_ready }; order.push(id); }
+    if(r.production_ready) byT[id].ready=true;
+  });
+  MY_TENANTS.forEach(function(t){ if(!byT[t.tenant_id]){ byT[t.tenant_id]={ tenant_id:t.tenant_id, tenant_name:t.tenant_name||'(無名)', ready:false }; order.push(t.tenant_id); } });
+  if(!order.length){ list.innerHTML='<div class="console-empty">表示できる店がありません。</div>'; return; }
+  var html='';
+  order.forEach(function(id){
+    var t=byT[id];
+    var badge = t.ready ? '<span class="console-badge ok">本番稼働中</span>' : '<span class="console-badge prep">準備中</span>';
+    html += '<div class="console-card">'
+      +   '<div class="console-card-main"><div class="console-card-name">🏥 '+esc(t.tenant_name)+'</div>'
+      +     '<div class="console-card-sub">'+badge+'</div></div>'
+      +   '<button class="console-open" data-tid="'+esc(t.tenant_id)+'">管理画面を開く →</button>'
+      + '</div>';
+  });
+  list.innerHTML=html;
+  var btns=list.querySelectorAll('.console-open');
+  for(var i=0;i<btns.length;i++){ btns[i].addEventListener('click', function(){ openTenant(this.getAttribute('data-tid')); }); }
+}
+/* ヘッダーの「現在の店名」と「コンソールに戻る」を出す（複数テナントを扱える人だけ）。 */
+function renderTenantHeader(){
+  var wrap=document.getElementById('tenantHeader'); if(!wrap) return;
+  if(MY_TENANTS.length < 2){ wrap.style.display='none'; return; }
+  var cur=null; for(var i=0;i<MY_TENANTS.length;i++){ if(MY_TENANTS[i].tenant_id===TENANT_ID){ cur=MY_TENANTS[i]; break; } }
+  var nameEl=document.getElementById('tenantHeaderName'); if(nameEl) nameEl.textContent = cur ? cur.tenant_name : '';
+  wrap.style.display='flex';   // ★CSSの display:none を上書き（'' だと none が復活して出ない）
 }
 
 /* ===== 予約管理 タブ JS ===== */
@@ -1390,8 +1514,16 @@ function currentStoreSlug(){
   return (sel && sel.value) ? sel.value : 'kurume';
 }
 
+/* テナント横断は platform_admin(仁義)のみ可能（patch-20）。画面は常に「選択中の店」だけを映すため、
+   tenant_id 列を持つテーブルの GET には選択中テナントの絞り込みを必ず重ねる。
+   一般スタッフは RLS が自テナントに限定済み＝同じ条件の無害な重ね掛け（挙動不変）。 */
+var TENANT_SCOPED_TABLES = { stores:1, menus:1, artists:1, reviews:1, ref_sources:1, artist_shifts:1, reservations:1, customers:1 };
 /* REST GET（PostgREST）。配列 JSON を返す */
 function sbGet(path){
+  var table = String(path).split(/[?&/]/)[0];
+  if (TENANT_SCOPED_TABLES[table] && TENANT_ID && String(path).indexOf('tenant_id=') === -1){
+    path += (String(path).indexOf('?') === -1 ? '?' : '&') + 'tenant_id=eq.' + encodeURIComponent(TENANT_ID);
+  }
   return fetch(SB_URL + '/rest/v1/' + path, { headers: hdr() })
     .then(function(res){ return res.json().then(function(j){ if(!res.ok) throw new Error((j&&j.message)||('HTTP '+res.status)); return j; }); });
 }
@@ -1413,16 +1545,22 @@ function sbRpc(fn, body){
 /* stores（code→id）を1回ロードしてキャッシュ。store セレクタの店舗名も補完 */
 function ensureStoreMap(){
   if (STORE_MAP) return Promise.resolve(STORE_MAP);
-  return sbGet('stores?select=id,name,code').then(function(rows){
+  return sbGet('stores?select=id,name,code&order=name').then(function(rows){
     STORE_MAP = {};
     (rows||[]).forEach(function(s){ if(s.code) STORE_MAP[s.code] = { id:s.id, name:s.name }; });
-    // 店舗セレクタの表示名を実データで上書き（任意）
+    // ★店舗セレクタを「選択中テナントの店」で作り直す（多テナント対応）。
+    //   固定の久留米/博多ではなく、実データの店だけを並べる。先頭は常に「全店まとめ」。
     var sel = document.getElementById('resvStore');
     if (sel){
-      for (var i=0;i<sel.options.length;i++){
-        var v = sel.options[i].value;
-        if (STORE_MAP[v]) sel.options[i].textContent = STORE_MAP[v].name;
-      }
+      var keep = sel.value;
+      sel.innerHTML = '';
+      var optAll = document.createElement('option'); optAll.value = 'all'; optAll.textContent = '🏢 全店まとめ'; sel.appendChild(optAll);
+      (rows||[]).forEach(function(s){
+        if(!s.code) return;
+        var o = document.createElement('option'); o.value = s.code; o.textContent = s.name || s.code; sel.appendChild(o);
+      });
+      // 以前の選択が新テナントにも在れば維持、無ければ「全店まとめ」。
+      sel.value = (keep && (keep === 'all' || STORE_MAP[keep])) ? keep : 'all';
     }
     return STORE_MAP;
   });
@@ -2165,7 +2303,7 @@ function selectCustomer(lineUid){
   // 名前マップと get_customer を並行取得（名前マップ失敗は致命でない）。
   Promise.all([
     crmEnsureNameMaps(),
-    sbRpc('get_customer', { p_line_uid: lineUid })
+    sbRpc('get_customer', { p_line_uid: lineUid, p_tenant: TENANT_ID })
   ]).then(function(out){
     CRM_CARDS[lineUid] = out[1] || {};
     crmRenderDetail(lineUid, CRM_CARDS[lineUid]);
@@ -2536,7 +2674,11 @@ function crmSaveEdits(uid){
   if (btn){ btn.disabled = true; btn.textContent = '更新中…'; }
   crmEditMsg('更新中…', true);
 
-  var filter = 'line_uid=eq.' + encodeURIComponent(uid);
+  // ★顧客は line_uid 基準で更新するが、line_uid は店(テナント)をまたいで重複しうる
+  //   （同一人物が複数店の顧客）。patch-20 で全店をまたげる platform_admin が他店を編集した時に
+  //   別店の同一 line_uid 行まで巻き込んで上書きしないよう、選択中テナントを必ず重ねる。
+  //   一般スタッフは TENANT_ID=自店＝RLSと同じ条件の無害な重ね掛け。
+  var filter = 'line_uid=eq.' + encodeURIComponent(uid) + '&tenant_id=eq.' + encodeURIComponent(TENANT_ID);
   sbUpdate('customers', filter, patch).then(function(rows){
     if (btn){ btn.disabled = false; btn.textContent = 'この内容で更新する'; }
     // 更新が0件＝権限が無い/該当無し（RLSで弾かれた可能性）。representation が空配列なら失敗扱い。
@@ -2643,7 +2785,7 @@ function loadDash(){
     var r = dashRangeFor(DASH_PERIOD);
     document.getElementById('dashPeriod').textContent = r.label + ' の集計';
     var storeId = storeIdForSlug(currentStoreSlug()); // 'all'→null（owner/adminのみRLS許可）
-    return sbRpc('dashboard_stats', { p_store: storeId, p_from: r.from, p_to: r.to });
+    return sbRpc('dashboard_stats', { p_store: storeId, p_from: r.from, p_to: r.to, p_tenant: TENANT_ID });
   }).then(function(s){
     renderDash(s || {});
   }).catch(function(err){
@@ -4063,7 +4205,7 @@ function addRefSource(){
   if(btn){ btn.disabled = true; btn.textContent = '発行中…'; }
   acqSetMsg('発行中…', true);
 
-  sbRpc('add_ref_source', { p_label: label, p_tag: tag })
+  sbRpc('add_ref_source', { p_label: label, p_tag: tag, p_tenant: TENANT_ID })
     .then(function(){
       if(btn){ btn.disabled = false; btn.textContent = '＋ 追加してリンク発行'; }
       acqSetMsg('✅ 追加してリンクを発行しました', true);
@@ -4182,7 +4324,7 @@ function loadAcqStats(){
   if(!box) return;
   box.innerHTML = '<div class="placeholder">読み込み中…</div>';
   var r = acqRange(ACQ_PERIOD);
-  sbRpc('ref_stats', { p_from: r[0], p_to: r[1] })
+  sbRpc('ref_stats', { p_from: r[0], p_to: r[1], p_tenant: TENANT_ID })
     .then(function(rows){ renderAcqStats(Array.isArray(rows) ? rows : [], ACQ_PERIOD); })
     .catch(function(err){
       if(acqNeedsLogin()) return;
@@ -4254,7 +4396,7 @@ function renderAcqStats(rows, period){
 /* ===== users タブ JS ===== */
 /* ============================================================================
    ユーザー管理タブ（Supabase版）JS — owner/admin 専用
-   ・一覧：sbRpc('list_staff',{}) / 更新：sbRpc('update_staff',{p_id,p_role,p_store,p_active})
+   ・一覧：sbRpc('list_staff',{p_tenant:TENANT_ID}) / 更新：sbRpc('update_staff',{p_id,p_role,p_store,p_active})
    ・新規発行：Edge Function manage-staff（fetch）。パスワードは画面表示のみ・保存/ログ出力しない。
    ・共有グローバルは再定義しない：SB_URL,TOKEN,hdr(),sbRpc(),esc(),
      ensureStoreMap(),STORE_MAP,storeIdForSlug(),hideAllViews(),setActiveNav(),
@@ -4360,13 +4502,13 @@ function usrFillStoreOptions(){
   }).catch(function(){ /* 店舗が取れなくても「全店」だけで発行可能 */ });
 }
 
-/* 一覧取得：sbRpc('list_staff',{}) */
+/* 一覧取得：sbRpc('list_staff',{p_tenant:TENANT_ID})（選択中テナント。platform_admin以外は自テナントに矯正） */
 function loadStaff(){
   var list = document.getElementById('usrList');
   if (!list) return;
   list.innerHTML = '<div class="placeholder">読み込み中…</div>';
   ensureStoreMap().catch(function(){ /* 店名解決できなくても一覧は出す */ }).then(function(){
-    return sbRpc('list_staff', {});
+    return sbRpc('list_staff', { p_tenant: TENANT_ID });
   }).then(function(rows){
     renderStaff(rows || []);
   }).catch(function(err){
