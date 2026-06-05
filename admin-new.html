@@ -1157,6 +1157,25 @@ function lsecBuild(){
   saveBtn.addEventListener("click", lsecSave);
   panel.appendChild(saveBtn);
 
+  // LINEと接続：保存済みの鍵を使って bot のID(destination)を取得し、振り分け表に登録する。
+  //   ・鍵の保存後に押す。これで chat-webhook が「この公式LINE＝この店」と判定できる＝喋れる。
+  var linkNote = lsecEl("div", { className:"setup-note",
+    text:"↓ アクセストークンとチャネルシークレットを保存したら、このボタンで「この公式LINE＝この店」をシステムに登録します（IDは自動取得・手入力不要）。" });
+  linkNote.style.marginTop = "14px";
+  panel.appendChild(linkNote);
+  var linkBtn = lsecEl("button", { type:"button", id:"lsecLinkBtn", text:"🔗 LINEと接続（IDを取得して登録）" });
+  linkBtn.style.marginTop = "6px";
+  linkBtn.style.padding = "11px 16px";
+  linkBtn.style.border = "1px solid #0b5c55";
+  linkBtn.style.borderRadius = "9px";
+  linkBtn.style.background = "#fff";
+  linkBtn.style.color = "#0b5c55";
+  linkBtn.style.fontWeight = "800";
+  linkBtn.style.fontSize = "14px";
+  linkBtn.style.cursor = "pointer";
+  linkBtn.addEventListener("click", lsecLinkChannel);
+  panel.appendChild(linkBtn);
+
   var msg = lsecEl("div", { id:"lsecMsg" });
   msg.style.minHeight = "18px";
   msg.style.marginTop = "8px";
@@ -1265,6 +1284,36 @@ function lsecSave(){
       }
     })
     .catch(function(){ lsecMsg("保存できませんでした。"); })
+    .then(function(){ if (btn) btn.disabled = false; });
+}
+
+/* LINEと接続：manage-tenant link_line_channel。保存済みtokenでbotのID(destination)を取得し振り分け表に登録。 */
+function lsecLinkChannel(){
+  if (!LSEC_TENANT) { lsecMsg("対象の店舗が選べていません。"); return; }
+  var btn = document.getElementById("lsecLinkBtn");
+  var channelId = (document.getElementById("lsecChannelId")||{}).value || ""; // 任意（参考保存）。空でもOK
+  if (btn) btn.disabled = true;
+  lsecMsg("LINEに接続中…（IDを取得しています）", true);
+  fetch(SB_URL + "/functions/v1/manage-tenant", {
+    method:"POST",
+    headers: Object.assign({ "Content-Type":"application/json" }, hdr()),
+    body: JSON.stringify({ action:"link_line_channel", tenant_id: LSEC_TENANT, channel_id: channelId })
+  })
+    .then(function(res){ return res.json().catch(function(){ return {}; }); })
+    .then(function(j){
+      if (j && j.ok === true) {
+        lsecMsg("接続しました。この公式LINEがこの店として認識されます（ID末尾…" + String(j.destination||"").slice(-6) + "）。", true);
+      } else {
+        var r = (j && j.reason) || "";
+        var m = "接続できませんでした。";
+        if (r === "no_token_in_vault") m = "先にアクセストークンを保存してください（保存後にもう一度）。";
+        else if (r === "no_secret_in_vault") m = "先にチャネルシークレットも保存してください（接続にはトークンとシークレットの両方が必要です）。";
+        else if (r === "line_info_failed") m = "LINEに拒否されました。アクセストークンが正しいか確認してください。";
+        else if (r === "forbidden") m = "全体管理者のみ実行できます。";
+        lsecMsg(m);
+      }
+    })
+    .catch(function(){ lsecMsg("接続できませんでした。"); })
     .then(function(){ if (btn) btn.disabled = false; });
 }
 
