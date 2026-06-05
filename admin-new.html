@@ -3516,29 +3516,29 @@ function stpBuildEditor(){
   return w;
 }
 
-/* ───────── 画像アップロード（Storage step-images へ直アップ→公開URLを保存）───────── */
+/* ───────── 画像アップロード（manage-steps が service_role で代理アップロード）─────────
+   ブラウザ直アップロードは publishable key だと auth.uid() が解決されず 403 になるため、
+   画像を data URL(base64) にして manage-steps(owner/admin認証済) に渡し、裏で Storage へ入れる。 */
 function stpUploadImage(file, st, line){
   if(!file) return;
-  if(!TOKEN){ if(typeof showLogin==='function') showLogin('もう一度ログインしてください。'); return; }
   if(file.size > 5*1024*1024){ line.textContent='画像は5MBまでにしてください'; line.className='stp-msg-line ng'; return; }
-  var ext=((file.name||'').split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg';
-  var path=(STP.draft&&STP.draft.id?STP.draft.id:'misc')+'/'+Date.now()+'-'+Math.random().toString(36).slice(2,8)+'.'+ext;
+  if(!STP.draft || !STP.draft.id){ line.textContent='先にシナリオを保存してから画像を追加してください'; line.className='stp-msg-line ng'; return; }
   line.textContent='アップロード中…'; line.className='stp-msg-line';
-  fetch(SB_URL+'/storage/v1/object/step-images/'+path, {
-    method:'POST',
-    headers:{ 'apikey':SB_KEY, 'Authorization':'Bearer '+TOKEN, 'Content-Type':(file.type||'image/jpeg'), 'x-upsert':'true' },
-    body:file
-  }).then(function(r){
-    if(!r.ok) return r.text().then(function(t){ throw new Error(t||('HTTP '+r.status)); });
-    st.image_urls=(st.image_urls||[]);
-    st.image_urls.push(SB_URL+'/storage/v1/object/public/step-images/'+path);
-    stpRenderList();
-  }).catch(function(e){
-    var msg=String(e&&e.message||e);
-    if(/Bucket not found|404/i.test(msg)) msg='画像置き場（step-images）が未作成です。patch-17 を適用してください';
-    else if(/row-level|violates|403|Unauthorized/i.test(msg)) msg='アップロード権限がありません（オーナー／管理者のみ）';
-    line.textContent=msg; line.className='stp-msg-line ng';
-  });
+  var reader=new FileReader();
+  reader.onload=function(){
+    stpCall('upload_image', { scenario_id: STP.draft.id, data_url: reader.result }).then(function(d){
+      if(!d || !d.ok || !d.url){
+        var rs=(d&&d.reason)||''; var msg=stpReason(rs);
+        if(/too_large/.test(rs)) msg='画像は5MBまでにしてください';
+        else if(/bad_image/.test(rs)) msg='対応していない画像です（JPEG / PNG / WebP / GIF）';
+        else if(/upload_failed/.test(rs) && /bucket not found/i.test((d&&d.detail)||'')) msg='画像置き場（step-images）が未作成です。patch-17 を適用してください';
+        line.textContent=msg; line.className='stp-msg-line ng'; return;
+      }
+      st.image_urls=(st.image_urls||[]); st.image_urls.push(d.url); stpRenderList();
+    });
+  };
+  reader.onerror=function(){ line.textContent='画像の読み込みに失敗しました'; line.className='stp-msg-line ng'; };
+  reader.readAsDataURL(file);
 }
 
 /* ───────── 保存・トグル・削除 ───────── */
