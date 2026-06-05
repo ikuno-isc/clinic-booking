@@ -685,6 +685,15 @@
 
   <div class="setup-section" id="setupSteps"></div>
 
+  <!-- ============================================================================
+       ③ LINE接続（鍵の登録）— 全体管理者(platform_admin)のみ
+       状態は get_tenant_secret_status RPC（is_set / 末尾4文字のみ）。
+       保存・削除は Edge Function manage-tenant（set_line_secrets / clear_line_secrets）。
+       セキュリティ：鍵本体は再表示しない。DOM APIで構築・inline onclick禁止・innerHTMLに鍵を入れない。
+       要素の組み立てとイベントは下部の lineSecretLoad() 系JSが行う（IDは lsec- 接頭辞で非衝突）。
+       ============================================================================ -->
+  <div class="setup-section" id="lineSecretPanel" style="display:none"></div>
+
   <div class="setup-actions">
     <a class="setup-link" href="https://developers.line.biz/console/" target="_blank" rel="noopener">LINE Developersを開く</a>
     <a class="setup-link" href="https://calendar.google.com/" target="_blank" rel="noopener">Googleカレンダーを開く</a>
@@ -982,6 +991,7 @@ function loadSetupStatus(selectedTenant){
       SETUP_STATUS_ROWS = rows;
       var tenantId = setupPickDefaultTenant(rows, selectedTenant);
       renderSetupTenantSelect(rows, tenantId);
+      if (typeof lineSecretLoad === "function") lineSecretLoad(tenantId);
       var row = null;
       for (var i=0; i<rows.length; i++) {
         if (rows[i] && rows[i].tenant_id === tenantId) { row = rows[i]; break; }
@@ -991,6 +1001,7 @@ function loadSetupStatus(selectedTenant){
       renderSetupSteps(row);
     })
     .catch(function(){
+      if (typeof lineSecretLoad === "function") lineSecretLoad(selectedTenant || TENANT_ID);
       sbRpc("get_tenant_setup_status", selectedTenant ? { p_tenant: selectedTenant } : {})
         .then(function(rows){
           var row = Array.isArray(rows) ? rows[0] : null;
@@ -1000,6 +1011,280 @@ function loadSetupStatus(selectedTenant){
         })
         .catch(function(){ renderSetupSteps(setupDefaultStatus()); });
     });
+}
+
+/* ============================================================================
+   ③ LINE接続（鍵の登録）JS — 全体管理者(platform_admin)のみ
+   ・状態表示：sbRpc('get_tenant_secret_status',{p_tenant_id})。非権限者は例外→入力欄を出さない。
+   ・保存：Edge Function manage-tenant action=set_line_secrets。空欄は「変更しない」。
+   ・削除：action=clear_line_secrets kind=token|secret（window.confirm の後）。
+   セキュリティ厳守（設計v2 H5/M2/M3）：
+   ・鍵・入力値を innerHTML に入れない。DOMは createElement/textContent/appendChild で構築。
+   ・inline onclick 禁止。addEventListener でハンドラ付与。
+   ・保存後は入力欄を必ずクリア。画面に出すのは last4 と is_set のみ。
+   IDは lsec- 接頭辞で既存と非衝突。
+   ============================================================================ */
+var LSEC_TENANT = "";        // このパネルが対象にしているテナントID
+var LSEC_BUILT  = false;     // 入力フォームDOMを一度だけ構築
+
+/* 小さなDOMヘルパー（textContent前提でXSS安全） */
+function lsecEl(tag, opts){
+  var e = document.createElement(tag);
+  opts = opts || {};
+  if (opts.className) e.className = opts.className;
+  if (opts.text != null) e.textContent = opts.text;
+  if (opts.type) e.type = opts.type;
+  if (opts.placeholder) e.placeholder = opts.placeholder;
+  if (opts.id) e.id = opts.id;
+  return e;
+}
+
+/* パネルへのメッセージ表示（textContentのみ） */
+function lsecMsg(text, ok){
+  var m = document.getElementById("lsecMsg");
+  if (!m) return;
+  m.textContent = text || "";
+  m.style.color = ok ? "#0b5c55" : "#c2410c";
+}
+
+/* 状態テキスト：設定済み ••••xxxx / 未設定 */
+function lsecStatusText(isSet, last4){
+  if (isSet) return "設定済み ••••" + (last4 || "");
+  return "未設定";
+}
+
+/* パネル全体（タイトル＋状態行＋入力欄＋ボタン）を一度だけ構築 */
+function lsecBuild(){
+  if (LSEC_BUILT) return;
+  var panel = document.getElementById("lineSecretPanel");
+  if (!panel) return;
+  while (panel.firstChild) panel.removeChild(panel.firstChild);
+
+  var h = lsecEl("div", { className:"setup-title", text:"③ LINE接続（鍵の登録）" });
+  panel.appendChild(h);
+
+  var note = lsecEl("div", { className:"setup-note",
+    text:"全体管理者だけが、この店舗のLINE鍵を登録できます。鍵は暗号化して保存され、二度と画面には表示されません（末尾4文字のみ表示）。未入力の欄は変更しません。削除は各欄の削除ボタンで行ってください。" });
+  panel.appendChild(note);
+
+  // 現在の状態（textContentで更新する箱）
+  var st = lsecEl("div", { id:"lsecStatusBox" });
+  st.style.margin = "8px 0";
+  st.style.fontSize = "13px";
+  st.style.lineHeight = "1.7";
+  panel.appendChild(st);
+
+  // 入力欄を作る小関数
+  function field(labelText, guideText, inputId, inputType, placeholder){
+    var wrap = lsecEl("div");
+    wrap.style.marginTop = "10px";
+    var lab = lsecEl("label", { text: labelText });
+    lab.style.display = "block";
+    lab.style.fontWeight = "700";
+    wrap.appendChild(lab);
+    var guide = lsecEl("div", { text: guideText });
+    guide.style.fontSize = "12px";
+    guide.style.color = "#6b7280";
+    guide.style.margin = "2px 0 4px";
+    wrap.appendChild(guide);
+    var inp = lsecEl("input", { id: inputId, type: inputType, placeholder: placeholder || "" });
+    inp.autocomplete = "off";
+    inp.style.width = "100%";
+    inp.style.boxSizing = "border-box";
+    inp.style.padding = "9px";
+    inp.style.border = "1px solid #ccc";
+    inp.style.borderRadius = "8px";
+    inp.style.fontSize = "14px";
+    wrap.appendChild(inp);
+    return wrap;
+  }
+
+  panel.appendChild(field(
+    "チャネルID",
+    "LINE Developers → 対象チャネル → 「チャネル基本設定」のチャネルID（数字）。",
+    "lsecChannelId", "text", "例）1234567890"));
+
+  // トークン欄＋削除ボタン
+  var tokWrap = field(
+    "チャネルアクセストークン",
+    "LINE Developers → 「Messaging API設定」→ 長期アクセストークンを発行してコピー。",
+    "lsecChannelToken", "password", "未入力なら変更しません");
+  var tokDel = lsecEl("button", { type:"button", text:"このトークンを削除" });
+  tokDel.style.marginTop = "6px";
+  tokDel.style.padding = "6px 10px";
+  tokDel.style.border = "1px solid #c2410c";
+  tokDel.style.background = "#fff";
+  tokDel.style.color = "#c2410c";
+  tokDel.style.borderRadius = "8px";
+  tokDel.style.cursor = "pointer";
+  tokDel.addEventListener("click", function(){ lsecClear("token"); });
+  tokWrap.appendChild(tokDel);
+  panel.appendChild(tokWrap);
+
+  // シークレット欄＋削除ボタン
+  var secWrap = field(
+    "チャネルシークレット",
+    "LINE Developers → 「チャネル基本設定」→ チャネルシークレットをコピー。",
+    "lsecChannelSecret", "password", "未入力なら変更しません");
+  var secDel = lsecEl("button", { type:"button", text:"このシークレットを削除" });
+  secDel.style.marginTop = "6px";
+  secDel.style.padding = "6px 10px";
+  secDel.style.border = "1px solid #c2410c";
+  secDel.style.background = "#fff";
+  secDel.style.color = "#c2410c";
+  secDel.style.borderRadius = "8px";
+  secDel.style.cursor = "pointer";
+  secDel.addEventListener("click", function(){ lsecClear("secret"); });
+  secWrap.appendChild(secDel);
+  panel.appendChild(secWrap);
+
+  panel.appendChild(field(
+    "通知先グループID",
+    "スタッフ通知を送るLINEグループのID（C で始まる文字列）。",
+    "lsecGroupId", "text", "例）Cxxxxxxxx"));
+
+  // 保存ボタン＋メッセージ
+  var saveBtn = lsecEl("button", { type:"button", id:"lsecSaveBtn", text:"保存する" });
+  saveBtn.style.marginTop = "12px";
+  saveBtn.style.padding = "11px 16px";
+  saveBtn.style.border = "none";
+  saveBtn.style.borderRadius = "9px";
+  saveBtn.style.background = "#0b5c55";
+  saveBtn.style.color = "#fff";
+  saveBtn.style.fontWeight = "800";
+  saveBtn.style.fontSize = "14px";
+  saveBtn.style.cursor = "pointer";
+  saveBtn.addEventListener("click", lsecSave);
+  panel.appendChild(saveBtn);
+
+  var msg = lsecEl("div", { id:"lsecMsg" });
+  msg.style.minHeight = "18px";
+  msg.style.marginTop = "8px";
+  msg.style.fontSize = "13px";
+  panel.appendChild(msg);
+
+  LSEC_BUILT = true;
+}
+
+/* 状態表示の更新（鍵本体は扱わない。is_set と last4 のみ） */
+function lsecRenderStatus(s){
+  var box = document.getElementById("lsecStatusBox");
+  if (!box) return;
+  while (box.firstChild) box.removeChild(box.firstChild);
+  s = s || {};
+  function line(label, isSet, last4){
+    var d = lsecEl("div");
+    var k = lsecEl("span", { text: label + "：" });
+    k.style.fontWeight = "700";
+    d.appendChild(k);
+    d.appendChild(document.createTextNode(lsecStatusText(isSet, last4)));
+    return d;
+  }
+  box.appendChild(line("チャネルアクセストークン", !!s.token_is_set, s.token_last4));
+  box.appendChild(line("チャネルシークレット", !!s.secret_is_set, s.secret_last4));
+  // チャネルIDは平文メタ（last4ではなく値の有無＋値表示）
+  var idLine = lsecEl("div");
+  var idK = lsecEl("span", { text:"チャネルID：" });
+  idK.style.fontWeight = "700";
+  idLine.appendChild(idK);
+  idLine.appendChild(document.createTextNode(s.channel_id ? String(s.channel_id) : "未設定"));
+  box.appendChild(idLine);
+  box.appendChild(line("通知先グループID", !!s.group_id_is_set, null));
+}
+
+/* 入力欄を全てクリア（保存後にブラウザへ鍵を残さない） */
+function lsecClearInputs(){
+  ["lsecChannelId","lsecChannelToken","lsecChannelSecret","lsecGroupId"].forEach(function(id){
+    var e = document.getElementById(id);
+    if (e) e.value = "";
+  });
+}
+
+/* 対象テナントの状態を読み込む。非権限者なら入力欄を隠して案内を出す。 */
+function lsecLoadInner(){
+  var panel = document.getElementById("lineSecretPanel");
+  if (!panel) return;
+  if (typeof sbRpc !== "function" || !TOKEN || !LSEC_TENANT) { panel.style.display = "none"; return; }
+  sbRpc("get_tenant_secret_status", { p_tenant_id: LSEC_TENANT })
+    .then(function(rows){
+      // 権限OK：パネルを構築して状態を表示
+      lsecBuild();
+      panel.style.display = "";
+      var s = Array.isArray(rows) ? (rows[0] || {}) : (rows || {});
+      lsecRenderStatus(s);
+      lsecMsg("");
+    })
+    .catch(function(){
+      // is_platform_admin() 例外（403相当）など：入力欄は出さず案内のみ
+      while (panel.firstChild) panel.removeChild(panel.firstChild);
+      LSEC_BUILT = false;
+      panel.style.display = "";
+      var t = lsecEl("div", { className:"setup-title", text:"③ LINE接続（鍵の登録）" });
+      var n = lsecEl("div", { className:"setup-note", text:"全体管理者のみ設定できます。" });
+      panel.appendChild(t);
+      panel.appendChild(n);
+    });
+}
+
+/* 外部（loadSetupStatus / テナント切替）から呼ぶ入口：対象テナントを設定して再読込 */
+function lineSecretLoad(tenantId){
+  LSEC_TENANT = tenantId || TENANT_ID || "";
+  lsecLoadInner();
+}
+
+/* 保存：manage-tenant set_line_secrets。空欄は「変更しない」。成功でクリア＋再読込。 */
+function lsecSave(){
+  if (!LSEC_TENANT) { lsecMsg("対象の店舗が選べていません。"); return; }
+  var btn = document.getElementById("lsecSaveBtn");
+  var channelId     = (document.getElementById("lsecChannelId")||{}).value || "";
+  var channelToken  = (document.getElementById("lsecChannelToken")||{}).value || "";
+  var channelSecret = (document.getElementById("lsecChannelSecret")||{}).value || "";
+  var groupId       = (document.getElementById("lsecGroupId")||{}).value || "";
+  if (btn) btn.disabled = true;
+  lsecMsg("保存中…", true);
+  fetch(SB_URL + "/functions/v1/manage-tenant", {
+    method:"POST",
+    headers: Object.assign({ "Content-Type":"application/json" }, hdr()),
+    body: JSON.stringify({
+      action:"set_line_secrets",
+      tenant_id: LSEC_TENANT,
+      channel_id: channelId,
+      channel_token: channelToken,
+      channel_secret: channelSecret,
+      group_id: groupId
+    })
+  })
+    .then(function(res){ return res.json().catch(function(){ return {}; }); })
+    .then(function(j){
+      if (j && j.ok === true) {
+        lsecClearInputs();          // 鍵を画面・ブラウザに残さない
+        lsecMsg("保存しました。", true);
+        lsecLoadInner();            // last4 を更新
+      } else {
+        lsecMsg("保存できませんでした。"); // 理由コードは出さない
+      }
+    })
+    .catch(function(){ lsecMsg("保存できませんでした。"); })
+    .then(function(){ if (btn) btn.disabled = false; });
+}
+
+/* 削除：manage-tenant clear_line_secrets。確認の後に実行し、状態を再読込。 */
+function lsecClear(kind){
+  if (!LSEC_TENANT) { lsecMsg("対象の店舗が選べていません。"); return; }
+  var name = kind === "token" ? "チャネルアクセストークン" : "チャネルシークレット";
+  if (!window.confirm(name + "を削除します。よろしいですか？")) return;
+  lsecMsg("削除中…", true);
+  fetch(SB_URL + "/functions/v1/manage-tenant", {
+    method:"POST",
+    headers: Object.assign({ "Content-Type":"application/json" }, hdr()),
+    body: JSON.stringify({ action:"clear_line_secrets", tenant_id: LSEC_TENANT, kind: kind })
+  })
+    .then(function(res){ return res.json().catch(function(){ return {}; }); })
+    .then(function(j){
+      if (j && j.ok === true) { lsecMsg(name + "を削除しました。", true); lsecLoadInner(); }
+      else { lsecMsg("削除できませんでした。"); }
+    })
+    .catch(function(){ lsecMsg("削除できませんでした。"); });
 }
 
 // ===== ログイン画面の再表示（各タブのエラーフックから呼ばれる）=====
@@ -1275,8 +1560,8 @@ function handleBoardAction(act, rid){
   if (!rid) return;
   var plan = {
     remind:  { q:'このお客様に「問診リマインド」をLINEで送信しますか？',
-               run:function(){ return sbRpc('set_status', { p_resv:rid, p_status:'questionnaire_reminded' })
-                                 .then(function(){ return pushQuestionnaireReminder(rid); }); } },
+               run:function(){ return pushQuestionnaireReminder(rid)
+                                 .then(function(sent){ if(sent){ return sbRpc('set_status', { p_resv:rid, p_status:'questionnaire_reminded' }); } }); } },
     consent: { q:'このお客様に「施術同意書」の記入リンクをLINEで送信しますか？',
                run:function(){ return pushConsentLink(rid); } },
     cancel:  { q:'この予約をキャンセルしますか？\nカレンダーの枠も解放します。\n（お客様への自動連絡はしません）',
@@ -1301,8 +1586,19 @@ function pushQuestionnaireReminder(rid){
     headers: Object.assign({ 'Content-Type':'application/json' }, hdr()),
     body: JSON.stringify({ action:'questionnaire_reminder', reservation_id: rid })
   }).then(function(res){ return res.json().catch(function(){ return {}; }); })
-    .then(function(j){ if(!j || j.ok!==true){ /* 送信失敗でも状態(reminded)は成立済み */ } })
-    .catch(function(){ /* 通信失敗は致命でない */ });
+    .then(function(j){
+      if(j && j.ok===true && j.sent===false && j.reason==='no_line_uid'){
+        window.alert('このお客様はLINEと連携していないため、問診リマインドを送れませんでした。');
+        return false;
+      } else if(!j || j.ok!==true){
+        window.alert('問診リマインドを送信できませんでした。時間をおいて再度お試しください。');
+        return false;
+      } else {
+        window.alert('問診リマインドをLINEに送信しました。');
+        return true;
+      }
+    })
+    .catch(function(){ window.alert('通信に失敗しました。電波状況をご確認ください。'); return false; });
 }
 
 /* 同意書リンクの LINE push は manage-staff（staff認証）の consent_link アクションで実行。
