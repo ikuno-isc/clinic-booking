@@ -3669,7 +3669,7 @@ function stpRenderList(){
     var st=document.createElement('span'); st.className='stp-badge '+(s.is_active?'on':'off'); st.textContent=s.is_active?'配信中':'停止中'; head.appendChild(st);
     card.appendChild(head);
     var meta=document.createElement('div'); meta.className='stp-meta';
-    meta.textContent=msgs.length+'通 ・ 配信時間 '+(s.send_hour_from||9)+'〜'+(s.send_hour_to||21)+'時';
+    meta.textContent=msgs.length+'通 ・ 配信時間 '+(s.send_hour_from||9)+'〜'+(s.send_hour_to||21)+'時'+(s.ab_group?(' ・ A/B「'+s.ab_group+'」'):'');
     card.appendChild(meta);
     var acts=document.createElement('div'); acts.className='stp-row'; acts.style.marginTop='10px';
     var bEdit=document.createElement('button'); bEdit.className='stp-btn ghost sm'; bEdit.textContent=(STP.editing===s.id?'閉じる':'編集');
@@ -3692,7 +3692,7 @@ function stpStartEdit(sid){
   var s=STP.scenarios.filter(function(x){return x.id===sid;})[0]; if(!s) return;
   STP.editing=sid;
   STP.draft={
-    id:s.id, name:s.name||'', trigger_type:s.trigger_type||'friend_add',
+    id:s.id, name:s.name||'', trigger_type:s.trigger_type||'friend_add', ab_group:s.ab_group||'',
     is_active:!!s.is_active, send_hour_from:(s.send_hour_from==null?9:s.send_hour_from), send_hour_to:(s.send_hour_to==null?21:s.send_hour_to),
     steps: stpMessagesOf(sid).map(function(m){
       var min=Math.max(0, Number(m.delay_minutes)||0);
@@ -3795,15 +3795,29 @@ function stpBuildEditor(){
   g.appendChild(stpFieldSelect('きっかけ', [['friend_add','友だち追加したとき'],['manual','手動で登録した人だけ']], d.trigger_type, function(v){ d.trigger_type=v; }));
   g.appendChild(stpFieldHours(d));
   w.appendChild(g);
+  // A/Bの組（任意）：同じ言葉を2つのシナリオに入れると、友だち追加した人が半分ずつどちらかに振り分けられる。
+  var abf=stpFieldText('A/Bの組（任意・空ならA/Bしない）', d.ab_group, function(v){ d.ab_group=v; });
+  var abh=document.createElement('div'); abh.style.cssText='font-size:11px;color:#6b7280;margin-top:4px;line-height:1.6';
+  abh.textContent='例：「小倉オープン」と同じ言葉を2つのシナリオに付けると、友だち追加した人が自動で半々に分かれ、どちらか片方だけを受け取ります（二重配信なし）。空欄なら全員に配信します。';
+  abf.appendChild(abh); w.appendChild(abf);
   var h=document.createElement('h3'); h.textContent='配信するメッセージ'; h.style.fontSize='13px'; w.appendChild(h);
+  // 差し込みタグの案内（本文に書くと、送信時にお店のデータの値へ自動で置き換わる）。
+  var tagBox=document.createElement('div'); tagBox.className='stp-note'; tagBox.style.marginBottom='6px';
+  tagBox.innerHTML='本文に次のタグを書くと、送信時にお店の実際の値へ自動で置き換わります（価格は手入力せずタグ推奨）：<br>'
+    +'<code>{{店名}}</code> <code>{{予約URL}}</code> <code>{{眉通常価格}}</code> <code>{{眉モニター価格}}</code> '
+    +'<code>{{セット価格}}</code> <code>{{所要時間}}</code> <code>{{最終受付}}</code> <code>{{支払い}}</code>';
+  w.appendChild(tagBox);
   d.steps.forEach(function(st,i){ w.appendChild(stpBuildStepCard(st,i)); });
   var row=document.createElement('div'); row.className='stp-row'; row.style.margin='10px 0';
   var bAdd=document.createElement('button'); bAdd.className='stp-btn ghost sm'; bAdd.textContent='＋ メッセージを追加';
   bAdd.onclick=function(){ d.steps.push({ days:(d.steps.length?1:0), hours:0, content:'', image_urls:[] }); stpRenderList(); };
   row.appendChild(bAdd);
-  var bTpl=document.createElement('button'); bTpl.className='stp-btn ghost sm'; bTpl.textContent='💡 おすすめ6通を入れる';
-  bTpl.onclick=function(){ stpApplyTemplate(); };
-  row.appendChild(bTpl);
+  var bTplStd=document.createElement('button'); bTplStd.className='stp-btn ghost sm'; bTplStd.textContent='💡 標準版7通を入れる';
+  bTplStd.onclick=function(){ stpApplyTemplate('std'); };
+  row.appendChild(bTplStd);
+  var bTplLite=document.createElement('button'); bTplLite.className='stp-btn ghost sm'; bTplLite.textContent='💡 軽め版2通を入れる';
+  bTplLite.onclick=function(){ stpApplyTemplate('lite'); };
+  row.appendChild(bTplLite);
   w.appendChild(row);
   var save=document.createElement('button'); save.className='stp-btn primary'; save.textContent='💾 保存する';
   save.onclick=function(){ stpSaveDraft(); };
@@ -3841,7 +3855,7 @@ function stpUploadImage(file, st, line){
 function stpSaveDraft(){
   var d=STP.draft; if(!d) return;
   stpTopMsg('保存中…');
-  return stpCall('scenario_save', { scenario:{ id:d.id, name:d.name, trigger_type:d.trigger_type, is_active:d.is_active, send_hour_from:d.send_hour_from, send_hour_to:d.send_hour_to } })
+  return stpCall('scenario_save', { scenario:{ id:d.id, name:d.name, trigger_type:d.trigger_type, ab_group:d.ab_group||'', is_active:d.is_active, send_hour_from:d.send_hour_from, send_hour_to:d.send_hour_to } })
   .then(function(r1){
     if(!r1.ok) throw new Error(r1.reason||'save_failed');
     var steps=d.steps.map(function(st){
@@ -3856,7 +3870,7 @@ function stpSaveDraft(){
 }
 function stpToggleActive(s){
   if(!s.is_active && !stpMessagesOf(s.id).length){ stpTopMsg('先にメッセージを1通以上つくって保存してください', false); return; }
-  stpCall('scenario_save', { scenario:{ id:s.id, name:s.name, trigger_type:s.trigger_type, is_active:!s.is_active, send_hour_from:s.send_hour_from, send_hour_to:s.send_hour_to } })
+  stpCall('scenario_save', { scenario:{ id:s.id, name:s.name, trigger_type:s.trigger_type, ab_group:s.ab_group||'', is_active:!s.is_active, send_hour_from:s.send_hour_from, send_hour_to:s.send_hour_to } })
     .then(function(d){ if(!d.ok){ stpTopMsg(stpReason(d.reason), false); return; } stpTopMsg(!s.is_active?'配信を開始しました ✅':'配信を停止しました', true); stpReload(); });
 }
 function stpDeleteScenario(s){
@@ -3868,21 +3882,29 @@ function stpDeleteScenario(s){
   });
 }
 
-/* ───────── おすすめテンプレ（ai-customer-playbook.md E項：即決層・1通=不安1つ・煽らない）───────── */
-var STP_TEMPLATE = [
-  { days:0,  hours:0, content:'友だち追加ありがとうございます😊\n眉のことで気になっていることはありますか？\n①似合う形 ②料金 ③痛み ④アーティスト\nどれでもお気軽にメッセージしてくださいね🪞' },
-  { days:1,  hours:0, content:'初めての方がほとんどなのでご安心ください😊\n当院は骨格や黄金比に合わせて、あなたに似合う眉をご提案します。\nすっぴんでも自然な毛並みも選べます。左右差もていねいに整えます🪞' },
-  { days:3,  hours:0, content:'「痛そう…」というご不安、よく分かります。\n麻酔を使うのでチクチクする程度の方が多いです。\nダウンタイムは数日〜1週間ほどで自然に馴染みます。\n「思っていたより楽でした」というお声を多くいただきます😊' },
-  { days:7,  hours:0, content:'料金についてのご案内です。\nアーティストや回数で変わりますが、きれいに定着させるには2回がおすすめです（2回セットもご用意）。\n他院で入れた眉の修正にも対応しています。\n気になる点はお気軽にご相談くださいね💁‍♀️' },
-  { days:14, hours:0, content:'迷われていませんか？😊\nカウンセリングだけでも大丈夫です。お話を聞いて、納得してから決めていただけます。\nご希望の日があれば空き枠をお探しします。お気軽にどうぞ🌷' },
-  { days:30, hours:0, content:'その後いかがお過ごしですか🌱\n季節のキャンペーンやおすすめの情報をお届けしています。\n「やってみようかな」と思った時が始めどき。いつでもご相談くださいね😊' }
+/* ───────── おすすめテンプレ（即決層・1通=不安1つ・煽らない。差し込みタグ＋やわらかフェミニン絵文字）
+   ・標準版7通（即決〜30日超の後日層までカバー）／軽め版2通（A/Bのもう片側＝初日を軽く）。
+   ・価格・店名・URL等は {{差し込みタグ}}（送信時にDBの実値へ自動置換。render_step_content / patch-22）。 */
+var STP_TPL_STD = [
+  { days:0,  hours:0,  content:'{{店名}}です🤍\n数あるアカウントの中から友だち追加いただき、ありがとうございます✨\nご覧いただいた眉のデザインは、お一人おひとりのお顔立ちに合わせてご提案しています。\n「気になるけれど、まず聞いてみたい」だけでも大歓迎です💬 このトークにそのまま送っていただければ、ご質問にお答えします。\nご予約はこちらから承っています🗓️\n{{予約URL}}' },
+  { days:0,  hours:3,  content:'こんにちは、{{店名}}です🤍\n「アートメイクって痛そう…」というご不安、とても多くいただきます。\n当院では施術前に麻酔を使い、痛みをやわらげる工夫をしています。感じ方には個人差がありますが、「思っていたより楽だった」というお声もいただきます☺️\n痛みや麻酔のことで気になる点があれば、遠慮なくこのトークでご質問ください💬' },
+  { days:0,  hours:21, content:'{{店名}}です🤍 昨日は友だち追加いただきありがとうございました✨\n当日は、カウンセリングでデザインをじっくりすり合わせてから施術に入ります。所要時間は{{所要時間}}ほどが目安です（最終受付 {{最終受付}}）。\n実際に受けられた方の口コミをご覧いただけます。このトークに「口コミ」と送っていただくと一覧が表示されます👀\nご都合のよい日時はこちらからご確認いただけます🗓️\n{{予約URL}}' },
+  { days:3,  hours:0,  content:'{{店名}}です🤍 今日は料金についてはっきりお伝えします。\n眉は、通常 {{眉通常価格}}／モニター {{眉モニター価格}} です。\nアートメイクは色の定着に個人差があり、1〜2回で仕上げていく施術です。最初から2回セット（{{セット価格}}）にされる方も多いです。\n追加料金の有無など、気になる点はこのトークでお尋ねください💬 金額をぼかさずお答えします。' },
+  { days:6,  hours:0,  content:'{{店名}}です🤍 お問い合わせの多いご質問をまとめました。\n・ダウンタイム：数日は色が濃く見え、かさぶたが落ち着くと自然な発色になります（経過には個人差があります）\n・お支払い：{{支払い}}\n・持ち物：基本は手ぶらでOKです\nご予約枠は埋まりやすい時間帯もあります。気になる日程はお早めにご確認ください🗓️\n{{予約URL}}' },
+  { days:10, hours:0,  content:'{{店名}}です🤍 クリニックを選ぶときに見ていただきたい点をお伝えします。\n・医療機関で、衛生管理のもと施術していること\n・カウンセリングでデザインを一緒に決められること\n・施術後のフォロー体制があること\n当院はこれらを大切にしています。比較検討中の方も、疑問はこのトークで遠慮なくどうぞ💬' },
+  { days:20, hours:0,  content:'{{店名}}です🤍 これまでお付き合いいただきありがとうございました✨\n「やってみたいけれど、きっかけが…」という方へ。まずはカウンセリングだけでも大丈夫です。お顔を見ながら、似合う眉を一緒に考えます☺️\nご予約はこちらから承っています🗓️\n{{予約URL}}\n（このご案内は今回で最後です。ご不要のときはいつでもブロックいただけます）' }
 ];
-function stpApplyTemplate(){
+// 軽め版＝標準版の①即時 と ③翌日 の2通だけ（A/Bのもう片側）。
+var STP_TPL_LITE = [ STP_TPL_STD[0], STP_TPL_STD[2] ];
+var STP_TPL = { std: STP_TPL_STD, lite: STP_TPL_LITE };
+function stpApplyTemplate(kind){
   if(!STP.draft) return;
-  if(STP.draft.steps.length && !window.confirm('いまのメッセージを、おすすめの6通で置きかえます。よろしいですか？')) return;
-  STP.draft.steps = STP_TEMPLATE.map(function(t){ return { days:t.days, hours:t.hours, content:t.content, image_urls:[] }; });
+  var tpl = STP_TPL[kind] || STP_TPL.std;
+  var label = (kind==='lite') ? '軽め版2通' : '標準版7通';
+  if(STP.draft.steps.length && !window.confirm('いまのメッセージを、'+label+'で置きかえます。よろしいですか？')) return;
+  STP.draft.steps = tpl.map(function(t){ return { days:t.days, hours:t.hours, content:t.content, image_urls:[] }; });
   stpRenderList();
-  stpTopMsg('おすすめ6通を入れました。文面を調整して「保存する」を押してください💡', true);
+  stpTopMsg(label+'を入れました。文面を調整して「保存する」を押してください💡', true);
 }
 
 /* DBの raise/PostgREST エラーを日本語へ。manager 権限拒否を最優先で判定。 */
