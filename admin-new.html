@@ -470,6 +470,13 @@
       font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap}
     .console-open:hover{background:#0a4f49}
     .console-empty{color:#5b6b69;text-align:center;padding:24px}
+    .prov-btn{width:100%;padding:12px 0;border-radius:10px;border:1px dashed #0b5c55;background:#f0faf8;
+      color:#0b5c55;font-size:14px;font-weight:800;cursor:pointer;margin-bottom:16px}
+    .prov-btn:hover{background:#e2f4f0}
+    .prov-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:60;display:flex;
+      align-items:center;justify-content:center;padding:16px}
+    .prov-modal{background:#fff;border-radius:14px;max-width:460px;width:100%;padding:20px 22px;
+      box-shadow:0 10px 40px rgba(0,0,0,.25);max-height:90vh;overflow:auto}
     #tenantHeader{display:none;align-items:center;gap:10px;background:#0b5c55;color:#fff;
       padding:7px 14px;font-size:13px}
     #tenantHeader .th-name{font-weight:700}
@@ -481,6 +488,7 @@
     <div class="console-wrap">
       <div class="console-title">テナント管理コンソール</div>
       <p class="console-lead">管理したい店を選んでください。「管理画面を開く」でその店の予約・顧客・配信などを操作できます。</p>
+      <button class="prov-btn" id="provOpenBtn" type="button">＋ 新しい店を複製して作成する</button>
       <div id="consoleList"><div class="console-empty">読み込み中…</div></div>
     </div>
   </div>
@@ -1001,6 +1009,11 @@ function setupPickDefaultTenant(rows, selectedTenant){
   if (selectedTenant) return selectedTenant;
   var current = document.getElementById("setupTenantSelect");
   if (current && current.value) return current.value;
+  if (TENANT_ID) {
+    for (var j=0; j<rows.length; j++) {
+      if (rows[j] && rows[j].tenant_id === TENANT_ID) return TENANT_ID;
+    }
+  }
   for (var i=0; i<rows.length; i++) {
     if (rows[i] && (rows[i].store_name === "小倉店" || rows[i].store_code === "kokura")) return rows[i].tenant_id;
   }
@@ -1445,6 +1458,7 @@ function showConsole(){
   var cv=document.getElementById('consoleView'); if(!cv) return;
   cv.style.display='';
   var list=document.getElementById('consoleList'); if(list) list.innerHTML='<div class="console-empty">読み込み中…</div>';
+  var pb=document.getElementById('provOpenBtn'); if(pb) pb.onclick=showDuplicateDialog; // 複製ボタン（onclick代入＝重複登録なし）
   sbRpc('list_tenant_setup_status', {})
     .then(function(rows){ renderConsole(Array.isArray(rows)?rows:[]); })
     .catch(function(){ renderConsole([]); });   // 状況が取れなくても list_my_tenants で名前だけ出す
@@ -1474,6 +1488,203 @@ function renderConsole(rows){
   var btns=list.querySelectorAll('.console-open');
   for(var i=0;i<btns.length;i++){ btns[i].addEventListener('click', function(){ openTenant(this.getAttribute('data-tid')); }); }
 }
+
+/* ============================================================================
+   テナント複製ダイアログ — 選んだ店をひな型に新しい店（テナント）を作る。
+   ・manage-tenant action=provision を呼ぶ。tenant_id 欄には「複製元（ひな型）テナントID」を入れる。
+   ・DOMは createElement/textContent/style直書き/addEventListener で構築（innerHTML禁止・lsecと同作法）。
+   ============================================================================ */
+function showDuplicateDialog(){
+  hideDuplicateDialog(); // 二重表示を防ぐ
+  var overlay = lsecEl("div", { id:"provOverlay", className:"prov-overlay" });
+  var modal = lsecEl("div", { className:"prov-modal" });
+  overlay.appendChild(modal);
+
+  var h = lsecEl("div", { text:"新しい店を複製して作成" });
+  h.style.fontWeight = "800";
+  h.style.fontSize = "17px";
+  h.style.marginBottom = "8px";
+  modal.appendChild(h);
+
+  var note = lsecEl("div", { text:"選んだ店をひな型に、新しい店（テナント）を作ります。LINE・LIFF・Googleカレンダー・鍵は引き継がれず、作成後に設定します。" });
+  note.style.fontSize = "12px";
+  note.style.color = "#6b7280";
+  note.style.lineHeight = "1.7";
+  note.style.marginBottom = "12px";
+  modal.appendChild(note);
+
+  // 入力欄を作る小関数
+  function field(labelText, inputEl){
+    var wrap = lsecEl("div");
+    wrap.style.marginTop = "10px";
+    var lab = lsecEl("label", { text: labelText });
+    lab.style.display = "block";
+    lab.style.fontWeight = "700";
+    lab.style.fontSize = "13px";
+    lab.style.marginBottom = "4px";
+    wrap.appendChild(lab);
+    inputEl.style.width = "100%";
+    inputEl.style.boxSizing = "border-box";
+    inputEl.style.padding = "9px";
+    inputEl.style.border = "1px solid #ccc";
+    inputEl.style.borderRadius = "8px";
+    inputEl.style.fontSize = "14px";
+    wrap.appendChild(inputEl);
+    return wrap;
+  }
+
+  // ひな型にする店（select）
+  var sel = lsecEl("select", { id:"provTemplateSelect" });
+  for (var i = 0; i < MY_TENANTS.length; i++){
+    var t = MY_TENANTS[i];
+    var opt = lsecEl("option", { text: t.tenant_name });
+    opt.value = t.tenant_id;
+    if (t.tenant_id === TENANT_ID) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  modal.appendChild(field("ひな型にする店", sel));
+
+  // 新しい店（テナント）名
+  modal.appendChild(field("新しい店（テナント）名",
+    lsecEl("input", { id:"provTenantName", type:"text", placeholder:"例：ISC アートメイク 福岡" })));
+
+  // 新しい店舗名
+  modal.appendChild(field("新しい店舗名",
+    lsecEl("input", { id:"provStoreName", type:"text", placeholder:"例：福岡店" })));
+
+  // 店舗コード
+  modal.appendChild(field("店舗コード（半角英数）",
+    lsecEl("input", { id:"provStoreCode", type:"text", placeholder:"例：fukuoka" })));
+
+  // メニューもコピーする（チェックボックス）
+  var cbWrap = lsecEl("label");
+  cbWrap.style.display = "flex";
+  cbWrap.style.alignItems = "center";
+  cbWrap.style.gap = "8px";
+  cbWrap.style.marginTop = "12px";
+  cbWrap.style.fontSize = "14px";
+  cbWrap.style.cursor = "pointer";
+  var cb = lsecEl("input", { id:"provCopyMenus", type:"checkbox" });
+  cbWrap.appendChild(cb);
+  cbWrap.appendChild(lsecEl("span", { text:"メニュー（料金表）もコピーする" }));
+  modal.appendChild(cbWrap);
+
+  // メッセージ表示
+  var msg = lsecEl("div", { id:"provMsg" });
+  msg.style.minHeight = "18px";
+  msg.style.marginTop = "12px";
+  msg.style.fontSize = "13px";
+  modal.appendChild(msg);
+
+  // ボタン（実行／閉じる）
+  var btnRow = lsecEl("div");
+  btnRow.style.display = "flex";
+  btnRow.style.gap = "10px";
+  btnRow.style.marginTop = "14px";
+
+  var execBtn = lsecEl("button", { type:"button", id:"provExecBtn", text:"この内容で作成" });
+  execBtn.style.flex = "1";
+  execBtn.style.padding = "11px 16px";
+  execBtn.style.border = "none";
+  execBtn.style.borderRadius = "9px";
+  execBtn.style.background = "#0b5c55";
+  execBtn.style.color = "#fff";
+  execBtn.style.fontWeight = "800";
+  execBtn.style.fontSize = "14px";
+  execBtn.style.cursor = "pointer";
+  execBtn.addEventListener("click", provExec);
+  btnRow.appendChild(execBtn);
+
+  var cancelBtn = lsecEl("button", { type:"button", id:"provCancelBtn", text:"閉じる" });
+  cancelBtn.style.padding = "11px 16px";
+  cancelBtn.style.border = "1px solid #ccc";
+  cancelBtn.style.borderRadius = "9px";
+  cancelBtn.style.background = "#fff";
+  cancelBtn.style.color = "#374151";
+  cancelBtn.style.fontWeight = "700";
+  cancelBtn.style.fontSize = "14px";
+  cancelBtn.style.cursor = "pointer";
+  cancelBtn.addEventListener("click", hideDuplicateDialog);
+  btnRow.appendChild(cancelBtn);
+
+  modal.appendChild(btnRow);
+  document.body.appendChild(overlay);
+}
+
+/* ダイアログ（オーバーレイ）を閉じて破棄。 */
+function hideDuplicateDialog(){
+  var o = document.getElementById("provOverlay");
+  if (o && o.parentNode) o.parentNode.removeChild(o);
+}
+
+/* ダイアログ内メッセージ表示（textContentのみ）。ok=trueで緑、falseで橙。 */
+function provMsg(text, ok){
+  var m = document.getElementById("provMsg");
+  if (!m) return;
+  m.textContent = text || "";
+  m.style.color = ok ? "#0b5c55" : "#c2410c";
+}
+
+/* 入力を取り manage-tenant action=provision へ送信。成功で新テナントに切替→セットアップ画面へ。 */
+function provExec(){
+  var btn = document.getElementById("provExecBtn");
+  var templateId  = (document.getElementById("provTemplateSelect")||{}).value || "";
+  var newTenant   = ((document.getElementById("provTenantName")||{}).value || "").trim();
+  var newStore    = ((document.getElementById("provStoreName")||{}).value || "").trim();
+  var storeCode   = ((document.getElementById("provStoreCode")||{}).value || "").trim();
+  var copyMenus   = !!((document.getElementById("provCopyMenus")||{}).checked);
+  if (!newTenant || !newStore || !storeCode){
+    provMsg("店名・店舗名・コードを入力してください。");
+    return;
+  }
+  if (btn) btn.disabled = true;
+  provMsg("作成中…", true);
+  if (!window.confirm("新しい店を複製して作成します。よろしいですか？")){
+    if (btn) btn.disabled = false;
+    return;
+  }
+  fetch(SB_URL + "/functions/v1/manage-tenant", {
+    method:"POST",
+    headers: Object.assign({ "Content-Type":"application/json" }, hdr()),
+    body: JSON.stringify({
+      action:"provision",
+      tenant_id: templateId,
+      new_tenant_name: newTenant,
+      new_store_name: newStore,
+      store_code: storeCode,
+      copy_menus: copyMenus
+    })
+  })
+    .then(function(res){ return res.json().catch(function(){ return {}; }); })
+    .then(function(j){
+      if (j && j.ok === true) {
+        MY_TENANTS.push({ tenant_id: j.new_tenant_id, tenant_name: newTenant });
+        TENANT_ID = j.new_tenant_id;
+        if (typeof resetTenantScopedCaches === "function") resetTenantScopedCaches();
+        hideDuplicateDialog();
+        if (typeof loadSetupStatus === "function") loadSetupStatus(j.new_tenant_id);
+        if (typeof showSetup === "function") showSetup(null);
+      } else {
+        var reason = (j && j.reason) || "";
+        var failMsg;
+        if (reason === "forbidden") {
+          failMsg = "全体管理者のみ実行できます。一度ログインし直してからお試しください。";
+        } else if (reason === "bad_input") {
+          failMsg = "店名・店舗名・店舗コードをご確認ください（未入力の項目があります）。";
+        } else if (reason === "provision_failed") {
+          failMsg = "作成できませんでした。店舗コードを変えて、もう一度お試しください。";
+        } else if (reason === "tenant_not_found") {
+          failMsg = "ひな型にする店が見つかりませんでした。選び直してください。";
+        } else {
+          failMsg = "作成できませんでした。時間をおいてもう一度お試しください。";
+        }
+        provMsg(failMsg);
+      }
+    })
+    .catch(function(){ provMsg("作成できませんでした。"); })
+    .then(function(){ if (btn) btn.disabled = false; });
+}
+
 /* ヘッダーの「現在の店名」と「コンソールに戻る」を出す（複数テナントを扱える人だけ）。 */
 function renderTenantHeader(){
   var wrap=document.getElementById('tenantHeader'); if(!wrap) return;
