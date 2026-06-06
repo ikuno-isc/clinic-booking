@@ -21,6 +21,32 @@
   .subnav{display:flex;gap:6px;padding:6px 10px;background:#fff;overflow-x:auto;position:sticky;top:46px;z-index:9;border-bottom:1px solid var(--line);-webkit-overflow-scrolling:touch}
   .subnav button{flex:0 0 auto;padding:6px 12px;border:1px solid #dfe7e6;border-radius:999px;background:#fff;color:#557;font-weight:700;font-size:12.5px;cursor:pointer;white-space:nowrap}
   .subnav button.active{background:var(--g);color:#fff;border-color:var(--g)}
+  /* ===== ホーム（STEP4・docs/admin-ux-redesign.md §3.9）===== */
+  .home-wrap{padding:12px 12px 28px}
+  .home-head{margin:2px 2px 12px}
+  .home-store{font-size:17px;font-weight:800;color:#0b5c55}
+  .home-date{font-size:13px;color:#667;margin-top:2px}
+  .home-card{background:#fff;border:1px solid #e6eceb;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+  .home-card.alert{border-color:#fecaca;background:#fff7f7}
+  .home-card.ok{border-color:#bbf7d0;background:#f0fdf4}
+  .home-ctitle{font-size:13px;font-weight:800;color:#475569;margin:0 0 10px;display:flex;align-items:center;gap:6px}
+  .home-metrics{display:flex;gap:10px;flex-wrap:wrap}
+  .home-metric{flex:1 1 28%;min-width:96px;background:#f6f9f8;border-radius:11px;padding:10px 12px;text-align:center}
+  .home-metric .n{font-size:22px;font-weight:800;color:#0b5c55;line-height:1.1}
+  .home-metric .n.warn{color:#c2410c}
+  .home-metric .l{font-size:11.5px;color:#667;margin-top:3px}
+  .home-next{margin:10px 0 0;font-size:13.5px;color:#1f2937}
+  .home-next b{color:#0b5c55}
+  .home-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .home-btn{flex:0 0 auto;border:1px solid var(--g);background:var(--g);color:#fff;border-radius:10px;padding:9px 13px;font-size:13px;font-weight:800;cursor:pointer}
+  .home-btn.ghost{background:#fff;color:#0b5c55}
+  .home-btn.warn{background:#c2410c;border-color:#c2410c;color:#fff}
+  .home-todo{margin:6px 0 0;padding-left:2px;list-style:none}
+  .home-todo li{font-size:13px;color:#9a3412;padding:4px 0 4px 18px;position:relative}
+  .home-todo li:before{content:"⚠️";position:absolute;left:0;top:3px;font-size:11px}
+  .home-quick{display:flex;gap:8px;flex-wrap:wrap}
+  .home-quick button{flex:1 1 40%;min-width:130px;border:1px solid #dfe7e6;background:#fff;color:#0b5c55;border-radius:11px;padding:11px;font-size:13px;font-weight:800;cursor:pointer}
+  .home-ph{color:#9aa0a6;font-size:13px;padding:6px 2px}
 
 /* ===== 予約管理 タブ CSS ===== */
 /* ============================================================================
@@ -523,6 +549,9 @@
   <nav class="nav" id="nav" style="display:none"></nav>
   <nav class="subnav" id="subnav" style="display:none"></nav>
 
+  <!-- ===== 🏠 ホーム（STEP4・入口画面。中身は loadHome() がJSで生成）===== -->
+  <div id="homeView" style="display:none"><div class="home-wrap" id="homeBody"></div></div>
+
   <!-- ===== 予約管理 ===== -->
 <!-- ============================================================================
      予約管理タブ（Supabase版）HTML — 元 src/admin.html #resvView を忠実に移植
@@ -904,7 +933,7 @@ function sbDelete(table, filter){
 }
 
 // ===== ビュー切替（全タブ共通）=====
-function hideAllViews(){ ["resvView","custView","dashView","aiView","reviewView","setView","acqView","stepsView","setupView","usersView"].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display="none"; }); }
+function hideAllViews(){ ["homeView","resvView","custView","dashView","aiView","reviewView","setView","acqView","stepsView","setupView","usersView"].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display="none"; }); }
 // 小タブ(#subnav)の中で「いま表示中」をハイライト。el が無い（プログラム呼び出し）ときは現状維持。
 function setActiveNav(el){ if(!el) return; var bs=document.querySelectorAll("#subnav button"); for(var i=0;i<bs.length;i++) bs[i].classList.toggle("active", bs[i]===el); }
 
@@ -916,6 +945,7 @@ function setActiveNav(el){ if(!el) return; var bs=document.querySelectorAll("#su
    ※🏠ホームはホーム実装STEPで追加予定（現状の既定グループは「予約・顧客」）。
    ============================================================================ */
 var NAV_GROUPS = [
+  { key:'home', label:'🏠 ホーム', mgr:false, direct:'showHome' },   // 小タブ無し＝押すと直接ホーム表示
   { key:'resv', label:'📋 予約・顧客', mgr:false, tabs:[
       { label:'📋 予約管理', fn:'showReservations' },
       { label:'🗂 顧客カルテ', fn:'showCustomers' },
@@ -931,7 +961,7 @@ var NAV_GROUPS = [
       { label:'👥 スタッフ',  fn:'showUsers', mgr:true },
       { label:'🧭 初期設定',  fn:'showSetup',  mgr:true } ] }
 ];
-var CURRENT_GROUP = 'resv';
+var CURRENT_GROUP = 'home';
 function navAllowed(mgr){ return !mgr || !!window.IS_MANAGER; }
 
 // 第1段（グループ）を役割に応じて描画。現在グループのハイライトは CURRENT_GROUP で復元。
@@ -957,6 +987,8 @@ function showGroup(key, el){
   for(var i=0;i<gb.length;i++) gb[i].classList.toggle('active', gb[i].getAttribute('data-g') === key);
   var sub = document.getElementById('subnav'); if(!sub) return;
   sub.innerHTML = '';
+  // 小タブを持たないグループ（ホーム）＝第2段は隠して直接そのビューを表示。
+  if(g.direct){ sub.style.display = 'none'; if(typeof window[g.direct] === 'function') window[g.direct](null); return; }
   var tabs = g.tabs.filter(function(t){ return navAllowed(t.mgr); });
   tabs.forEach(function(t){
     var sb = document.createElement('button');
@@ -979,6 +1011,142 @@ function gotoSubtab(groupKey, fnName){
 
 // IS_MANAGER 確定後に呼ばれる（initResvStoreBar）。グループを役割で再描画し現在グループを復元。
 function applyManagerNav(){ if(typeof renderGroupNav === 'function') renderGroupNav(); }
+
+/* ============================================================================
+   🏠 ホーム（STEP4・docs/admin-ux-redesign.md §3.9）
+   「今日まず何を見ればいいか」の入口。出すのは4つに絞る：
+     今日の予約 / 次の予約 / 要対応 / 未完了設定（未完了設定は manager のみ）。
+   新規バックエンドは増やさず既存RPC/クエリを再利用（reservations / customers.human_status /
+   get_tenant_setup_status）。値は textContent で入れXSS回避。
+   ============================================================================ */
+function showHome(el){
+  if(typeof hideAllViews==='function') hideAllViews();
+  if(el && typeof setActiveNav==='function') setActiveNav(el);
+  var v=document.getElementById('homeView'); if(v) v.style.display='';
+  loadHome();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function loadHome(){
+  var body=document.getElementById('homeBody'); if(!body) return;
+  body.innerHTML='';
+  var isMgr=!!window.IS_MANAGER;
+
+  // ヘッダ（今日の日付）
+  var head=document.createElement('div'); head.className='home-head';
+  var ttl=document.createElement('div'); ttl.className='home-store'; ttl.textContent='🏠 ホーム';
+  var d=new Date(); var wd='日月火水木金土'[d.getDay()];
+  var dt=document.createElement('div'); dt.className='home-date';
+  dt.textContent=d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日（'+wd+'）の状況';
+  head.appendChild(ttl); head.appendChild(dt); body.appendChild(head);
+
+  // ① 今日やること（今日の予約・要対応・次の予約）
+  var card=document.createElement('div'); card.className='home-card';
+  var ct=document.createElement('div'); ct.className='home-ctitle'; ct.textContent='📋 今日やること'; card.appendChild(ct);
+  var metrics=document.createElement('div'); metrics.className='home-metrics';
+  function metric(id,label,warn){ var m=document.createElement('div'); m.className='home-metric'; var n=document.createElement('div'); n.className='n'+(warn?' warn':''); n.id=id; n.textContent='…'; var l=document.createElement('div'); l.className='l'; l.textContent=label; m.appendChild(n); m.appendChild(l); return m; }
+  metrics.appendChild(metric('home-today','今日の予約'));
+  metrics.appendChild(metric('home-attn','要対応',true));
+  card.appendChild(metrics);
+  var nxt=document.createElement('div'); nxt.className='home-next'; nxt.id='home-next'; nxt.textContent='次の予約：読み込み中…'; card.appendChild(nxt);
+  var acts=document.createElement('div'); acts.className='home-actions';
+  var b1=document.createElement('button'); b1.className='home-btn'; b1.textContent='予約を見る'; b1.onclick=function(){ if(typeof gotoSubtab==='function') gotoSubtab('resv','showReservations'); };
+  var b2=document.createElement('button'); b2.className='home-btn ghost'; b2.textContent='要対応を見る'; b2.onclick=function(){ if(typeof gotoSubtab==='function') gotoSubtab('resv','showCustomers'); };
+  acts.appendChild(b1); acts.appendChild(b2); card.appendChild(acts);
+  body.appendChild(card);
+
+  // ② お店の準備（未完了設定）＝manager のみ
+  if(isMgr){
+    var ac=document.createElement('div'); ac.className='home-card'; ac.id='home-setup-card';
+    var act=document.createElement('div'); act.className='home-ctitle'; act.textContent='🧭 お店の準備'; ac.appendChild(act);
+    var sb=document.createElement('div'); sb.id='home-setup-body'; var ph=document.createElement('div'); ph.className='home-ph'; ph.textContent='確認中…'; sb.appendChild(ph); ac.appendChild(sb);
+    body.appendChild(ac);
+  }
+
+  // ③ よく使う入口
+  var qc=document.createElement('div'); qc.className='home-card';
+  var qt=document.createElement('div'); qt.className='home-ctitle'; qt.textContent='⚡ よく使う入口'; qc.appendChild(qt);
+  var quick=document.createElement('div'); quick.className='home-quick';
+  function q(label,fn){ var b=document.createElement('button'); b.textContent=label; b.onclick=fn; quick.appendChild(b); }
+  q('📋 予約管理', function(){ gotoSubtab('resv','showReservations'); });
+  q('🗂 顧客カルテ', function(){ gotoSubtab('resv','showCustomers'); });
+  q('🌐 予約ページを開く', function(){ window.open((typeof BOOKING_URL!=='undefined'?BOOKING_URL:'https://ikuno-isc.github.io/clinic-booking/new.html'), '_blank'); });
+  if(isMgr) q('⚙️ お店の設定', function(){ gotoSubtab('settings','showSettings'); });
+  qc.appendChild(quick); body.appendChild(qc);
+
+  // データ取得（それぞれ独立・失敗しても他を止めない）
+  loadHomeReservations();
+  loadHomeAttention();
+  if(isMgr) loadHomeSetup();
+}
+
+// 今日の予約件数＋次の予約（reservations を当日範囲で取得＝loadBoard と同じ作り）
+function loadHomeReservations(){
+  if(typeof ensureStoreMap!=='function' || typeof sbGet!=='function'){ return; }
+  ensureStoreMap().then(function(){
+    var storeId=(typeof storeIdForSlug==='function' && typeof currentStoreSlug==='function') ? storeIdForSlug(currentStoreSlug()) : null;
+    var r=rangeFor('today');
+    var from=encodeURIComponent(ymd(r[0])+'T00:00:00+09:00');
+    var to  =encodeURIComponent(ymd(r[1])+'T00:00:00+09:00');
+    var path='reservations?select=start_at,customer_name,artists(name)&status=neq.cancelled&start_at=gte.'+from+'&start_at=lt.'+to+'&order=start_at';
+    if(storeId) path+='&store_id=eq.'+storeId;
+    return sbGet(path);
+  }).then(function(rows){
+    rows=Array.isArray(rows)?rows:[];
+    var te=document.getElementById('home-today'); if(te) te.textContent=rows.length;
+    var ne=document.getElementById('home-next'); if(!ne) return;
+    var now=Date.now(), next=null;
+    for(var i=0;i<rows.length;i++){ if(new Date(rows[i].start_at).getTime()>=now){ next=rows[i]; break; } }
+    ne.textContent='';
+    if(!rows.length){ ne.textContent='次の予約：今日の予約はありません'; return; }
+    if(!next){ ne.textContent='次の予約：本日分は終了しました'; return; }
+    var nm=(next.customer_name||'お客様'); var who=(next.artists&&next.artists.name)?'（'+next.artists.name+'）':'';
+    var b=document.createElement('b'); b.textContent=hhmm(next.start_at);
+    ne.appendChild(document.createTextNode('次の予約：')); ne.appendChild(b);
+    ne.appendChild(document.createTextNode(' '+nm+' 様'+who));
+  }).catch(function(){ var te=document.getElementById('home-today'); if(te) te.textContent='—'; var ne=document.getElementById('home-next'); if(ne) ne.textContent='次の予約：取得できませんでした'; });
+}
+
+// 要対応の人数（顧客カルテの「要対応」バッジと同条件＝human_status が空でも done でもない）
+function loadHomeAttention(){
+  if(typeof sbGet!=='function') return;
+  sbGet('customers?select=id&human_status=not.in.("",done)').then(function(rows){
+    var el=document.getElementById('home-attn'); if(el) el.textContent=Array.isArray(rows)?rows.length:0;
+  }).catch(function(){ var el=document.getElementById('home-attn'); if(el) el.textContent='—'; });
+}
+
+// 未完了の初期設定（manager のみ・patch-30 の自動判定 get_tenant_setup_status）
+function loadHomeSetup(){
+  var sb=document.getElementById('home-setup-body'), card=document.getElementById('home-setup-card');
+  if(!sb || typeof sbRpc!=='function') return;
+  sbRpc('get_tenant_setup_status', TENANT_ID ? { p_tenant: TENANT_ID } : {}).then(function(rows){
+    var row=Array.isArray(rows)?rows[0]:rows; if(!row){ if(card) card.style.display='none'; return; }
+    var checks=[
+      { f:'store_done',    n:'店舗情報',            go:function(){ gotoSubtab('settings','showSettings'); } },
+      { f:'line_done',     n:'LINE接続',            go:function(){ gotoSubtab('settings','showSetup'); } },
+      { f:'liff_done',     n:'予約ページ',          go:function(){ gotoSubtab('settings','showSetup'); } },
+      { f:'calendar_done', n:'Googleカレンダー',    go:function(){ gotoSubtab('settings','showSetup'); } },
+      { f:'staff_done',    n:'スタッフ',            go:function(){ gotoSubtab('settings','showUsers'); } },
+      { f:'menu_done',     n:'メニュー／アーティスト', go:function(){ gotoSubtab('settings','showSettings'); } }
+    ];
+    var missing=checks.filter(function(c){ return !row[c.f]; });
+    sb.innerHTML='';
+    if(!missing.length){
+      if(card) card.className='home-card ok';
+      var ok=document.createElement('div'); ok.textContent='✅ 必要な設定はすべて完了しています。今日の対応に進めます。';
+      ok.style.cssText='font-size:13.5px;color:#15803d;font-weight:700'; sb.appendChild(ok);
+      return;
+    }
+    if(card) card.className='home-card alert';
+    var lead=document.createElement('div'); lead.textContent='未完了の設定があります：';
+    lead.style.cssText='font-size:13px;color:#9a3412;font-weight:800'; sb.appendChild(lead);
+    var ul=document.createElement('ul'); ul.className='home-todo';
+    missing.forEach(function(c){ var li=document.createElement('li'); li.textContent=c.n; ul.appendChild(li); });
+    sb.appendChild(ul);
+    var btn=document.createElement('button'); btn.className='home-btn warn'; btn.style.marginTop='10px'; btn.textContent='設定を続ける';
+    btn.onclick=function(){ gotoSubtab('settings','showSetup'); }; sb.appendChild(btn);
+  }).catch(function(){ if(card) card.style.display='none'; });   // 権限なし/未適用なら静かに隠す
+}
 
 function showSetup(el){
   if (typeof hideAllViews === 'function') hideAllViews();
@@ -1543,9 +1711,9 @@ function enterDashboard(tid){
   var nv=document.getElementById('nav');         if(nv) nv.style.display='';
   renderTenantHeader();
   if(typeof initResvStoreBar==='function') initResvStoreBar();   // IS_MANAGER確定後に applyManagerNav→renderGroupNav が再描画
-  CURRENT_GROUP = 'resv';
+  CURRENT_GROUP = 'home';
   if(typeof renderGroupNav==='function') renderGroupNav();        // まずstaff相当で描画（managerなら直後に再描画される）
-  if(typeof showGroup==='function') showGroup('resv', document.querySelector('#nav button[data-g="resv"]'));
+  if(typeof showGroup==='function') showGroup('home', document.querySelector('#nav button[data-g="home"]'));
 }
 function openTenant(tid){ enterDashboard(tid); }
 /* コンソール（親）。扱えるテナントを setup 状況つきで一覧表示。 */
