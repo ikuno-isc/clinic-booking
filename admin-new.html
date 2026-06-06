@@ -3676,7 +3676,8 @@ function setLoadArtists(){
         +   '<button type="button" class="set-btn set-ghost" data-act="atoggle" data-aid="'+aid+'" data-to="'+(a.is_active?'0':'1')+'">'+(a.is_active?'⏸ 停止':'▶️ 稼働')+'</button>'
         + '</div>'
         + '<div class="set-edit" id="set-aedit-'+aid+'">'
-        +   '<label>アイコン写真（予約ページのアーティスト選択に表示）</label>'
+        +   '<label>アイコン写真（お客様の予約ページに表示される顔写真）</label>'
+        +   '<div class="set-hint" style="margin:2px 0 8px">お客様が予約するとき、アーティストを選ぶ画面に丸いアイコンとして表示されます。正方形・顔がはっきり写った明るい写真がおすすめです（自動で正方形に整えます／5MBまで）。未設定のときは名前の頭文字が表示されます。</div>'
         +   '<div style="display:flex;align-items:center;gap:12px;margin:4px 0 12px">'
         +     '<div style="width:56px;height:56px;border-radius:50%;overflow:hidden;background:#eef0f2;display:inline-flex;align-items:center;justify-content:center;color:#9aa0a6;font-weight:800;flex-shrink:0">'
         +       (a.profile_photo_url ? '<img src="'+esc(a.profile_photo_url)+'" alt="" style="width:100%;height:100%;object-fit:cover">' : esc((a.name||'?').charAt(0)))
@@ -4159,7 +4160,9 @@ function stpReason(r){
 /* manage-steps 呼び出し（staff の access_token 認証）。 */
 function stpCall(action, extra){
   if(!TOKEN){ if(typeof showLogin==='function') showLogin('もう一度ログインしてください。'); return Promise.resolve({ok:false,reason:'no_auth'}); }
-  var body = Object.assign({ action: action }, extra||{});
+  // tenant_id＝選択中テナント。platform_admin(仁義)は staff行を持たず関数側で店を絞れないため必須。
+  // staff の場合は関数側が自テナントを優先し、この値は無視される（詐称防止）。
+  var body = Object.assign({ action: action, tenant_id: TENANT_ID }, extra||{});
   return fetch(SB_URL + '/functions/v1/manage-steps', {
     method:'POST',
     headers:{ 'Content-Type':'application/json', 'apikey':SB_KEY, 'Authorization':'Bearer '+TOKEN },
