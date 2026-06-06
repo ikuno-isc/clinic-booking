@@ -376,7 +376,19 @@ var st = {
   slCache:{},       // 空き枠キャッシュ（nurse|menu|date → 配列）。日付タップ時の先読みもここへ保存。
   furigana:'', custName:'', phone:'',
   coupon:'none', artExp:'', memo:'', agreed:false,
+  idemKey:null,     // ★#94 冪等キー：この予約内容ひと組に1つ。二度押し・通信リトライで同じキーを使い回し、DB側で2件入るのを防ぐ。
 };
+// ★#94 冪等キー：未生成なら crypto.randomUUID() で1つ作って保持し、以後の再送（二度押し/リトライ）で同じキーを使い回す。
+//   予約内容が変わったとき（満席で時間を選び直す等）と予約成立後は newIdemKey() で破棄し、次は別キーにする。
+function getIdemKey(){
+  if(!st.idemKey){
+    try{ st.idemKey = (crypto && crypto.randomUUID) ? crypto.randomUUID() : null; }catch(e){ st.idemKey = null; }
+    // 古い端末で crypto.randomUUID が無い場合のフォールバック（十分に衝突しにくい一意値）。
+    if(!st.idemKey){ st.idemKey = 'idem-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2); }
+  }
+  return st.idemKey;
+}
+function newIdemKey(){ st.idemKey = null; }
 var TODAY = (function(){ var d=new Date(); d.setHours(0,0,0,0); return d; })();
 var INIT_Y = TODAY.getFullYear(), INIT_M = TODAY.getMonth()+1;
 // 予約可能日の上限（今日から約45日先まで）。
@@ -815,10 +827,16 @@ function doSub(){
     p_memo: memo,
     p_ref: (REF || null),
     p_coupon: (st.coupon || 'none'),
-    p_art_experience: (st.artExp || '')
+    p_art_experience: (st.artExp || ''),
+    // ★#94 冪等キー：この送信（二度押し・通信リトライ含む）の間は同じキー。DBが同一キーの2件目を作らず既存予約IDを返す。
+    //   ★冪等はDB側で line_uid 確定（LINEログイン済み）のリクエストにのみ有効。未ログイン(uid 無し)では
+    //     キーを送らず null にする＝DBの挙動と揃える（未ログインのキーはDBで無視されるため送っても無意味）。
+    p_idempotency_key: (st.uid ? getIdemKey() : null)
   }).then(function(r){
     if(r.ok){
       // 通知はDBトリガ→notify-reservation が内部トークンで実行（クライアントからは送らない＝なりすまし/改ざん対策）。
+      // ★予約成立。次にもし別予約をするなら別キーにするため、ここで冪等キーを破棄する。
+      newIdemKey();
       showScr('s-done');
       // ★LINEの中で開いた時だけ自動でトークへ戻す。ブラウザでは戻り先が無いので、戻るボタンも隠す。
       if(inLineClient()){ setTimeout(backToTalk,1200); }
@@ -830,6 +848,8 @@ function doSub(){
     if(String(r.status)==='409' || code==='23P01' || msg==='seat_full' || /no_overlap|overlap|exclusion/i.test(msg)){
       subFail(btn,'その時間帯はちょうど埋まりました。お手数ですが、別の時間をお選びください。');
       // この枠は埋まったので、その日の空き枠と当月の空き日を捨て、時間選択画面へ戻して最新を取り直す。
+      // ★時間を選び直す＝予約内容が変わるので冪等キーも破棄（次の送信は別予約として別キーにする）。
+      newIdemKey();
       delete st.slCache[st.nurseId+'|'+st.menuId+'|'+st.date];
       st.slots=null; st.availDates=null; st.time=null;
       setTimeout(function(){ go(3); }, 1500);   // ★時間選択へ戻して再取得（null時間での再送を防ぐ）
