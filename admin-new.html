@@ -17,6 +17,10 @@
   .nav{display:flex;gap:4px;padding:8px 10px;background:#f4f6f8;overflow-x:auto;position:sticky;top:0;z-index:10;border-bottom:1px solid var(--line);-webkit-overflow-scrolling:touch}
   .nav button{flex:0 0 auto;padding:8px 12px;border:none;border-radius:8px;background:#eef2f1;color:#557;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap}
   .nav button.active{background:var(--g);color:#fff}
+  /* 2階層ナビの第2段＝小タブ（グループの中身）。第1段(.nav)の下に貼り付く。 */
+  .subnav{display:flex;gap:6px;padding:6px 10px;background:#fff;overflow-x:auto;position:sticky;top:46px;z-index:9;border-bottom:1px solid var(--line);-webkit-overflow-scrolling:touch}
+  .subnav button{flex:0 0 auto;padding:6px 12px;border:1px solid #dfe7e6;border-radius:999px;background:#fff;color:#557;font-weight:700;font-size:12.5px;cursor:pointer;white-space:nowrap}
+  .subnav button.active{background:var(--g);color:#fff;border-color:var(--g)}
 
 /* ===== 予約管理 タブ CSS ===== */
 /* ============================================================================
@@ -514,18 +518,10 @@
     <button class="th-back" onclick="showConsole()">← コンソールに戻る</button>
   </div>
 
-  <nav class="nav" id="nav" style="display:none">
-    <button data-v="resv"   onclick="showReservations(this)">📋 予約管理</button>
-    <button data-v="cust"   onclick="showCustomers(this)">🗂 顧客カルテ</button>
-    <button data-v="dash"   onclick="showDashboard(this)">📊 経営</button>
-    <button data-v="ai"     class="nav-mgr" style="display:none" onclick="showAiReport(this)">🤖 AI活用</button>
-    <button data-v="review" onclick="showReviews(this)">⭐ 口コミ</button>
-    <button data-v="acq"    class="nav-mgr" style="display:none" onclick="showAcq(this)">📣 集客</button>
-    <button data-v="steps"  class="nav-mgr" style="display:none" onclick="showSteps(this)">📨 ステップ配信</button>
-    <button data-v="users"  class="nav-mgr" style="display:none" onclick="showUsers(this)">👥 ユーザー管理</button>
-    <button data-v="setup"  class="nav-mgr" style="display:none" onclick="showSetup(this)">🧭 セットアップ</button>
-    <button data-v="set"    onclick="showSettings(this)">⚙️ 設定</button>
-  </nav>
+  <!-- 2階層ナビ。第1段=グループ(#nav)・第2段=小タブ(#subnav)。中身は renderGroupNav()/showGroup() がJSで生成。
+       旧来の単層10ボタンを「目的で束ねた5グループ＋小タブ」に整理（docs/admin-ux-redesign.md §3）。 -->
+  <nav class="nav" id="nav" style="display:none"></nav>
+  <nav class="subnav" id="subnav" style="display:none"></nav>
 
   <!-- ===== 予約管理 ===== -->
 <!-- ============================================================================
@@ -909,9 +905,80 @@ function sbDelete(table, filter){
 
 // ===== ビュー切替（全タブ共通）=====
 function hideAllViews(){ ["resvView","custView","dashView","aiView","reviewView","setView","acqView","stepsView","setupView","usersView"].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display="none"; }); }
-function setActiveNav(el){ var bs=document.querySelectorAll("#nav button"); for(var i=0;i<bs.length;i++) bs[i].classList.toggle("active", bs[i]===el); }
-// owner/admin のときだけ「📣集客」「👥ユーザー管理」ナビを出す（IS_MANAGER は initResvStoreBar が設定）
-function applyManagerNav(){ var bs=document.querySelectorAll(".nav-mgr"); for(var i=0;i<bs.length;i++) bs[i].style.display = window.IS_MANAGER ? "" : "none"; }
+// 小タブ(#subnav)の中で「いま表示中」をハイライト。el が無い（プログラム呼び出し）ときは現状維持。
+function setActiveNav(el){ if(!el) return; var bs=document.querySelectorAll("#subnav button"); for(var i=0;i<bs.length;i++) bs[i].classList.toggle("active", bs[i]===el); }
+
+/* ============================================================================
+   2階層ナビ（グループ→小タブ）。docs/admin-ux-redesign.md §3。
+   ・機能は1つも削らず「置き場所」を整理：上部10タブ→5グループ＋小タブ。
+   ・各小タブは既存の show*() をそのまま呼ぶ（中身のロジックは不変）。
+   ・役割：グループ単位(mgr)と小タブ単位(mgr)で出し分け。staffは日常＋お店の設定(閲覧)のみ。
+   ※🏠ホームはホーム実装STEPで追加予定（現状の既定グループは「予約・顧客」）。
+   ============================================================================ */
+var NAV_GROUPS = [
+  { key:'resv', label:'📋 予約・顧客', mgr:false, tabs:[
+      { label:'📋 予約管理', fn:'showReservations' },
+      { label:'🗂 顧客カルテ', fn:'showCustomers' },
+      { label:'⭐ 口コミ',   fn:'showReviews' } ] },
+  { key:'analytics', label:'📊 分析', mgr:true, tabs:[
+      { label:'📊 経営',    fn:'showDashboard' },
+      { label:'🤖 AI活用',  fn:'showAiReport' } ] },
+  { key:'acq', label:'📣 集客', mgr:true, tabs:[
+      { label:'📣 流入経路',    fn:'showAcq' },
+      { label:'📨 ステップ配信', fn:'showSteps' } ] },
+  { key:'settings', label:'⚙️ お店の設定', mgr:false, tabs:[
+      { label:'⚙️ 設定',     fn:'showSettings' },
+      { label:'👥 スタッフ',  fn:'showUsers', mgr:true },
+      { label:'🧭 初期設定',  fn:'showSetup',  mgr:true } ] }
+];
+var CURRENT_GROUP = 'resv';
+function navAllowed(mgr){ return !mgr || !!window.IS_MANAGER; }
+
+// 第1段（グループ）を役割に応じて描画。現在グループのハイライトは CURRENT_GROUP で復元。
+function renderGroupNav(){
+  var nav = document.getElementById('nav'); if(!nav) return;
+  nav.innerHTML = '';
+  NAV_GROUPS.forEach(function(g){
+    if(!navAllowed(g.mgr)) return;
+    var b = document.createElement('button');
+    b.textContent = g.label; b.setAttribute('data-g', g.key);
+    b.classList.toggle('active', g.key === CURRENT_GROUP);
+    b.onclick = function(){ showGroup(g.key, b); };
+    nav.appendChild(b);
+  });
+}
+
+// グループを開く＝第1段をハイライト→第2段(小タブ)を役割で描画→先頭の小タブを表示。
+function showGroup(key, el){
+  var g = NAV_GROUPS.filter(function(x){ return x.key === key; })[0];
+  if(!g || !navAllowed(g.mgr)) return;
+  CURRENT_GROUP = key;
+  var gb = document.querySelectorAll('#nav button');
+  for(var i=0;i<gb.length;i++) gb[i].classList.toggle('active', gb[i].getAttribute('data-g') === key);
+  var sub = document.getElementById('subnav'); if(!sub) return;
+  sub.innerHTML = '';
+  var tabs = g.tabs.filter(function(t){ return navAllowed(t.mgr); });
+  tabs.forEach(function(t){
+    var sb = document.createElement('button');
+    sb.textContent = t.label; sb.setAttribute('data-fn', t.fn);
+    sb.onclick = function(){ if(typeof window[t.fn] === 'function') window[t.fn](sb); };
+    sub.appendChild(sb);
+  });
+  sub.style.display = tabs.length ? '' : 'none';
+  var first = sub.querySelector('button'); if(first) first.click();   // 先頭タブを自動表示
+}
+
+// 指定グループの指定小タブへ移動（プログラムからのジャンプ用）。既にそのタブが出ていれば再描画せず押すだけ。
+function gotoSubtab(groupKey, fnName){
+  var here = document.querySelector('#subnav button[data-fn="'+fnName+'"]');
+  if(here){ here.click(); return; }
+  var gb = document.querySelector('#nav button[data-g="'+groupKey+'"]');
+  if(gb){ showGroup(groupKey, gb); var sb = document.querySelector('#subnav button[data-fn="'+fnName+'"]'); if(sb){ sb.click(); return; } }
+  if(typeof window[fnName] === 'function') window[fnName](null);
+}
+
+// IS_MANAGER 確定後に呼ばれる（initResvStoreBar）。グループを役割で再描画し現在グループを復元。
+function applyManagerNav(){ if(typeof renderGroupNav === 'function') renderGroupNav(); }
 
 function showSetup(el){
   if (typeof hideAllViews === 'function') hideAllViews();
@@ -1475,8 +1542,10 @@ function enterDashboard(tid){
   var lg=document.getElementById('login');       if(lg) lg.style.display='none';
   var nv=document.getElementById('nav');         if(nv) nv.style.display='';
   renderTenantHeader();
-  if(typeof initResvStoreBar==='function') initResvStoreBar();
-  if(typeof showReservations==='function') showReservations(document.querySelector('#nav button'));
+  if(typeof initResvStoreBar==='function') initResvStoreBar();   // IS_MANAGER確定後に applyManagerNav→renderGroupNav が再描画
+  CURRENT_GROUP = 'resv';
+  if(typeof renderGroupNav==='function') renderGroupNav();        // まずstaff相当で描画（managerなら直後に再描画される）
+  if(typeof showGroup==='function') showGroup('resv', document.querySelector('#nav button[data-g="resv"]'));
 }
 function openTenant(tid){ enterDashboard(tid); }
 /* コンソール（親）。扱えるテナントを setup 状況つきで一覧表示。 */
@@ -1975,7 +2044,7 @@ document.getElementById('resvBoard').addEventListener('click', function(e){
   var uid = card.getAttribute('data-uid'); if (!uid) return;
   // カルテタブが別担当で実装される場合のフック。get_customer(uid) を呼ぶ想定。
   if (typeof showCustomers === 'function' && typeof selectCustomer === 'function'){
-    showCustomers(document.querySelector('nav a'));
+    if (typeof gotoSubtab === 'function') gotoSubtab('resv','showCustomers'); else showCustomers(null);
     selectCustomer(uid);
   }
 });
@@ -4120,22 +4189,9 @@ function showAcq(el){
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
-/* hideAllViews() は acqView を知らない（共有定義は変更しない契約）。
-   他タブのナビが押されたら acqView を確実に隠す自己完結ガード。 */
-(function bindAcqNavHide(){
-  function onNavClick(e){
-    var btn = e.target.closest('#nav button');
-    if(!btn) return;
-    // 集客タブ自身のボタン（showAcq を呼ぶ）なら隠さない
-    var oc = btn.getAttribute('onclick') || '';
-    if(/showAcq/.test(oc)) return;
-    var v = document.getElementById('acqView');
-    if(v) v.style.display = 'none';
-  }
-  var nav = document.getElementById('nav');
-  if(nav) nav.addEventListener('click', onNavClick);
-  else document.addEventListener('click', onNavClick);
-})();
+/* （旧ガード bindAcqNavHide は撤去：hideAllViews() は既に acqView を含むうえ、
+   2階層ナビでは各小タブが show*()→hideAllViews() を必ず通るため不要。
+   かつ旧ガードはグループボタンのクリックで acqView を誤って隠す競合があった。） */
 
 /* ============================================================================
    ステップ配信タブ JS（owner/admin 専用）。Edge Function manage-steps を呼ぶ。
@@ -4179,15 +4235,8 @@ function showSteps(el){
   stpReload();
   window.scrollTo({top:0,behavior:'smooth'});
 }
-/* 他タブのナビが押されたら stepsView を隠す自己完結ガード（acq と同じ二重ガード）。 */
-(function bindStpNavHide(){
-  function onNavClick(e){
-    var btn = e.target.closest('#nav button'); if(!btn) return;
-    if(/showSteps/.test(btn.getAttribute('onclick')||'')) return;
-    var v=document.getElementById('stepsView'); if(v) v.style.display='none';
-  }
-  var nav=document.getElementById('nav'); if(nav) nav.addEventListener('click', onNavClick);
-})();
+/* （旧ガード bindStpNavHide は撤去：acq と同様、hideAllViews() が stepsView を含み、
+   2階層ナビでは show*()→hideAllViews() を必ず通るため不要。グループボタン誤隠しの競合も解消。） */
 
 /* ───────── 一覧の読み込み・描画 ───────── */
 function stpReload(){
