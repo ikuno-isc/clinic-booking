@@ -47,6 +47,13 @@
   .home-quick{display:flex;gap:8px;flex-wrap:wrap}
   .home-quick button{flex:1 1 40%;min-width:130px;border:1px solid #dfe7e6;background:#fff;color:#0b5c55;border-radius:11px;padding:11px;font-size:13px;font-weight:800;cursor:pointer}
   .home-ph{color:#9aa0a6;font-size:13px;padding:6px 2px}
+  /* ===== お店の設定(STEP1)：staff閲覧のみのバックストップ。編集/追加/保存系を隠す（RLSは多重防御で別途維持）===== */
+  body.set-readonly #setView .set-addcard,
+  body.set-readonly #setView .set-acts,
+  body.set-readonly #setView .set-edit{ display:none !important; }
+  body.set-readonly #setView input,
+  body.set-readonly #setView select,
+  body.set-readonly #setView textarea{ pointer-events:none; background:#f3f4f6; color:#6b7280; }
 
 /* ===== 予約管理 タブ CSS ===== */
 /* ============================================================================
@@ -709,12 +716,12 @@
 
   <!-- ===== settings ===== -->
 <div id="setView" style="display:none">
-  <div class="set-tabs">
-    <span class="set-tab set-on" data-sp="info" data-act="setsec">ℹ️ システム情報</span>
-    <span class="set-tab" data-sp="menu" data-act="setsec">💉 メニュー・料金</span>
-    <span class="set-tab" data-sp="artist" data-act="setsec">👩‍⚕️ アーティスト</span>
-    <span class="set-tab" data-sp="store" data-act="setsec">🏪 受付時間</span>
-    <span class="set-tab" data-sp="shift" data-act="setsec">🗓 シフト</span>
+  <!-- 旧・内部チップ(.set-tabs)は撤去。お店の設定の各カードは上部の小タブ(#subnav)が直接呼ぶ(STEP1)。
+       「メニューとアーティスト」だけ第2段チップ(#setSubTabs)で 💉メニュー/👩‍⚕️アーティスト/🗓シフト を切替。 -->
+  <div class="set-tabs" id="setSubTabs" style="display:none">
+    <span class="set-tab set-on" data-sp2="menu" data-act="setsub">💉 メニュー・料金</span>
+    <span class="set-tab" data-sp2="artist" data-act="setsub">👩‍⚕️ アーティスト</span>
+    <span class="set-tab" data-sp2="shift" data-act="setsub">🗓 シフト</span>
   </div>
   <div id="setBody"><div class="set-ph">読み込み中…</div></div>
 </div>
@@ -957,12 +964,17 @@ var NAV_GROUPS = [
       { label:'📣 流入経路',    fn:'showAcq' },
       { label:'📨 ステップ配信', fn:'showSteps' } ] },
   { key:'settings', label:'⚙️ お店の設定', mgr:false, tabs:[
-      { label:'⚙️ 設定',     fn:'showSettings' },
-      { label:'👥 スタッフ',  fn:'showUsers', mgr:true },
-      { label:'🧭 初期設定',  fn:'showSetup',  mgr:true } ] }
+      { label:'🏪 お店の基本',           fn:'showStoreBasic' },
+      { label:'💁 メニューとアーティスト', fn:'showMenuArtist' },
+      { label:'🔗 LINE接続',            fn:'showLineConnect', platformAdmin:true },
+      { label:'👥 スタッフ',             fn:'showUsers', mgr:true },
+      { label:'ℹ️ システム情報',         fn:'showSystemInfo' },
+      { label:'🧭 初期設定',             fn:'showSetup',  mgr:true } ] }
 ];
 var CURRENT_GROUP = 'home';
 function navAllowed(mgr){ return !mgr || !!window.IS_MANAGER; }
+// 小タブの可視判定：platformAdmin限定タブは全体管理者のみ／mgrタブは管理者のみ／無印は全員。
+function tabAllowed(t){ if(t && t.platformAdmin) return !!window.IS_PLATFORM_ADMIN; return navAllowed(t && t.mgr); }
 
 // 第1段（グループ）を役割に応じて描画。現在グループのハイライトは CURRENT_GROUP で復元。
 function renderGroupNav(){
@@ -989,7 +1001,7 @@ function showGroup(key, el){
   sub.innerHTML = '';
   // 小タブを持たないグループ（ホーム）＝第2段は隠して直接そのビューを表示。
   if(g.direct){ sub.style.display = 'none'; if(typeof window[g.direct] === 'function') window[g.direct](null); return; }
-  var tabs = g.tabs.filter(function(t){ return navAllowed(t.mgr); });
+  var tabs = g.tabs.filter(function(t){ return tabAllowed(t); });
   tabs.forEach(function(t){
     var sb = document.createElement('button');
     sb.textContent = t.label; sb.setAttribute('data-fn', t.fn);
@@ -1071,7 +1083,7 @@ function loadHome(){
   q('📋 予約管理', function(){ gotoSubtab('resv','showReservations'); });
   q('🗂 顧客カルテ', function(){ gotoSubtab('resv','showCustomers'); });
   q('🌐 予約ページを開く', function(){ window.open((typeof BOOKING_URL!=='undefined'?BOOKING_URL:'https://ikuno-isc.github.io/clinic-booking/new.html'), '_blank'); });
-  if(isMgr) q('⚙️ お店の設定', function(){ gotoSubtab('settings','showSettings'); });
+  if(isMgr) q('⚙️ お店の設定', function(){ gotoSubtab('settings','showStoreBasic'); });
   qc.appendChild(quick); body.appendChild(qc);
 
   // データ取得（それぞれ独立・失敗しても他を止めない）
@@ -1122,12 +1134,12 @@ function loadHomeSetup(){
   sbRpc('get_tenant_setup_status', TENANT_ID ? { p_tenant: TENANT_ID } : {}).then(function(rows){
     var row=Array.isArray(rows)?rows[0]:rows; if(!row){ if(card) card.style.display='none'; return; }
     var checks=[
-      { f:'store_done',    n:'店舗情報',            go:function(){ gotoSubtab('settings','showSettings'); } },
+      { f:'store_done',    n:'店舗情報',            go:function(){ gotoSubtab('settings','showStoreBasic'); } },
       { f:'line_done',     n:'LINE接続',            go:function(){ gotoSubtab('settings','showSetup'); } },
       { f:'liff_done',     n:'予約ページ',          go:function(){ gotoSubtab('settings','showSetup'); } },
       { f:'calendar_done', n:'Googleカレンダー',    go:function(){ gotoSubtab('settings','showSetup'); } },
       { f:'staff_done',    n:'スタッフ',            go:function(){ gotoSubtab('settings','showUsers'); } },
-      { f:'menu_done',     n:'メニュー／アーティスト', go:function(){ gotoSubtab('settings','showSettings'); } }
+      { f:'menu_done',     n:'メニュー／アーティスト', go:function(){ gotoSubtab('settings','showMenuArtist'); } }
     ];
     var missing=checks.filter(function(c){ return !row[c.f]; });
     sb.innerHTML='';
@@ -2422,7 +2434,9 @@ function initResvStoreBar(){
     var me = (rows && rows[0]) || null;
     // ★owner/admin か＝全タブ共通の編集権限フラグ（顧客カルテ等が参照）。
     window.IS_MANAGER = isPlatformAdmin || !!(me && (me.role === 'owner' || me.role === 'admin'));
-    if (typeof applyManagerNav === 'function') applyManagerNav();   // 集客/ユーザー管理ナビの出し分け
+    // ★platform_admin(全体管理者=仁義)フラグを正式公開＝「お店の設定」の🔗LINE接続タブを全体管理者だけに出すため。
+    window.IS_PLATFORM_ADMIN = isPlatformAdmin;
+    if (typeof applyManagerNav === 'function') applyManagerNav();   // グループ/小タブの役割出し分け
     var bar = document.getElementById('resvStoreBar');
     if (!bar) return;
     bar.style.display = window.IS_MANAGER ? '' : 'none';   // staff：自店固定（RLSが自店だけを返す）
@@ -3649,25 +3663,61 @@ var SET_SECTION = 'info';
 var SET_WD = ['日','月','火','水','木','金','土'];
 var SET_MANAGER_MSG = '権限がありません（オーナー/管理者のみ編集できます）';
 
-/* 表示関数（規約どおり：hideAllViews → setActiveNav → 表示 → 読込） */
-function showSettings(el){
+var SET_SUB = 'menu';   // 「メニューとアーティスト」内の第2段（menu/artist/shift）
+
+/* 設定タブを指定セクションで開く共通処理（規約：hideAllViews → setActiveNav → 表示 → 読込）。
+   staff のときは body.set-readonly を付け、CSSで編集/追加/保存ボタンを隠す＝閲覧のみ（RLSは多重防御で不変）。 */
+function openSettings(section, el){
   if (typeof hideAllViews === 'function') hideAllViews();
   if (el && typeof setActiveNav === 'function') setActiveNav(el);
+  document.body.classList.toggle('set-readonly', window.IS_MANAGER === false);  // 閲覧のみ
   document.getElementById('setView').style.display = '';
-  setSettingsSection(SET_SECTION || 'info');
+  setSettingsSection(section);
   window.scrollTo({ top:0, behavior:'smooth' });
 }
+/* 「お店の設定」グループの各カード＝薄いラッパ（中身は既存ローダを流用・ロジック不変）。 */
+function showStoreBasic(el){ openSettings('store', el); }      // 🏪 お店の基本（受付時間ほか）
+function showMenuArtist(el){ openSettings('menuart', el); }    // 💁 メニューとアーティスト
+function showSystemInfo(el){ openSettings('info', el); }       // ℹ️ システム情報（読取専用）
+/* 🔗 LINE接続（鍵の登録・全体管理者のみ）。当面は既存の初期設定画面のLINEパネルへ案内（破壊ゼロ）。 */
+function showLineConnect(el){
+  if (el && typeof setActiveNav === 'function') setActiveNav(el);   // 🔗を選択状態に保つ
+  if (window.IS_PLATFORM_ADMIN === false){
+    if (typeof hideAllViews === 'function') hideAllViews();
+    var sv=document.getElementById('setView'); if(sv) sv.style.display='';
+    var sb=document.getElementById('setBody'); if(sb) sb.innerHTML='<div class="set-ph">LINE接続（鍵の登録）は全体管理者のみ設定できます。</div>';
+    return;
+  }
+  if (typeof showSetup === 'function') showSetup(null);             // 初期設定ビュー（LINE鍵パネル含む）を表示
+  setTimeout(function(){ var p=document.getElementById('lineSecretPanel'); if(p) p.scrollIntoView({behavior:'smooth',block:'start'}); }, 200);
+}
+/* 後方互換：旧 showSettings は「お店の基本」を開く（gotoSubtab等から呼ばれても安全に着地）。 */
+function showSettings(el){ openSettings('store', el); }
 
-/* サブパネル切替 */
+/* サブパネル切替。menuart のときだけ第2段チップ(#setSubTabs)を出す。旧キー(menu/artist/shift)も後方互換で受理。 */
 function setSettingsSection(s){
   SET_SECTION = s;
-  var ts = document.querySelectorAll('#setView .set-tab');
-  for (var i=0;i<ts.length;i++){ ts[i].classList.toggle('set-on', ts[i].getAttribute('data-sp')===s); }
-  if (s==='menu')        setLoadMenus();
-  else if (s==='artist') setLoadArtists();
-  else if (s==='store')  setLoadStores();
-  else if (s==='shift')  setLoadShiftIndex();
-  else                   setLoadInfo();
+  var sub = document.getElementById('setSubTabs');
+  if (s === 'menuart'){
+    if (sub) sub.style.display = '';
+    setSettingsSub(SET_SUB || 'menu');
+    return;
+  }
+  if (sub) sub.style.display = 'none';
+  if (s==='store')       setLoadStores();
+  else if (s==='menu')   setLoadMenus();     // 後方互換（旧キー）
+  else if (s==='artist') setLoadArtists();   // 後方互換
+  else if (s==='shift')  setLoadShiftIndex();// 後方互換
+  else                   setLoadInfo();      // info・既定
+}
+/* 「メニューとアーティスト」内の第2段切替（💉メニュー/👩‍⚕️アーティスト/🗓シフト）。 */
+function setSettingsSub(s2){
+  SET_SUB = s2;
+  var ts = document.querySelectorAll('#setSubTabs .set-tab');
+  for (var i=0;i<ts.length;i++){ ts[i].classList.toggle('set-on', ts[i].getAttribute('data-sp2')===s2); }
+  if (s2==='artist')      setLoadArtists();
+  else if (s2==='shift')  setLoadShiftIndex();
+  else                    setLoadMenus();
 }
 
 /* DBの例外メッセージ→日本語。manager権限不足は専用文言。 */
@@ -4284,8 +4334,10 @@ function setMsg(id, text, ok){
   root.addEventListener('click', function(e){
     var b = e.target.closest('[data-act]'); if (!b) return;
     var act = b.getAttribute('data-act');
-    // サブタブ切替
+    // サブタブ切替（旧・内部チップ。後方互換で残置）
     if (act === 'setsec'){ setSettingsSection(b.getAttribute('data-sp')); return; }
+    // 第2段チップ（メニューとアーティスト内：💉メニュー/👩‍⚕️アーティスト/🗓シフト）
+    if (act === 'setsub'){ setSettingsSub(b.getAttribute('data-sp2')); return; }
     // メニュー
     if (act === 'medit'){ var me = document.getElementById('set-medit-'+b.getAttribute('data-mid')); if (me) me.classList.add('set-open'); return; }
     if (act === 'mcancel'){ var mc = document.getElementById('set-medit-'+b.getAttribute('data-mid')); if (mc) mc.classList.remove('set-open'); return; }
