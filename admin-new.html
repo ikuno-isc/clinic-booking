@@ -3659,9 +3659,14 @@ function setAddArtist(){
   var fee = (document.getElementById('set-aafee')||{}).value;
   var nFee = (fee==='') ? null : parseInt(fee,10);
   if (nFee!=null && (isNaN(nFee)||nFee<0)){ setMsg('set-artistMsg','指名料は0以上の半角数字で入力してください。', false); return; }
-  // 店舗を解決（設定タブに店舗セレクタが無いので現在slug→無ければ久留米店を既定）
+  // 店舗を解決（設定タブに店舗セレクタが無い）。解決できない時は「このテナントの店が1つだけならその店」を使う。
+  //   ★旧来の「久留米店を既定」は多テナントで誤り：小倉テナントに久留米店は無く store_id が NULL になり、
+  //     予約ページ(public_booking_options は store_id 一致のみ表示)に担当者が出ない不具合になっていた。
   var storeId = storeIdForSlug(currentStoreSlug());
-  if (!storeId && STORE_MAP && STORE_MAP.kurume) storeId = STORE_MAP.kurume.id;
+  if (!storeId && STORE_MAP){
+    var _codes = Object.keys(STORE_MAP);
+    if (_codes.length === 1) storeId = STORE_MAP[_codes[0]].id;  // 1店運用（久留米/小倉など）は唯一の店に確定
+  }
   var row = {
     tenant_id: TENANT_ID, store_id: storeId || null, name: name,
     qualification: (((document.getElementById('set-aaqual')||{}).value)||'').trim() || null,
