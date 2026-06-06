@@ -289,10 +289,12 @@
 // ===== Supabase 接続設定（公開キー＝埋め込みOK・RLSで保護） =====
 var SB_URL    = "https://stgarheuldubyrzdqzaq.supabase.co";
 var SB_KEY    = "sb_publishable_e5A9MJzOCvzsfWXBd9DLzg_Wa_hJ0qb";
-var STORE_ID  = "22222222-0000-0000-0000-000000000001"; // 久留米店（store slug=kurume の既定店舗）
-var TENANT_ID = "11111111-1111-1111-1111-111111111111";
-var LIFF_ID   = "2010236479-4ANlMg3d";
-var STORE_NAME = "久留米";   // スタッフ通知の【店名】表示用（当面は久留米単店）。
+// ↓は「既定（久留米）」の初期値。起動時に resolveStoreConfig() が ?store= スラッグから
+//   stores を引いて、その店の値に上書きする（小倉など）。取得失敗時はこの既定のまま。
+var STORE_ID  = "22222222-0000-0000-0000-000000000001"; // 既定＝久留米店（store slug=kurume）
+var TENANT_ID = "11111111-1111-1111-1111-111111111111"; // 既定＝久留米テナント
+var LIFF_ID   = "2010236479-4ANlMg3d";                  // 既定＝久留米の現行LIFF
+var STORE_NAME = "久留米";   // 既定の【店名】表示用（store.name で上書きされる）。
 // LINE連携：確定メッセージ・スタッフ通知は Supabase Edge Function（notify-reservation）に依頼。
 var EDGE_NOTIFY = SB_URL + "/functions/v1/notify-reservation";
 
@@ -312,7 +314,8 @@ function getQueryParam(name){
   }catch(e){}
   return null;
 }
-var STORE = getQueryParam('store') || 'kurume'; // 店舗slug（既定 kurume）。当面 STORE_ID は久留米店固定。
+var STORE_RAW = getQueryParam('store');         // 明示指定された店舗slug（無ければ null）。
+var STORE = STORE_RAW || 'kurume';              // 店舗slug（既定 kurume）。resolveStoreConfig() で店設定を解決。
 var MODE  = getQueryParam('mode')  || 'book';   // 'book'（予約）/ 'cancel'（実装済み）/ 'consent'（準備中）
 var REF   = getQueryParam('ref')   || '';       // 流入元タグ（集客：?ref= で来た予約に記録）
 
@@ -608,7 +611,7 @@ function loadAD(){
   var pFrom=reqY+'-'+p2(reqMo)+'-01T00:00:00+09:00';
   var endD=new Date(reqY,reqMo,1); // 翌月1日
   var pTo=endD.getFullYear()+'-'+p2(endD.getMonth()+1)+'-01T00:00:00+09:00';
-  sbRpc('busy_ranges',{ p_artist:reqN, p_from:pFrom, p_to:pTo }).then(function(r){
+  sbRpc('busy_ranges',{ p_artist:reqN, p_from:pFrom, p_to:pTo, p_store:STORE_ID }).then(function(r){
     var same=(String(st.nurseId)===String(reqN)&&String(st.menuId)===String(reqM)&&st.calYear===reqY&&st.calMonth===reqMo);
     if(!r.ok){ if(same){ st.adErr=true; if(st.step===2)s3(); } return; }
     var busyByDay={};
@@ -693,7 +696,7 @@ function loadSl(){
   if(st.slCache[ck]){ st.slots=st.slCache[ck]; st.slErr=false; if(st.step===3)s4(); return; }
   var reqN=st.nurseId, reqMn=st.menuId, reqD=st.date;
   var pFrom=reqD+'T00:00:00+09:00', pTo=reqD+'T23:59:59+09:00';
-  sbRpc('busy_ranges',{ p_artist:reqN, p_from:pFrom, p_to:pTo }).then(function(r){
+  sbRpc('busy_ranges',{ p_artist:reqN, p_from:pFrom, p_to:pTo, p_store:STORE_ID }).then(function(r){
     var same=(String(st.nurseId)===String(reqN)&&String(st.menuId)===String(reqMn)&&String(st.date)===String(reqD));
     if(!r.ok){ if(same){ st.slErr=true; if(st.step===3)s4(); } return; }
     var busy=(r.data||[]).map(function(x){ return [new Date(x.start_at).getTime(), new Date(x.end_at).getTime()]; });
@@ -715,7 +718,7 @@ function prefetchSl(){
   if(st.slCache[ck]) return;  // 取得済みなら何もしない
   var reqN=st.nurseId, reqMn=st.menuId, reqD=st.date;
   var pFrom=reqD+'T00:00:00+09:00', pTo=reqD+'T23:59:59+09:00';
-  sbRpc('busy_ranges',{ p_artist:reqN, p_from:pFrom, p_to:pTo }).then(function(r){
+  sbRpc('busy_ranges',{ p_artist:reqN, p_from:pFrom, p_to:pTo, p_store:STORE_ID }).then(function(r){
     if(!r.ok) return;
     var busy=(r.data||[]).map(function(x){ return [new Date(x.start_at).getTime(), new Date(x.end_at).getTime()]; });
     var arr=computeSlots(reqD, busy);
@@ -1383,17 +1386,15 @@ function showConsentDone(){
 //   certified:[{nurse_id,menu_id,is_certified,duration_new_min,duration_retouch_min}],
 //   store_name, openMin, closeMin, interval, closed }
 function loadOptions(){
-  Promise.all([
-    sbGet("artists?select=id,name,is_active,profile_photo_url,qualification,specialty&store_id=eq."+STORE_ID+"&is_active=eq.true&order=name"),
-    sbGet("menus?select=id,name,price_normal,price_monitor,duration_new_min,duration_retouch_min&tenant_id=eq."+TENANT_ID+"&is_active=eq.true"),
-    sbGet("artist_menus?select=artist_id,menu_id,duration_new_min,duration_retouch_min&is_certified=eq.true"),
-    sbGet("stores?select=name,business_hours_start,business_hours_end,slot_interval_min,closed_days&id=eq."+STORE_ID)
-  ]).then(function(res){
+  // ★マスタは public_booking_options RPC で一括取得（anonの直selectは撤去済＝他テナント横断列挙を防止）。
+  //   返却＝{ store:{営業設定}, artists:[店内・有効], menus:[テナント内・有効], artist_menus:[認定組合せ] }
+  sbRpc("public_booking_options", { p_store_id: STORE_ID }).then(function(res){
+    var d=(res&&res.ok&&res.data&&typeof res.data==='object')?res.data:{};
     // ★Array.isArray でガード（RLS/列名ミスでエラーJSONが返っても .map で落ちない）
-    var artists=(res[0]&&Array.isArray(res[0].data))?res[0].data:[];
-    var menus  =(res[1]&&Array.isArray(res[1].data))?res[1].data:[];
-    var am     =(res[2]&&Array.isArray(res[2].data))?res[2].data:[];
-    var store=(res[3]&&Array.isArray(res[3].data)&&res[3].data[0])||null;
+    var artists=Array.isArray(d.artists)?d.artists:[];
+    var menus  =Array.isArray(d.menus)?d.menus:[];
+    var am     =Array.isArray(d.artist_menus)?d.artist_menus:[];
+    var store=(d.store&&typeof d.store==='object')?d.store:null;
     if(!artists.length){ bootOptDone=true; showWizardIfReady(); return; }
 
     // 担当できるメニューだけを artist_menus で絞る（poc/index.html boot() と同じ考え方）。
@@ -1458,12 +1459,67 @@ function initLiff(){
   }catch(e){ advance(); }
 }
 
+// ===== 店舗設定の解決（多テナント化・段階3） =====
+// URLの ?store=スラッグ から stores を引いて、この店の id/tenant/name/LIFF を確定する。
+//   ・取得できれば STORE_ID / TENANT_ID / STORE_NAME / LIFF_ID を上書き（小倉など）。
+//   ・取得失敗時は既定（久留米）の埋め込み値のまま＝後方互換（久留米は今まで通り動く）。
+// ※セキュリティ操作（キャンセル/同意書/問診）はサーバ側(super-api)が id_token の aud で
+//   店を確定する。ここでの店確定は「表示するマスタ（メニュー等）を正しく選ぶ」ためだけで、
+//   スラッグを偽っても他店データの漏えいにはならない。
+// 戻り値（Promise<boolean>）：true=このまま起動してよい／false=店が特定できないので止める。
+//   ・解決できた → その店の値を採用して true。
+//   ・解決できない（行が無い/SQL未適用/通信失敗）→
+//       未指定 or 既定(kurume) なら久留米のまま true（後方互換）。
+//       明示的に別店(kokura等)が指定されていたのに見つからない時は false（久留米予約への誤倒れを防ぐ）。
+function resolveStoreConfig(){
+  function fallbackOk(){ return (!STORE_RAW || STORE_RAW==='kurume'); }
+  // ★公開リンクは public_slug（全店で一意）で引く。code は (tenant_id,code) でしか一意でないため使わない。
+  return sbRpc("public_store_resolve", { p_slug: STORE })
+    .then(function(res){
+      var s=(res&&res.ok&&res.data&&typeof res.data==='object')?res.data:null;
+      if(s){
+        if(s.id)        STORE_ID   = s.id;
+        if(s.tenant_id) TENANT_ID  = s.tenant_id;
+        if(s.name)      STORE_NAME = s.name;
+        if(s.liff_id){ LIFF_ID = s.liff_id; return true; }
+        // 店は特定できたが、この店のLIFFが未設定（例：小倉のLIFF作成前）。
+        var explicitOther = (STORE_RAW && STORE_RAW!=='kurume');
+        if(explicitOther){
+          // 既定(久留米)LIFFへ倒すと別テナントとして本人確認されてしまう→ LIFFは使わない。
+          LIFF_ID='';
+          // 本人確認が要るモード（キャンセル/同意書/問診）はこの店のLIFFが無いと成立しない → 停止。
+          if(MODE!=='book') return false;
+        }
+        return true; // 予約(book)はLIFF無しでも作成可能（uidは付かない）。
+      }
+      return fallbackOk();
+    })
+    .catch(function(){ return fallbackOk(); });
+}
+
+// 店が特定できない時のエラー表示（誤った店で予約させない）。
+function showStoreError(){
+  try{
+    document.body.innerHTML =
+      '<div style="max-width:480px;margin:80px auto;padding:24px;font-family:sans-serif;text-align:center;color:#333;">'
+      + '<div style="font-size:44px;">🏥</div>'
+      + '<h2 style="font-size:18px;margin:16px 0;">お店が見つかりませんでした</h2>'
+      + '<p style="font-size:14px;line-height:1.8;color:#666;">この予約ページのリンクが正しくない可能性があります。<br>'
+      + 'お手数ですが、お店の公式LINEのメニューから、もう一度お試しください。</p>'
+      + '</div>';
+  }catch(e){}
+}
+
 (function boot(){
-  // 予約モードのみマスタ取得（キャンセルは自分の予約一覧をUID確定後に取得・同意書は準備中）。
-  if(MODE==='book') loadOptions();
-  initLiff();
-  // 予約以外（キャンセル/同意書）は即この画面を表示（キャンセルは続いてUID確定後に一覧取得）。
-  if(MODE!=='book') showWizardIfReady();
+  // ★まず店舗設定を解決してから初期化（LIFF_ID/STORE_ID/TENANT_ID を店に合わせる）。
+  resolveStoreConfig().then(function(ok){
+    if(!ok){ showStoreError(); return; }  // 明示された店が特定できない → 久留米へ倒さず停止。
+    // 予約モードのみマスタ取得（キャンセルは自分の予約一覧をUID確定後に取得・同意書は準備中）。
+    if(MODE==='book') loadOptions();
+    initLiff();
+    // 予約以外（キャンセル/同意書）は即この画面を表示（キャンセルは続いてUID確定後に一覧取得）。
+    if(MODE!=='book') showWizardIfReady();
+  });
 })();
 </script>
 </body>
