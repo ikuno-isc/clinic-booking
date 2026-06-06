@@ -190,6 +190,22 @@
 .dash-note{font-size:11px;color:#9ca3af;margin-top:6px;line-height:1.5}
 .dash-placeholder{font-size:13px;color:#889;padding:24px 0;text-align:center}
 
+/* ===== AI活用レポート（接頭辞 .ai- 専用。dash-tabs/dash-period/dash-placeholder は流用） ===== */
+.ai-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}
+@media(max-width:520px){.ai-grid{grid-template-columns:repeat(2,1fr)}}
+.ai-card{background:#f3f8f7;border:1px solid #e0e8e6;border-radius:12px;padding:12px 8px;text-align:center}
+.ai-card.ai-warn{background:#fff5f3;border-color:#f1c3b8}
+.ai-num{font-size:20px;font-weight:800;color:#0b5c55;line-height:1.2}
+.ai-card.ai-warn .ai-num{color:#c0392b}
+.ai-lbl{font-size:12px;color:#557;margin-top:4px}
+.ai-sub{font-size:12.5px;color:#557;background:#eef2f1;border-radius:10px;padding:8px 10px;margin:6px 0 12px;line-height:1.6}
+.ai-faq-h{font-weight:700;color:#345;margin:10px 0 6px}
+.ai-faq{margin:0;padding-left:22px}
+.ai-faq li{padding:3px 0;color:#234}
+.ai-faq-c{color:#0b5c55;font-weight:700;margin-left:6px}
+.ai-faq-empty{color:#889;font-size:13px;padding:6px 0}
+.ai-faq-note{font-size:12px;color:#778;margin-top:8px}
+
 /* ===== reviews タブ CSS ===== */
 /* ===== 口コミ管理タブ（接頭辞 .rev- 専用。既存 .resv-/.rtab/.rcard/.rc-/.rb-/.mb-/.rbtn と非衝突）===== */
 #reviewView{max-width:760px;margin:0 auto;padding:12px}
@@ -502,6 +518,7 @@
     <button data-v="resv"   onclick="showReservations(this)">📋 予約管理</button>
     <button data-v="cust"   onclick="showCustomers(this)">🗂 顧客カルテ</button>
     <button data-v="dash"   onclick="showDashboard(this)">📊 経営</button>
+    <button data-v="ai"     class="nav-mgr" style="display:none" onclick="showAiReport(this)">🤖 AI活用</button>
     <button data-v="review" onclick="showReviews(this)">⭐ 口コミ</button>
     <button data-v="acq"    class="nav-mgr" style="display:none" onclick="showAcq(this)">📣 集客</button>
     <button data-v="steps"  class="nav-mgr" style="display:none" onclick="showSteps(this)">📨 ステップ配信</button>
@@ -620,6 +637,18 @@
   </div>
   <div class="dash-period" id="dashPeriod"></div>
   <div id="dashBody"><div class="dash-placeholder">読み込み中…</div></div>
+</div>
+
+  <!-- ===== AI活用レポート ===== -->
+<div id="aiView" style="display:none">
+  <div class="dash-tabs" id="aiTabs">
+    <span class="dash-tab active" data-ap="this_month">今月</span>
+    <span class="dash-tab" data-ap="last_month">先月</span>
+    <span class="dash-tab" data-ap="this_year">今年</span>
+    <span class="dash-tab" data-ap="last_6m">直近6ヶ月</span>
+  </div>
+  <div class="dash-period" id="aiPeriod"></div>
+  <div id="aiBody"><div class="dash-placeholder">読み込み中…</div></div>
 </div>
 
   <!-- ===== reviews ===== -->
@@ -879,7 +908,7 @@ function sbDelete(table, filter){
 }
 
 // ===== ビュー切替（全タブ共通）=====
-function hideAllViews(){ ["resvView","custView","dashView","reviewView","setView","acqView","stepsView","setupView","usersView"].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display="none"; }); }
+function hideAllViews(){ ["resvView","custView","dashView","aiView","reviewView","setView","acqView","stepsView","setupView","usersView"].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display="none"; }); }
 function setActiveNav(el){ var bs=document.querySelectorAll("#nav button"); for(var i=0;i<bs.length;i++) bs[i].classList.toggle("active", bs[i]===el); }
 // owner/admin のときだけ「📣集客」「👥ユーザー管理」ナビを出す（IS_MANAGER は initResvStoreBar が設定）
 function applyManagerNav(){ var bs=document.querySelectorAll(".nav-mgr"); for(var i=0;i<bs.length;i++) bs[i].style.display = window.IS_MANAGER ? "" : "none"; }
@@ -3089,6 +3118,89 @@ function renderDash(s){
   body.innerHTML = html;
 }
 
+/* ============================================================================
+   AI活用レポート タブ JS
+   ・ai_report_stats(p_from,p_to,p_tenant) を呼び、AIの稼働実績を数字カード＋FAQ候補で表示。
+   ・期間タブは dashRangeFor()（経営タブと共用）を流用。期間委譲は #aiTabs に限定。
+   ・RPCは platform_admin / manager のみ実行可（forbidden は日本語で案内）。
+   ============================================================================ */
+var AI_PERIOD = 'this_month';
+
+function showAiReport(el){
+  hideAllViews();
+  if (el) setActiveNav(el);
+  document.getElementById('aiView').style.display = '';
+  loadAiReport();
+  window.scrollTo({ top:0, behavior:'smooth' });
+}
+
+/* 期間タブのクリック委譲（#aiTabs 内の .dash-tab だけに反応＝経営タブと混線しない） */
+document.addEventListener('click', function(e){
+  var t = e.target.closest ? e.target.closest('.dash-tab') : null;
+  if (!t) return;
+  var tabs = document.getElementById('aiTabs');
+  if (!tabs || !tabs.contains(t)) return;
+  var p = t.getAttribute('data-ap'); if (!p) return;
+  AI_PERIOD = p;
+  var all = tabs.querySelectorAll('.dash-tab');
+  for (var i = 0; i < all.length; i++){ all[i].classList.toggle('active', all[i] === t); }
+  loadAiReport();
+});
+
+function loadAiReport(){
+  var body = document.getElementById('aiBody');
+  body.innerHTML = '<div class="dash-placeholder">読み込み中…</div>';
+  var r = dashRangeFor(AI_PERIOD);
+  document.getElementById('aiPeriod').textContent = r.label + ' のAI活用状況';
+  sbRpc('ai_report_stats', { p_from: r.from, p_to: r.to, p_tenant: TENANT_ID })
+    .then(function(s){ renderAiReport(s || {}); })
+    .catch(function(err){
+      if (!TOKEN){ if (typeof showLogin === 'function') showLogin('もう一度ログインしてください。'); return; }
+      var msg = String((err && err.message) || err || '');
+      if (/forbidden|permission|denied/i.test(msg)){
+        body.innerHTML = '<div class="dash-placeholder">権限がありません（AI活用レポートは管理者のみ表示できます）。</div>';
+        return;
+      }
+      body.innerHTML = '<div class="dash-placeholder">取得に失敗しました<br>' + esc(msg) + '</div>';
+    });
+}
+
+/* ai_report_stats の戻りjsonb（存在キーのみ）を描画。 */
+function renderAiReport(s){
+  var body = document.getElementById('aiBody');
+  var hours = Math.round((Number(s.savedMinutes) || 0) / 60 * 10) / 10;
+  var open = Number(s.openHuman) || 0;
+  function card(label, val, warn){
+    return '<div class="ai-card' + (warn ? ' ai-warn' : '') + '">'
+         + '<div class="ai-num">' + val + '</div>'
+         + '<div class="ai-lbl">' + label + '</div></div>';
+  }
+  var html = '<div class="ai-grid">';
+  html += card('AI自動返信', (s.aiChat || 0) + ' 件');
+  html += card('有人対応', (s.needsHuman || 0) + ' 件');
+  html += card('有人対応率', (s.humanRate || 0) + ' %');
+  html += card('予約につながった', (s.booked || 0) + ' 件');
+  html += card('推定削減時間', '約 ' + hours + ' 時間');
+  html += card('要対応の未完了', open + ' 件' + (open > 0 ? ' ⚠️' : ''), open > 0);
+  html += '</div>';
+  html += '<div class="ai-sub">スタッフ通知 ' + (s.notify || 0) + ' 件 ／ キャンセル・変更をAIが処理 '
+        + (s.cancelChange || 0) + ' 件 ／ AIと会話した人数 ' + (s.talkers || 0) + ' 人</div>';
+
+  var faq = s.faqCandidates || [];
+  html += '<div class="ai-faq-h">▼ FAQ化候補（AIが答えられず有人に回った理由・上位）</div>';
+  if (!faq.length){
+    html += '<div class="ai-faq-empty">まだ候補はありません。</div>';
+  } else {
+    html += '<ol class="ai-faq">';
+    for (var i = 0; i < faq.length; i++){
+      html += '<li>' + esc(faq[i].reason || '') + '<span class="ai-faq-c">' + (Number(faq[i].count) || 0) + '回</span></li>';
+    }
+    html += '</ol>';
+    html += '<div class="ai-faq-note">→ よくある質問はテンプレ返信やプロンプト強化の候補です。</div>';
+  }
+  body.innerHTML = html;
+}
+
 /* ===== reviews タブ JS ===== */
 /* ============================================================================
    口コミ管理タブ（Supabase版）JS
@@ -3613,8 +3725,13 @@ function setSaveArtist(aid){
     .catch(function(err){ if (setHandleAuth(err)) return; setMsg('set-artistMsg', setReason(err), false); });
 }
 
-/* アイコン写真：選択された画像を正方形・最大320pxへ縮小しJPEGで圧縮→data URL→artists.profile_photo_url を更新。
-   ※軽量化のためStorageは使わず data URL（小さいので予約ページの読み込みに影響小）。多店舗で増えたらStorage化を検討。 */
+/* アイコン写真：選択された画像を正方形・最大320pxへ縮小しJPEGで圧縮→data URL にして
+   Edge Function manage-artists へ渡す。manage-artists が service_role で公開バケット
+   artist-photos（patch-31）へ代理アップロードし、公開URLを artists.profile_photo_url に保存する。
+   ※data URL 直保存をやめた理由：data URL は LINE送信に使えず（公開URLが必要）、テーブルも肥大する。
+     ブラウザ直アップロードは publishable key だと auth.uid() が解決されず 403 になるため、必ず代理方式。
+     画像はアップロード前にここで320px正方形へ縮小しておき、転送量を抑える。
+   後方互換：既存の data URL で保存済みのアイコンも <img src> でそのまま表示できる（表示は壊れない）。 */
 function setPickArtistPhoto(aid, file){
   if (!file || !/^image\//.test(file.type)){ setMsg('set-artistMsg','画像ファイルを選んでください。', false); return; }
   var reader = new FileReader();
@@ -3629,7 +3746,7 @@ function setPickArtistPhoto(aid, file){
       ctx.drawImage(img, sx, sy, s, s, 0, 0, size, size); // 中央正方形でトリミング
       var dataUrl = cn.toDataURL('image/jpeg', 0.82);
       if (dataUrl.length > 200000) dataUrl = cn.toDataURL('image/jpeg', 0.6); // 大きすぎる時はさらに圧縮
-      setSaveArtistPhoto(aid, dataUrl);
+      setUploadArtistPhoto(aid, dataUrl);
     };
     img.onerror = function(){ setMsg('set-artistMsg','画像を読み込めませんでした。別の画像でお試しください。', false); };
     img.src = ev.target.result;
@@ -3637,6 +3754,31 @@ function setPickArtistPhoto(aid, file){
   reader.onerror = function(){ setMsg('set-artistMsg','ファイルを読み込めませんでした。', false); };
   reader.readAsDataURL(file);
 }
+/* 縮小済み data URL を manage-artists へ送って公開URL化（owner/admin＋自テナント検証は関数側）。 */
+function setUploadArtistPhoto(aid, dataUrl){
+  if (!TOKEN){ if (typeof showLogin==='function') showLogin('もう一度ログインしてください。'); return; }
+  setMsg('set-artistMsg','アップロード中…', true);
+  fetch(SB_URL + '/functions/v1/manage-artists', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'apikey':SB_KEY, 'Authorization':'Bearer '+TOKEN },
+    body: JSON.stringify({ action:'upload_photo', artist_id:aid, data_url:dataUrl })
+  }).then(function(r){ return r.json().catch(function(){ return {ok:false,reason:'bad_json'}; }); })
+    .then(function(d){
+      if (!d || !d.ok || !d.url){
+        var rs=(d&&d.reason)||''; var msg;
+        if (/forbidden_manager|forbidden/.test(rs)) msg='オーナー／管理者のみ写真を変更できます。';
+        else if (/too_large/.test(rs)) msg='画像は5MBまでにしてください。';
+        else if (/bad_image/.test(rs)) msg='対応していない画像です（JPEG / PNG / WebP / GIF）。';
+        else if (/no_auth|invalid_token/.test(rs)) msg='もう一度ログインしてください。';
+        else if (/upload_failed/.test(rs) && /bucket not found/i.test((d&&d.detail)||'')) msg='画像置き場（artist-photos）が未作成です。patch-31 を適用してください。';
+        else msg='写真の更新に失敗しました。';
+        setMsg('set-artistMsg', msg, false); return;
+      }
+      setMsg('set-artistMsg','✅ 写真を更新しました（予約ページにも反映されます）。', true); setLoadArtists();
+    })
+    .catch(function(){ setMsg('set-artistMsg','写真の更新に失敗しました。通信状況をご確認ください。', false); });
+}
+/* 写真を消す：profile_photo_url を null に戻す（manager の RLS で許可。Storage実体は残るが配信されない）。 */
 function setSaveArtistPhoto(aid, dataUrl){
   if (dataUrl === null && !window.confirm('このアーティストの写真を消して、頭文字アイコンに戻します。よろしいですか？')) return;
   sbUpdate('artists','id=eq.'+encodeURIComponent(aid), { profile_photo_url: dataUrl })
