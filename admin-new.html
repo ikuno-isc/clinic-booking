@@ -4926,7 +4926,10 @@ function setRenderDateModal(){
     +'<button type="button" class="set-btn set-primary" data-act="shmodsave">💾 この日を保存</button>'
     +'</div>';
   ov.appendChild(m);
-  document.body.appendChild(ov);
+  // モーダルは setView 内に置く（イベント委譲が #setView 配下にしか掛かっていないため、
+  // document.body 直下だとモーダル内ボタンのクリックが拾えない）。
+  var host=document.getElementById('setView') || document.body;
+  host.appendChild(ov);
 }
 
 /* ───────── 入力 → draft 反映（data-shft 属性を持つ要素を委譲で拾う） ───────── */
