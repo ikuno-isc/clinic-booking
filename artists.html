@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<!--
+  poc/artists.html — お客様向け「アーティスト紹介ページ」（Supabase版・公開ページ）。
+  設計：docs/artist-profile-page-design.md (v2)。設計は ?mode=profile 拡張(案A)も挙げるが、
+        予約ページ(index.html)を一切触らず独立して出すため、ここでは別ページ(案B)で実装。
+
+  ・店解決は予約ページ(index.html)と同じ public_store_resolve(slug)。?store= で店舗slug切替（既定 kurume）。
+  ・データは公開RPCのみで取得（anonに生テーブルは開けない）：
+      一覧       … public_artist_list(p_store_id)
+      プロフィール … public_artist_profile(p_store_id, p_artist_id)
+  ・XSS対策：自由入力(career/caption/口コミ本文等)は必ず esc()。画像URLは https:// か
+    Supabase Storage 公開URL のみ許可（safeImg）。それ以外は表示しない。
+  ・「予約する」は予約ページ(new.html?store=...)へ遷移。施術者を初期選択する artist パラメータも付ける。
+  ・GitHub Pages で配信する純粋な静的HTML（外部依存なし）。LIFFは不要（公開閲覧のみ・PIIを扱わない）。
+-->
+<html lang="ja">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>アーティスト紹介</title>
+  <style>
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:-apple-system,'Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif; background:#f5f5f5; color:#222; line-height:1.6; }
+    .app-hd { background:#06c755; color:#fff; padding:12px 16px; }
+    .app-hd h1 { font-size:16px; font-weight:700; }
+    .app-hd .sub { font-size:12px; opacity:.9; margin-top:1px; }
+    .wrap { max-width:600px; margin:0 auto; padding:18px 16px 40px; }
+
+    /* ローディング/エラー */
+    #loading { min-height:60vh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:#888; font-size:14px; }
+    .spinner { width:26px; height:26px; border:3px solid #e0e0e0; border-top-color:#06c755; border-radius:50%; animation:spin .8s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .msg-err { background:#fdecea; color:#c00; padding:14px; border-radius:8px; font-size:13px; line-height:1.7; }
+    .empty { text-align:center; color:#888; padding:48px 8px; font-size:14px; }
+
+    /* 一覧カード */
+    .a-list { display:flex; flex-direction:column; gap:14px; }
+    .a-card { background:#fff; border:1px solid #e6e6e6; border-radius:16px; padding:16px; display:flex; gap:14px; align-items:center; box-shadow:0 1px 4px rgba(0,0,0,.04); }
+    .a-av { width:72px; height:72px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:26px; font-weight:800; color:#fff; overflow:hidden; }
+    .a-av img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
+    .a-meta { flex:1; min-width:0; }
+    .a-nm { font-size:18px; font-weight:700; }
+    .a-spec { font-size:12.5px; color:#777; margin-top:3px; line-height:1.45; }
+    .a-go { margin-top:10px; }
+    .btn { display:inline-block; padding:11px 18px; font-size:14px; font-weight:700; border-radius:10px; border:none; cursor:pointer; text-decoration:none; text-align:center; }
+    .btn-o { background:#eafaf0; color:#06845a; border:1px solid #b6e7c9; }
+    .btn-p { background:#06c755; color:#fff; }
+    .btn-bk { background:#f5f5f5; color:#555; border:1px solid #ddd; }
+
+    /* プロフィール */
+    .p-hero { background:#fff; border-radius:16px; padding:22px 18px; text-align:center; box-shadow:0 1px 4px rgba(0,0,0,.04); }
+    .p-av { width:104px; height:104px; border-radius:50%; margin:0 auto 12px; display:flex; align-items:center; justify-content:center; font-size:38px; font-weight:800; color:#fff; overflow:hidden; }
+    .p-av img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
+    .p-nm { font-size:22px; font-weight:700; }
+    .p-spec { font-size:13px; color:#777; margin-top:6px; line-height:1.5; }
+    .sec { margin-top:24px; }
+    .sec-h { font-size:14px; font-weight:700; color:#06845a; border-left:3px solid #06c755; padding-left:9px; margin-bottom:12px; }
+    .career { background:#fff; border-radius:12px; padding:16px; font-size:14px; line-height:1.9; white-space:pre-wrap; word-break:break-word; }
+
+    /* 横スワイプ・カルーセル（症例写真・口コミ） */
+    .caro { display:flex; gap:12px; overflow-x:auto; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain; padding:2px 2px 10px; }
+    .caro::-webkit-scrollbar { height:4px; }
+    .caro::-webkit-scrollbar-thumb { background:#d0d0d0; border-radius:2px; }
+    .ph { scroll-snap-align:start; flex:0 0 78%; background:#fff; border:1px solid #eee; border-radius:12px; overflow:hidden; }
+    .ph img { width:100%; aspect-ratio:1; object-fit:cover; display:block; background:#f0f0f0; }
+    .ph-cap { font-size:12px; color:#666; padding:8px 10px; line-height:1.5; }
+    .ph-pair { flex:0 0 88%; }
+    .ph-pair .pair-row { display:flex; }
+    .ph-pair .pair-col { flex:1; }
+    .ph-pair .pair-col img { aspect-ratio:1; }
+    .ph-lbl { font-size:11px; font-weight:700; color:#fff; background:rgba(0,0,0,.45); padding:2px 8px; border-radius:0 0 6px 0; position:absolute; }
+    .ph-pos { position:relative; }
+
+    .rv { scroll-snap-align:start; flex:0 0 80%; background:#fff; border:1px solid #eee; border-radius:12px; padding:14px 16px; display:flex; flex-direction:column; }
+    .rv-stars { color:#f5a623; font-size:14px; }
+    .rv-body { font-size:13px; color:#333; margin-top:8px; line-height:1.7; white-space:pre-wrap; word-break:break-word; flex:1; }
+    .rv-period { font-size:11px; color:#999; margin-top:10px; }
+
+    .med-note { font-size:11px; color:#999; margin-top:10px; line-height:1.6; }
+    .book-bar { position:sticky; bottom:0; background:#fff; border-top:1px solid #eee; padding:12px 16px; margin:24px -16px 0; }
+    .book-bar .btn { width:100%; font-size:16px; padding:14px; }
+  </style>
+</head>
+<body>
+
+<div id="loading"><div class="spinner"></div><div>読み込み中…</div></div>
+<div id="app" style="display:none;">
+  <div class="app-hd"><h1 id="hdTitle">アーティスト紹介</h1><div class="sub" id="hdSub"></div></div>
+  <div class="wrap" id="content"></div>
+</div>
+
+<script>
+// ===== Supabase 接続設定（公開キー＝埋め込みOK・RLS/公開RPCで保護） =====
+var SB_URL  = "https://stgarheuldubyrzdqzaq.supabase.co";
+var SB_KEY  = "sb_publishable_e5A9MJzOCvzsfWXBd9DLzg_Wa_hJ0qb";
+// ↓既定（久留米）。起動時に public_store_resolve(?store=) で上書きされる。
+var STORE_ID   = "22222222-0000-0000-0000-000000000001";
+var TENANT_ID  = "11111111-1111-1111-1111-111111111111";
+var STORE_NAME = "久留米";
+
+// LIFFは元のクエリを ?liff.state=... に包む場合があるので両方を見る（index.html と同じ作法）。
+function getQueryParam(name){
+  try{
+    var sp = new URLSearchParams(location.search);
+    var v = sp.get(name);
+    if(v) return v;
+    var ls = sp.get('liff.state');
+    if(ls){
+      var inner = new URLSearchParams(ls.charAt(0)==='?' ? ls.slice(1) : ls);
+      var v2 = inner.get(name);
+      if(v2) return v2;
+    }
+  }catch(e){}
+  return null;
+}
+var STORE_RAW   = getQueryParam('store');
+var STORE       = STORE_RAW || 'kurume';
+var INIT_ARTIST = getQueryParam('artist');   // 直接プロフィールを開く場合（任意）
+
+var H = { "apikey": SB_KEY, "Authorization": "Bearer " + SB_KEY };
+function sbRpc(fn, args){
+  return fetch(SB_URL + "/rest/v1/rpc/" + fn, {
+    method:"POST",
+    headers: Object.assign({ "Content-Type":"application/json" }, H),
+    body: JSON.stringify(args||{})
+  }).then(function(r){
+    return r.json().then(function(j){ return { ok:r.ok, status:r.status, data:j }; },
+                        function(){ return { ok:r.ok, status:r.status, data:null }; });
+  });
+}
+
+// ===== ユーティリティ =====
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+// ★画像URLは https:// か Supabase Storage 公開URL のみ許可（javascript: 等の注入・http混在を弾く）。
+function safeImg(u){
+  if(!u) return '';
+  var s = String(u).trim();
+  if(/^https:\/\//i.test(s)) return s;   // https の公開URL（Storage公開配信もここに含まれる）
+  return '';                              // それ以外（http:, data:, javascript: 等）は出さない
+}
+var AC = ['#e07b54','#26a69a','#7c4dff','#1565c0','#d81b60','#00897b'];
+function avHtml(url, name, idx, cls, avcls){
+  var img = safeImg(url);
+  if(img) return '<div class="'+avcls+'"><img src="'+esc(img)+'" alt="'+esc(name)+'"></div>';
+  var ch = esc((name||'?').charAt(0).toUpperCase());
+  return '<div class="'+avcls+'" style="background:'+AC[idx%AC.length]+'">'+ch+'</div>';
+}
+function show(id){
+  document.getElementById('loading').style.display = (id==='loading')?'flex':'none';
+  document.getElementById('app').style.display = (id==='app')?'block':'none';
+}
+function setHeader(title, sub){
+  document.getElementById('hdTitle').textContent = title || 'アーティスト紹介';
+  document.getElementById('hdSub').textContent   = sub || '';
+}
+function contentEl(){ return document.getElementById('content'); }
+function errBox(msg){
+  show('app');
+  contentEl().innerHTML = '<div class="msg-err">'+esc(msg)+'</div>';
+}
+
+// 予約ページURL（new.html?store=...）。施術者を初期選択する artist も付ける（任意）。
+function bookUrl(artistId){
+  var u = 'new.html?store=' + encodeURIComponent(STORE);
+  if(artistId) u += '&artist=' + encodeURIComponent(artistId);
+  return u;
+}
+
+// ===== 一覧 =====
+function loadList(){
+  show('loading');
+  sbRpc('public_artist_list', { p_store_id: STORE_ID }).then(function(r){
+    if(!r.ok){ errBox('情報を取得できませんでした。電波の良い場所で、もう一度お試しください。'); return; }
+    var list = Array.isArray(r.data) ? r.data : [];
+    renderList(list);
+  }).catch(function(){ errBox('情報を取得できませんでした。電波の良い場所で、もう一度お試しください。'); });
+}
+function renderList(list){
+  setHeader('アーティスト紹介', STORE_NAME + '店');
+  var h = '';
+  if(!list.length){
+    h = '<div class="empty">現在ご案内できるアーティストがいません。</div>';
+  }else{
+    h += '<div class="a-list">';
+    list.forEach(function(a, i){
+      var spec = [];
+      if(a.qualification) spec.push(a.qualification);
+      if(a.specialty) spec.push(a.specialty);
+      h += '<div class="a-card">';
+      h += avHtml(a.profile_photo_url, a.name, i, 'a-card', 'a-av');
+      h += '<div class="a-meta"><div class="a-nm">'+esc(a.name)+'</div>';
+      if(spec.length) h += '<div class="a-spec">'+esc(spec.join('・'))+'</div>';
+      h += '<div class="a-go"><a class="btn btn-o" href="#" data-artist="'+esc(a.id)+'">プロフィールを見る</a></div>';
+      h += '</div></div>';
+    });
+    h += '</div>';
+  }
+  show('app');
+  contentEl().innerHTML = h;
+}
+
+// ===== プロフィール =====
+function loadProfile(artistId){
+  show('loading');
+  sbRpc('public_artist_profile', { p_store_id: STORE_ID, p_artist_id: artistId }).then(function(r){
+    if(!r.ok){ errBox('情報を取得できませんでした。もう一度お試しください。'); return; }
+    if(!r.data || !r.data.artist){
+      // 越境・無効・存在しない等 → 一覧へ戻す
+      errBox('このアーティストのプロフィールは現在ご覧いただけません。');
+      return;
+    }
+    renderProfile(r.data);
+  }).catch(function(){ errBox('情報を取得できませんでした。もう一度お試しください。'); });
+}
+// 症例写真の描画。pair_key が同じ before/after は左右ペアで、それ以外は単発スライドで出す。
+function renderPhotos(photos){
+  if(!photos || !photos.length) return '';
+  // pair_key ごとにグルーピング（pair_key 無しは単発扱い）
+  var pairs = {}, order = [];
+  photos.forEach(function(p){
+    var key = p.pair_key ? ('pair:'+p.pair_key) : ('single:'+order.length);
+    if(!pairs[key]){ pairs[key] = []; order.push(key); }
+    pairs[key].push(p);
+  });
+  var h = '<div class="sec"><div class="sec-h">症例写真</div><div class="caro">';
+  order.forEach(function(key){
+    var grp = pairs[key];
+    var before = null, after = null;
+    grp.forEach(function(p){ if(p.kind==='before') before=p; else if(p.kind==='after') after=p; });
+    if(key.indexOf('pair:')===0 && before && after){
+      // Before/After 左右ペア
+      var bi = safeImg(before.image_url), ai = safeImg(after.image_url);
+      if(!bi || !ai){ return; }   // 片方でも不正URLなら出さない
+      h += '<div class="ph ph-pair"><div class="pair-row">';
+      h += '<div class="pair-col ph-pos"><span class="ph-lbl">Before</span><img src="'+esc(bi)+'" alt="before"></div>';
+      h += '<div class="pair-col ph-pos"><span class="ph-lbl">After</span><img src="'+esc(ai)+'" alt="after"></div>';
+      h += '</div>';
+      var cap = (after && after.caption) || (before && before.caption) || '';
+      if(cap) h += '<div class="ph-cap">'+esc(cap)+'</div>';
+      h += '</div>';
+    }else{
+      // 単発スライド（グループ内の各写真を1枚ずつ）
+      grp.forEach(function(p){
+        var img = safeImg(p.image_url);
+        if(!img) return;
+        h += '<div class="ph">';
+        if(p.kind==='before' || p.kind==='after'){
+          h += '<div class="ph-pos"><span class="ph-lbl">'+(p.kind==='before'?'Before':'After')+'</span><img src="'+esc(img)+'" alt="'+esc(p.kind)+'"></div>';
+        }else{
+          h += '<img src="'+esc(img)+'" alt="症例">';
+        }
+        if(p.caption) h += '<div class="ph-cap">'+esc(p.caption)+'</div>';
+        h += '</div>';
+      });
+    }
+  });
+  h += '</div><div class="med-note">※効果には個人差があります。掲載写真はご本人の同意を得たものです。</div></div>';
+  return h;
+}
+function stars(n){
+  var r = parseInt(n,10); if(isNaN(r)||r<1) r=5; if(r>5) r=5;
+  var s=''; for(var i=0;i<5;i++) s += (i<r?'★':'☆');
+  return s;
+}
+function renderReviews(reviews){
+  if(!reviews || !reviews.length) return '';
+  var h = '<div class="sec"><div class="sec-h">お客様の声</div><div class="caro">';
+  reviews.forEach(function(r){
+    h += '<div class="rv"><div class="rv-stars">'+stars(r.rating)+'</div>';
+    h += '<div class="rv-body">'+esc(r.body)+'</div>';
+    if(r.period_label) h += '<div class="rv-period">'+esc(r.period_label)+'</div>';
+    h += '</div>';
+  });
+  h += '</div></div>';
+  return h;
+}
+function renderProfile(d){
+  var a = d.artist;
+  setHeader(a.name + ' さん', STORE_NAME + '店');
+  var spec = [];
+  if(a.qualification) spec.push(a.qualification);
+  if(a.specialty) spec.push(a.specialty);
+
+  var h = '<div style="margin-bottom:14px;"><a class="btn btn-bk" href="#" id="backToList">‹ 一覧へ戻る</a></div>';
+  h += '<div class="p-hero">';
+  h += avHtml(a.profile_photo_url, a.name, 0, 'p-hero', 'p-av');
+  h += '<div class="p-nm">'+esc(a.name)+'</div>';
+  if(spec.length) h += '<div class="p-spec">'+esc(spec.join('・'))+'</div>';
+  h += '</div>';
+
+  if(a.career){
+    h += '<div class="sec"><div class="sec-h">経歴・ごあいさつ</div><div class="career">'+esc(a.career)+'</div></div>';
+  }
+  h += renderPhotos(d.photos);
+  h += renderReviews(d.reviews);
+
+  h += '<div class="book-bar"><a class="btn btn-p" href="'+esc(bookUrl(a.id))+'">このアーティストで予約する</a></div>';
+
+  show('app');
+  contentEl().innerHTML = h;
+  window.scrollTo(0,0);
+}
+
+// ===== ルーティング（クリックはイベント委譲。onclick に値を文字列連結しない＝XSS/壊れ防止） =====
+document.addEventListener('click', function(e){
+  var t = e.target && e.target.closest ? e.target : null;
+  if(!t) return;
+  var goProf = e.target.closest('[data-artist]');
+  if(goProf){ e.preventDefault(); loadProfile(goProf.getAttribute('data-artist')); return; }
+  if(e.target.closest('#backToList')){ e.preventDefault(); loadList(); return; }
+});
+
+// ===== 起動 =====
+(function boot(){
+  function fallbackOk(){ return (!STORE_RAW || STORE_RAW==='kurume'); }
+  sbRpc('public_store_resolve', { p_slug: STORE }).then(function(res){
+    var s = (res && res.ok && res.data && typeof res.data==='object') ? res.data : null;
+    if(s){
+      if(s.id)        STORE_ID   = s.id;
+      if(s.tenant_id) TENANT_ID  = s.tenant_id;
+      if(s.name)      STORE_NAME = s.name;
+    }else if(!fallbackOk()){
+      // 明示された別店が見つからない → 久留米へ倒さずエラー（誤った店の情報を出さない）。
+      errBox('お店が見つかりませんでした。お店の公式LINEのメニューから、もう一度お試しください。');
+      return;
+    }
+    if(INIT_ARTIST) loadProfile(INIT_ARTIST);
+    else loadList();
+  }).catch(function(){
+    if(!fallbackOk()){ errBox('お店が見つかりませんでした。'); return; }
+    if(INIT_ARTIST) loadProfile(INIT_ARTIST);
+    else loadList();
+  });
+})();
+</script>
+</body>
+</html>
