@@ -326,6 +326,32 @@
 .set-ex-off{font-size:12px;color:#666;display:flex;align-items:center;gap:3px}
 .set-ex-off input{width:auto}
 .set-ex-x{padding:6px 10px;border:none;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;background:#eef2f1;color:#557}
+/* シフトカレンダー（月表示） */
+.set-shcal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.set-shcal-head .set-shcal-title{font-weight:700;color:#1f2937;font-size:14px}
+.set-shcal-nav{display:flex;gap:6px}
+.set-shcal-nav button{padding:6px 12px;border:1px solid #cdd6d4;background:#fff;border-radius:8px;font-size:13px;cursor:pointer;font-weight:700;color:#1f2937}
+.set-shcal-nav button:disabled{opacity:.4;cursor:not-allowed}
+.set-shcal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;background:#e6ebe9;border:1px solid #e6ebe9;border-radius:8px;overflow:hidden}
+.set-shcal-dh{background:#f4f7f6;padding:6px 0;text-align:center;font-size:11px;font-weight:700;color:#557}
+.set-shcal-dh.dow0{color:#dc2626}
+.set-shcal-dh.dow6{color:#2563eb}
+.set-shcal-cell{background:#fff;padding:5px 4px;min-height:62px;cursor:pointer;font-size:11px;display:flex;flex-direction:column;gap:2px;border:none;text-align:left;color:#1f2937;font-family:inherit}
+.set-shcal-cell:hover{background:#eef7f3}
+.set-shcal-cell.out{background:#fafafa;color:#bbb;cursor:default}
+.set-shcal-cell.ex{background:#fff7e6}
+.set-shcal-cell.off{background:#fde8e8;color:#b91c1c}
+.set-shcal-cell .d{font-weight:700;font-size:12px}
+.set-shcal-cell .t{font-size:10px;line-height:1.25}
+.set-shcal-cell .badge{display:inline-block;font-size:9px;background:#f59e0b;color:#fff;padding:0 4px;border-radius:3px}
+.set-shcal-warn{background:#fef3c7;border:1px solid #fbbf24;color:#92400e;padding:8px 10px;border-radius:8px;font-size:12px;margin-bottom:8px}
+.set-shcal-unsaved{display:inline-block;font-size:11px;background:#dc2626;color:#fff;padding:2px 8px;border-radius:10px;margin-left:8px;vertical-align:middle}
+/* シフト用 モーダル（prov-overlay/prov-modal を踏襲） */
+.set-shmod-row{display:flex;gap:6px;align-items:center;margin:8px 0}
+.set-shmod-row label{font-size:13px;color:#1f2937;min-width:64px}
+.set-shmod-row input[type=time]{padding:6px;border:1px solid #cdd6d4;border-radius:7px;font-size:13px;width:90px}
+.set-shmod-row input[type=checkbox]{width:auto}
+.set-shmod-actions{display:flex;gap:6px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
 
 /* ===== setup タブ CSS ===== */
 #setupView{max-width:760px;margin:0 auto;padding:12px}
@@ -3800,6 +3826,16 @@ function runReviewOp(promise){
    ============================================================================ */
 var SET_SECTION = 'info';
 var SET_WD = ['日','月','火','水','木','金','土'];
+/* シフトカレンダー状態（設計：docs/shift-calendar-redesign.md）
+   server＝DB最新値、weeklyDraft/dateDraft＝編集中の下書き。
+   原則：カレンダー本体は server を見る／RPC成功後にのみ server を更新。 */
+var shiftState = {
+  aid:'', name:'',
+  server:{ weekly:{}, dates:{} },
+  weeklyDraft:null, dateDraft:null,
+  cursor:{ y:0, m:0 },
+  legacyWarning:''
+};
 var SET_MANAGER_MSG = '権限がありません（オーナー/管理者のみ編集できます）';
 
 var SET_SUB = 'menu';   // 「メニューとアーティスト」内の第2段（menu/artist/shift）
@@ -4664,118 +4700,377 @@ function setLoadShiftIndex(){
   });
 }
 
-/* HH:MM:SS / HH:MM → HH:MM に正規化 */
+/* HH:MM:SS / HH:MM → HH:MM に正規化（後方互換で残す） */
 function setHM(t){ var m = String(t||'').match(/^(\d{2}:\d{2})/); return m ? m[1] : ''; }
 
+/* ───────── 純粋ロジック（poc/admin_shift_pure.mjs と二重定義・テスト側の真実は .mjs） ───────── */
+function shHm(v){ var m=String(v==null?'':v).match(/^(\d{2}:\d{2})/); return m?m[1]:''; }
+
+function shGroupShiftsByKind(rows){
+  var weekly={}, dates={}, overflowDows={}, overflowDates={};
+  (rows||[]).forEach(function(r){
+    if (r.kind==='weekly' && r.day_of_week!=null){
+      var d=Number(r.day_of_week);
+      if (!weekly[d]) weekly[d]={off:false,ranges:[]};
+      if (r.is_off) weekly[d].off=true;
+      var s=shHm(r.start_time), e=shHm(r.end_time);
+      if (s&&e) weekly[d].ranges.push({s:s,e:e});
+    } else if (r.kind==='date' && r.shift_date){
+      var dt=String(r.shift_date);
+      if (!dates[dt]) dates[dt]={off:false,ranges:[]};
+      if (r.is_off) dates[dt].off=true;
+      var s2=shHm(r.start_time), e2=shHm(r.end_time);
+      if (s2&&e2) dates[dt].ranges.push({s:s2,e:e2});
+    }
+  });
+  Object.keys(weekly).forEach(function(d){ if (weekly[d].ranges.length>2) overflowDows[d]=1; });
+  Object.keys(dates).forEach(function(d){ if (dates[d].ranges.length>2) overflowDates[d]=1; });
+  var warn='';
+  var dows=Object.keys(overflowDows), dts=Object.keys(overflowDates);
+  if (dows.length||dts.length){
+    var parts=[];
+    if (dows.length) parts.push(dows.sort().map(function(d){return SET_WD[Number(d)]+'曜';}).join('・'));
+    if (dts.length) parts.push(dts.sort().join('・'));
+    warn='⚠️ 過去のデータに区間が3つ以上残っている曜日/日付があります（'+parts.join(' / ')+'）。編集して保存すると先頭2区間に整理されます（3つ目以降は消えます）。';
+  }
+  return { weekly:weekly, dates:dates, legacyWarning:warn };
+}
+
+function shValidateRanges(ranges, label){
+  var kept=[];
+  for (var i=0;i<(ranges||[]).length;i++){
+    var s=shHm(ranges[i].s), e=shHm(ranges[i].e);
+    if (!s && !e) continue;
+    if (!s || !e) return {ok:false, error:label+'：開始・終了の両方を入れてください。', kept:[]};
+    if (s>=e) return {ok:false, error:label+'：開始＜終了になるよう時刻を入れてください。', kept:[]};
+    kept.push({s:s,e:e});
+  }
+  return {ok:true, error:'', kept:kept.slice(0,2)};
+}
+
+function shWeeklyDraftToPayload(d){
+  var payload=[];
+  for (var i=0;i<7;i++){
+    var wd=(d&&d[i])||{off:false,ranges:[]};
+    if (wd.off){ payload.push({day_of_week:i,is_off:true,start_time:null,end_time:null}); continue; }
+    var v=shValidateRanges(wd.ranges, SET_WD[i]+'曜日');
+    if (!v.ok) return {ok:false, error:v.error, payload:[]};
+    v.kept.forEach(function(r){ payload.push({day_of_week:i,is_off:false,start_time:r.s,end_time:r.e}); });
+  }
+  return {ok:true, error:'', payload:payload};
+}
+
+function shDateDraftToPayload(d){
+  if (!d||!d.date) return {ok:false,error:'日付を選んでください。',payload:[]};
+  if (d.off) return {ok:true,error:'',payload:[{is_off:true,start_time:null,end_time:null}]};
+  var v=shValidateRanges(d.ranges, d.date+' の例外日');
+  if (!v.ok) return {ok:false,error:v.error,payload:[]};
+  return {ok:true,error:'',payload:v.kept.map(function(r){return {is_off:false,start_time:r.s,end_time:r.e};})};
+}
+
+function shEffectiveShiftForDate(server, dateStr, dow){
+  var s=server||{weekly:{},dates:{}};
+  if (s.dates && Object.prototype.hasOwnProperty.call(s.dates,dateStr)){
+    var x=s.dates[dateStr]; return {source:'date',off:!!x.off,ranges:(x.ranges||[]).slice()};
+  }
+  if (s.weekly && Object.prototype.hasOwnProperty.call(s.weekly,dow)){
+    var w=s.weekly[dow]; return {source:'weekly',off:!!w.off,ranges:(w.ranges||[]).slice()};
+  }
+  return {source:'none',off:false,ranges:[]};
+}
+
+function shApplyDateSaveResult(server, date, payload){
+  var next={ weekly:Object.assign({},server.weekly||{}), dates:Object.assign({},server.dates||{}) };
+  if (!payload||payload.length===0){ delete next.dates[date]; return next; }
+  var first=payload[0];
+  var ranges=payload.filter(function(p){return !p.is_off && p.start_time && p.end_time;})
+    .map(function(p){return {s:shHm(p.start_time),e:shHm(p.end_time)};});
+  next.dates[date]={off:!!first.is_off,ranges:ranges};
+  return next;
+}
+
+function shApplyWeeklySaveResult(server, payload){
+  var next={ weekly:{}, dates:Object.assign({},server.dates||{}) };
+  (payload||[]).forEach(function(p){
+    var d=Number(p.day_of_week);
+    if (!next.weekly[d]) next.weekly[d]={off:false,ranges:[]};
+    if (p.is_off) next.weekly[d].off=true;
+    if (!p.is_off && p.start_time && p.end_time) next.weekly[d].ranges.push({s:shHm(p.start_time),e:shHm(p.end_time)});
+  });
+  return next;
+}
+
+function shFormatRanges(ranges){ if (!ranges||!ranges.length) return ''; return ranges.map(function(r){return r.s+'-'+r.e;}).join(' / '); }
+
+function shBuildCalendarCells(y,m){
+  var first=new Date(y,m-1,1);
+  var startDow=first.getDay();
+  var start=new Date(y,m-1,1-startDow);
+  var out=[];
+  for (var i=0;i<42;i++){
+    var d=new Date(start.getFullYear(),start.getMonth(),start.getDate()+i);
+    var yy=d.getFullYear(), mm=d.getMonth()+1, dd=d.getDate();
+    var ymd=yy+'-'+(mm<10?'0':'')+mm+'-'+(dd<10?'0':'')+dd;
+    out.push({date:ymd,dow:d.getDay(),inMonth:mm===m,day:dd});
+  }
+  return out;
+}
+
+/* ───────── UI 描画 ───────── */
 function setLoadShiftEditor(aid, name){
-  var body = document.getElementById('setBody');
-  body.innerHTML = '<div class="set-ph">読み込み中…</div>';
+  var body=document.getElementById('setBody');
+  body.innerHTML='<div class="set-ph">読み込み中…</div>';
   sbGet('artist_shifts?select=kind,day_of_week,shift_date,is_off,start_time,end_time&artist_id=eq.'+encodeURIComponent(aid)+'&order=kind,day_of_week,shift_date')
     .then(function(rows){
-      rows = rows || [];
-      // 曜日（weekly）を曜日番号で索引化。1曜日＝最大2区間（区間2は後方互換のため空欄も許容）。
-      var weekly = {}; // dow -> {off, ranges:[{start,end}...]}
-      var exceptions = [];
-      rows.forEach(function(r){
-        if (r.kind === 'weekly' && r.day_of_week != null){
-          var d = r.day_of_week;
-          if (!weekly[d]) weekly[d] = { off:false, ranges:[] };
-          if (r.is_off) weekly[d].off = true;
-          if (r.start_time && r.end_time) weekly[d].ranges.push({ start:setHM(r.start_time), end:setHM(r.end_time) });
-        } else if (r.kind === 'date' && r.shift_date){
-          exceptions.push({ date:r.shift_date, off:!!r.is_off, start:setHM(r.start_time), end:setHM(r.end_time) });
-        }
-      });
-      var h = '<div class="set-acts"><button type="button" class="set-btn set-ghost" data-act="shback">← アーティスト一覧へ</button></div>';
-      h += '<div class="set-add-h">🗓 '+esc(name)+' のシフト</div>';
-      h += '<div class="set-card" data-aid="'+esc(aid)+'">'
-        + '<div class="set-hint">曜日ごとの出勤時間を設定します。何も入れない曜日は「受付時間内ずっと予約可」。「休」にチェックでその曜日は予約に出ません。区間は最大2つ（昼休みを空ける用）。</div>'
-        + '<table class="set-shift-tbl"><tr><th>曜日</th><th>休</th><th>区間1</th><th>区間2</th></tr>';
-      for (var d=0; d<7; d++){
-        var wd = weekly[d] || { off:false, ranges:[] };
-        var r1 = wd.ranges[0] || {}, r2 = wd.ranges[1] || {};
-        h += '<tr><td>'+SET_WD[d]+'</td>'
-          + '<td><input type="checkbox" id="set-sh-off-'+d+'"'+(wd.off?' checked':'')+'></td>'
-          + '<td><input type="time" id="set-sh-s1-'+d+'" value="'+esc(r1.start||'')+'">〜<input type="time" id="set-sh-e1-'+d+'" value="'+esc(r1.end||'')+'"></td>'
-          + '<td><input type="time" id="set-sh-s2-'+d+'" value="'+esc(r2.start||'')+'">〜<input type="time" id="set-sh-e2-'+d+'" value="'+esc(r2.end||'')+'"></td></tr>';
-      }
-      h += '</table></div>';
-      h += '<div class="set-add-h">📌 例外日（休み・臨時出勤）</div>'
-        + '<div class="set-card"><div id="set-ex-list"></div>'
-        + '<div class="set-acts"><button type="button" class="set-btn set-ghost" data-act="shaddex">＋ 例外日を追加</button></div>'
-        + '<div class="set-hint">特定の日だけ「休み」または「特別な時間」を登録（曜日パターンより優先）。臨時出勤は休みのチェックを外して時刻を入れます。</div></div>';
-      h += '<div class="set-msg" id="set-shiftMsg"></div>';
-      h += '<div class="set-acts"><button type="button" class="set-btn set-primary" data-act="shsave" data-aid="'+esc(aid)+'">💾 シフトを保存</button></div>';
-      body.innerHTML = h;
-      exceptions.forEach(function(e){ setAddException(e); });
+      var g=shGroupShiftsByKind(rows||[]);
+      var now=new Date();
+      shiftState.aid=aid;
+      shiftState.name=name||'';
+      shiftState.server={ weekly:g.weekly, dates:g.dates };
+      shiftState.weeklyDraft=null;
+      shiftState.dateDraft=null;
+      shiftState.cursor={ y:now.getFullYear(), m:now.getMonth()+1 };
+      shiftState.legacyWarning=g.legacyWarning||'';
+      setRenderShiftBody();
     }).catch(function(err){
       if (setHandleAuth(err)) return;
-      body.innerHTML = '<div class="set-ph set-err">取得に失敗しました<br>'+esc(setReason(err))+'</div>';
+      body.innerHTML='<div class="set-ph set-err">取得に失敗しました<br>'+esc(setReason(err))+'</div>';
     });
 }
 
-/* 例外日1行を追加（値は esc して属性に入れる。×ボタンはイベント委譲で削除） */
-function setAddException(e){
-  e = e || {};
-  var list = document.getElementById('set-ex-list'); if (!list) return;
-  var div = document.createElement('div');
-  div.className = 'set-ex-row';
-  div.innerHTML = '<input type="date" class="set-ex-date" value="'+esc(e.date||'')+'">'
-    + '<label class="set-ex-off"><input type="checkbox" class="set-ex-offchk"'+(e.off?' checked':'')+'>休み</label>'
-    + '<input type="time" class="set-ex-s" value="'+esc(e.start||'')+'">〜<input type="time" class="set-ex-e" value="'+esc(e.end||'')+'">'
-    + '<button type="button" class="set-ex-x" data-act="shdelex">×</button>';
-  list.appendChild(div);
+function setRenderShiftBody(){
+  var body=document.getElementById('setBody'); if (!body) return;
+  var unsaved = (shiftState.weeklyDraft!==null) ? '<span class="set-shcal-unsaved">未保存</span>' : '';
+  var h='<div class="set-acts"><button type="button" class="set-btn set-ghost" data-act="shback">← アーティスト一覧へ</button></div>';
+  h+='<div class="set-add-h">🗓 '+esc(shiftState.name)+' のシフト'+unsaved+'</div>';
+  if (shiftState.legacyWarning){
+    h+='<div class="set-shcal-warn">'+esc(shiftState.legacyWarning)+'</div>';
+  }
+  // 基本シフトカード（曜日パターン）
+  var view = shiftState.weeklyDraft || shiftState.server.weekly;
+  h+='<div class="set-card">'
+    +'<div class="set-hint">曜日ごとの出勤時間を設定します。何も入れない曜日は「受付時間内ずっと予約可」。「休」にチェックでその曜日は予約に出ません。区間は最大2つ（昼休みを空ける用）。</div>'
+    +'<table class="set-shift-tbl"><tr><th>曜日</th><th>休</th><th>区間1</th><th>区間2</th></tr>';
+  for (var d=0; d<7; d++){
+    var wd = view[d] || {off:false, ranges:[]};
+    var r1 = wd.ranges[0]||{}, r2 = wd.ranges[1]||{};
+    h+='<tr><td>'+SET_WD[d]+'</td>'
+      +'<td><input type="checkbox" data-shft="w-off-'+d+'"'+(wd.off?' checked':'')+'></td>'
+      +'<td><input type="time" data-shft="w-s1-'+d+'" value="'+esc(r1.s||'')+'">〜<input type="time" data-shft="w-e1-'+d+'" value="'+esc(r1.e||'')+'"></td>'
+      +'<td><input type="time" data-shft="w-s2-'+d+'" value="'+esc(r2.s||'')+'">〜<input type="time" data-shft="w-e2-'+d+'" value="'+esc(r2.e||'')+'"></td></tr>';
+  }
+  h+='</table>'
+    +'<div class="set-msg" id="set-shiftWMsg"></div>'
+    +'<div class="set-acts"><button type="button" class="set-btn set-primary" data-act="shsavew">💾 基本シフトを保存</button></div>'
+    +'</div>';
+  // 月カレンダー
+  var cur=shiftState.cursor;
+  h+='<div class="set-add-h">📅 '+cur.y+'年'+cur.m+'月のシフト</div>'
+    +'<div class="set-card">'
+    +'<div class="set-hint">日付セルをタップしてその日だけのシフト（休み・特別な時間）を設定します。例外日は薄黄、休みは薄赤。曜日パターンに戻したい時はポップアップ内の「🔁 曜日パターンに戻す」を押してください。</div>'
+    +'<div class="set-shcal-head"><div class="set-shcal-title">'+cur.y+'年'+cur.m+'月</div>'
+    +'<div class="set-shcal-nav">'
+    +'<button type="button" data-act="shmonth" data-delta="-1">◀ 前月</button>'
+    +'<button type="button" data-act="shmonth" data-delta="0">今月</button>'
+    +'<button type="button" data-act="shmonth" data-delta="1">翌月 ▶</button>'
+    +'</div></div>'
+    +'<div class="set-shcal-grid">'
+    +['日','月','火','水','木','金','土'].map(function(w,i){return '<div class="set-shcal-dh dow'+i+'">'+w+'</div>';}).join('')
+    + shRenderCalendarCells()
+    +'</div>'
+    +'<div class="set-msg" id="set-shiftMsg"></div>'
+    +'</div>';
+  body.innerHTML=h;
+  if (shiftState.dateDraft) setRenderDateModal();
 }
 
-function setSaveShift(aid){
-  var payload = [];
-  // 曜日（weekly）
-  for (var d=0; d<7; d++){
-    var off = !!(document.getElementById('set-sh-off-'+d)||{}).checked;
-    if (off){
-      payload.push({ kind:'weekly', day_of_week:d, shift_date:null, is_off:true, start_time:null, end_time:null });
-      continue;
-    }
-    var pairs = [['set-sh-s1-','set-sh-e1-'], ['set-sh-s2-','set-sh-e2-']];
-    for (var p=0; p<pairs.length; p++){
-      var s = (document.getElementById(pairs[p][0]+d)||{}).value || '';
-      var en = (document.getElementById(pairs[p][1]+d)||{}).value || '';
-      if (s && en){
-        if (s >= en){ setMsg('set-shiftMsg', SET_WD[d]+'曜日：開始＜終了になるよう時刻を入れてください。', false); return; }
-        payload.push({ kind:'weekly', day_of_week:d, shift_date:null, is_off:false, start_time:s, end_time:en });
-      } else if (s || en){
-        setMsg('set-shiftMsg', SET_WD[d]+'曜日：開始・終了の両方を入れてください。', false); return;
+function shRenderCalendarCells(){
+  var cells=shBuildCalendarCells(shiftState.cursor.y, shiftState.cursor.m);
+  return cells.map(function(c){
+    if (!c.inMonth) return '<div class="set-shcal-cell out"><div class="d">'+c.day+'</div></div>';
+    var eff=shEffectiveShiftForDate(shiftState.server, c.date, c.dow);
+    var cls='set-shcal-cell';
+    if (eff.source==='date') cls+=' ex';
+    if (eff.off) cls+=' off';
+    var label='';
+    if (eff.off) label='休';
+    else if (eff.ranges.length) label=shFormatRanges(eff.ranges);
+    else label='（受付時間内）';
+    var badge = (eff.source==='date') ? ' <span class="badge">例外</span>' : '';
+    return '<button type="button" class="'+cls+'" data-act="shopenmod" data-date="'+esc(c.date)+'" data-dow="'+c.dow+'">'
+      +'<div class="d">'+c.day+badge+'</div><div class="t">'+esc(label)+'</div></button>';
+  }).join('');
+}
+
+function setRenderDateModal(){
+  var prev=document.getElementById('shDateOverlay'); if (prev) prev.remove();
+  var dd=shiftState.dateDraft; if (!dd) return;
+  var ov=document.createElement('div');
+  ov.id='shDateOverlay';
+  ov.className='prov-overlay';
+  var m=document.createElement('div'); m.className='prov-modal';
+  var r1=dd.ranges[0]||{}, r2=dd.ranges[1]||{};
+  m.innerHTML='<div style="font-weight:700;font-size:15px;color:#1f2937">📅 '+esc(dd.date)+' のシフト</div>'
+    +'<div class="set-hint" style="margin-top:6px">この日だけ「休み」または「特別な時間帯」を設定します（曜日パターンを上書きします）。</div>'
+    +'<div class="set-shmod-row"><label><input type="checkbox" data-shft="m-off"'+(dd.off?' checked':'')+'> 休み</label></div>'
+    +'<div class="set-shmod-row"><label>区間1</label>'
+    +'<input type="time" data-shft="m-s1" value="'+esc(r1.s||'')+'">〜<input type="time" data-shft="m-e1" value="'+esc(r1.e||'')+'">'
+    +'</div>'
+    +'<div class="set-shmod-row"><label>区間2</label>'
+    +'<input type="time" data-shft="m-s2" value="'+esc(r2.s||'')+'">〜<input type="time" data-shft="m-e2" value="'+esc(r2.e||'')+'">'
+    +'</div>'
+    +'<div class="set-msg" id="set-shmodMsg"></div>'
+    +'<div class="set-shmod-actions">'
+    +'<button type="button" class="set-btn set-ghost" data-act="shmodclose">キャンセル</button>'
+    +'<button type="button" class="set-btn set-ghost" data-act="shmodrestore">🔁 曜日パターンに戻す</button>'
+    +'<button type="button" class="set-btn set-primary" data-act="shmodsave">💾 この日を保存</button>'
+    +'</div>';
+  ov.appendChild(m);
+  document.body.appendChild(ov);
+}
+
+/* ───────── 入力 → draft 反映（data-shft 属性を持つ要素を委譲で拾う） ───────── */
+function shOnInputChange(target){
+  var k=target.getAttribute('data-shft'); if (!k) return;
+  var m=k.match(/^w-(off|s1|e1|s2|e2)-(\d)$/);
+  if (m){
+    if (shiftState.weeklyDraft===null){
+      shiftState.weeklyDraft={};
+      for (var i=0;i<7;i++){
+        var sv=shiftState.server.weekly[i];
+        shiftState.weeklyDraft[i] = sv ? {off:!!sv.off, ranges:sv.ranges.slice().map(function(r){return {s:r.s,e:r.e};})}
+                                       : {off:false, ranges:[]};
       }
     }
+    var d=Number(m[2]);
+    if (!shiftState.weeklyDraft[d]) shiftState.weeklyDraft[d]={off:false,ranges:[]};
+    var wd=shiftState.weeklyDraft[d];
+    if (m[1]==='off'){ wd.off=!!target.checked; }
+    else {
+      var idx = (m[1][1]==='1') ? 0 : 1;
+      if (!wd.ranges[idx]) wd.ranges[idx]={s:'',e:''};
+      wd.ranges[idx][m[1][0]] = target.value || '';
+    }
+    var titleEl=document.querySelector('#setBody .set-add-h');
+    if (titleEl && !titleEl.querySelector('.set-shcal-unsaved')){
+      var span=document.createElement('span'); span.className='set-shcal-unsaved'; span.textContent='未保存';
+      titleEl.appendChild(span);
+    }
+    return;
   }
-  // 例外日（date）
-  var rows = document.querySelectorAll('#set-ex-list .set-ex-row');
-  for (var i=0; i<rows.length; i++){
-    var date = (rows[i].querySelector('.set-ex-date')||{}).value || '';
-    if (!date) continue;
-    var exoff = !!(rows[i].querySelector('.set-ex-offchk')||{}).checked;
-    var es = (rows[i].querySelector('.set-ex-s')||{}).value || '';
-    var ee = (rows[i].querySelector('.set-ex-e')||{}).value || '';
-    if (exoff){
-      payload.push({ kind:'date', day_of_week:null, shift_date:date, is_off:true, start_time:null, end_time:null });
-    } else {
-      if (!es || !ee){ setMsg('set-shiftMsg', date+' の例外日は「休み」にするか、開始・終了の時刻を入れてください。', false); return; }
-      if (es >= ee){ setMsg('set-shiftMsg', date+' の例外日：開始＜終了になるよう時刻を入れてください。', false); return; }
-      payload.push({ kind:'date', day_of_week:null, shift_date:date, is_off:false, start_time:es, end_time:ee });
+  var mm=k.match(/^m-(off|s1|e1|s2|e2)$/);
+  if (mm){
+    if (!shiftState.dateDraft) return;
+    var dd=shiftState.dateDraft;
+    if (mm[1]==='off'){ dd.off=!!target.checked; }
+    else {
+      var idx2 = (mm[1][1]==='1') ? 0 : 1;
+      if (!dd.ranges[idx2]) dd.ranges[idx2]={s:'',e:''};
+      dd.ranges[idx2][mm[1][0]] = target.value || '';
     }
   }
-  var btn = document.querySelector('[data-act="shsave"]');
-  if (btn){ btn.disabled = true; btn.textContent = '保存中…'; }
-  sbRpc('save_artist_shifts', { p_artist: aid, p_payload: payload })
+}
+
+/* ───────── 保存／月送り／モーダル開閉 ───────── */
+function setShiftSaveWeekly(){
+  var src = shiftState.weeklyDraft || shiftState.server.weekly;
+  var has3=false;
+  Object.keys(src).forEach(function(d){ if ((src[d].ranges||[]).length>2) has3=true; });
+  if (has3 && !confirm('区間3つ目以降は消えます。続行しますか？')) return;
+  var v=shWeeklyDraftToPayload(src);
+  if (!v.ok){ setMsg('set-shiftWMsg', v.error, false); return; }
+  var btn=document.querySelector('[data-act="shsavew"]'); if (btn){ btn.disabled=true; btn.textContent='保存中…'; }
+  sbRpc('save_artist_shifts_weekly', { p_artist:shiftState.aid, p_payload:v.payload })
     .then(function(){
-      setMsg('set-shiftMsg','✅ シフトを保存しました（'+payload.length+'件）。', true);
-      if (btn){ btn.disabled = false; btn.textContent = '💾 シフトを保存'; }
+      shiftState.server=shApplyWeeklySaveResult(shiftState.server, v.payload);
+      shiftState.weeklyDraft=null;
+      var anyOver=false;
+      Object.keys(shiftState.server.dates).forEach(function(k){ if (shiftState.server.dates[k].ranges.length>2) anyOver=true; });
+      if (!anyOver) shiftState.legacyWarning='';
+      setRenderShiftBody();
+      setMsg('set-shiftWMsg','✅ 基本シフトを保存しました（'+v.payload.length+'件）。', true);
     })
     .catch(function(err){
       if (setHandleAuth(err)) return;
-      setMsg('set-shiftMsg', setReason(err), false);
-      if (btn){ btn.disabled = false; btn.textContent = '💾 シフトを保存'; }
+      setMsg('set-shiftWMsg', setReason(err), false);
+      if (btn){ btn.disabled=false; btn.textContent='💾 基本シフトを保存'; }
     });
+}
+
+function setShiftOpenDateModal(date, dow){
+  var ex=shiftState.server.dates[date];
+  if (ex){
+    shiftState.dateDraft={ date:date, off:!!ex.off, ranges:ex.ranges.slice().map(function(r){return {s:r.s,e:r.e};}) };
+  } else {
+    var wk=shiftState.server.weekly[dow];
+    if (wk) shiftState.dateDraft={ date:date, off:!!wk.off, ranges:wk.ranges.slice().map(function(r){return {s:r.s,e:r.e};}) };
+    else shiftState.dateDraft={ date:date, off:false, ranges:[] };
+  }
+  setRenderDateModal();
+}
+
+function setShiftCloseModal(){
+  shiftState.dateDraft=null;
+  var ov=document.getElementById('shDateOverlay'); if (ov) ov.remove();
+}
+
+function setShiftSaveDate(){
+  var dd=shiftState.dateDraft; if (!dd) return;
+  if ((dd.ranges||[]).length>2 && !confirm('区間3つ目以降は消えます。続行しますか？')) return;
+  var v=shDateDraftToPayload(dd);
+  if (!v.ok){ setMsg('set-shmodMsg', v.error, false); return; }
+  var btn=document.querySelector('[data-act="shmodsave"]'); if (btn){ btn.disabled=true; btn.textContent='保存中…'; }
+  sbRpc('save_artist_shifts_date', { p_artist:shiftState.aid, p_date:dd.date, p_payload:v.payload })
+    .then(function(){
+      shiftState.server=shApplyDateSaveResult(shiftState.server, dd.date, v.payload);
+      var saved=dd.date;
+      shiftState.dateDraft=null;
+      setRenderShiftBody();
+      setMsg('set-shiftMsg','✅ '+saved+' を保存しました。', true);
+    })
+    .catch(function(err){
+      if (setHandleAuth(err)) return;
+      setMsg('set-shmodMsg', setReason(err), false);
+      if (btn){ btn.disabled=false; btn.textContent='💾 この日を保存'; }
+    });
+}
+
+function setShiftRestoreDate(){
+  var dd=shiftState.dateDraft; if (!dd) return;
+  if (!confirm(dd.date+' を曜日パターンに戻します（その日の例外を削除）。続行しますか？')) return;
+  var btn=document.querySelector('[data-act="shmodrestore"]'); if (btn){ btn.disabled=true; btn.textContent='処理中…'; }
+  sbRpc('save_artist_shifts_date', { p_artist:shiftState.aid, p_date:dd.date, p_payload:[] })
+    .then(function(){
+      shiftState.server=shApplyDateSaveResult(shiftState.server, dd.date, []);
+      var saved=dd.date;
+      shiftState.dateDraft=null;
+      setRenderShiftBody();
+      setMsg('set-shiftMsg','✅ '+saved+' を曜日パターンに戻しました。', true);
+    })
+    .catch(function(err){
+      if (setHandleAuth(err)) return;
+      setMsg('set-shmodMsg', setReason(err), false);
+      if (btn){ btn.disabled=false; btn.textContent='🔁 曜日パターンに戻す'; }
+    });
+}
+
+function setShiftMonthShift(delta){
+  if (shiftState.dateDraft){ return; }
+  if (delta===0){
+    var now=new Date(); shiftState.cursor={ y:now.getFullYear(), m:now.getMonth()+1 };
+  } else {
+    var y=shiftState.cursor.y, m=shiftState.cursor.m + delta;
+    if (m<1){ y--; m=12; } else if (m>12){ y++; m=1; }
+    shiftState.cursor={y:y,m:m};
+  }
+  setRenderShiftBody();
+}
+
+/* draft が残っているとき、別画面/別アーティストへの遷移直前に呼ぶ。
+   true: 続行（draft 破棄）／false: 中止（draft 保持） */
+function setShiftConfirmDiscard(){
+  if (shiftState.weeklyDraft===null && shiftState.dateDraft===null) return true;
+  return confirm('未保存のシフトがあります。破棄しますか？');
 }
 
 /* ============================================================================
@@ -4795,10 +5090,16 @@ function setMsg(id, text, ok){
   root.addEventListener('click', function(e){
     var b = e.target.closest('[data-act]'); if (!b) return;
     var act = b.getAttribute('data-act');
-    // サブタブ切替（旧・内部チップ。後方互換で残置）
-    if (act === 'setsec'){ setSettingsSection(b.getAttribute('data-sp')); return; }
+    // サブタブ切替（旧・内部チップ。後方互換で残置）。シフト編集中にdraftがあれば破棄確認。
+    if (act === 'setsec'){
+      if (!setShiftConfirmDiscard()) return;
+      setSettingsSection(b.getAttribute('data-sp')); return;
+    }
     // 第2段チップ（メニューとアーティスト内：💉メニュー/👩‍⚕️アーティスト/🗓シフト）
-    if (act === 'setsub'){ setSettingsSub(b.getAttribute('data-sp2')); return; }
+    if (act === 'setsub'){
+      if (!setShiftConfirmDiscard()) return;
+      setSettingsSub(b.getAttribute('data-sp2')); return;
+    }
     // メニュー
     if (act === 'medit'){ var me = document.getElementById('set-medit-'+b.getAttribute('data-mid')); if (me) me.classList.add('set-open'); return; }
     if (act === 'mcancel'){ var mc = document.getElementById('set-medit-'+b.getAttribute('data-mid')); if (mc) mc.classList.remove('set-open'); return; }
@@ -4827,12 +5128,26 @@ function setMsg(id, text, ok){
     if (act === 'sedit'){ var se = document.getElementById('set-sedit-'+b.getAttribute('data-store')); if (se) se.classList.add('set-open'); return; }
     if (act === 'scancel'){ var sc = document.getElementById('set-sedit-'+b.getAttribute('data-store')); if (sc) sc.classList.remove('set-open'); return; }
     if (act === 'ssave'){ setSaveStore(b.getAttribute('data-store')); return; }
-    // シフト
-    if (act === 'shedit'){ setLoadShiftEditor(b.getAttribute('data-aid'), b.getAttribute('data-name')); return; }
-    if (act === 'shback'){ setLoadShiftIndex(); return; }
-    if (act === 'shaddex'){ setAddException(); return; }
-    if (act === 'shdelex'){ var row = b.closest('.set-ex-row'); if (row) row.remove(); return; }
-    if (act === 'shsave'){ setSaveShift(b.getAttribute('data-aid')); return; }
+    // シフト（カレンダー化／設計：docs/shift-calendar-redesign.md）
+    if (act === 'shedit'){
+      if (!setShiftConfirmDiscard()) return;
+      setLoadShiftEditor(b.getAttribute('data-aid'), b.getAttribute('data-name')); return;
+    }
+    if (act === 'shback'){
+      if (!setShiftConfirmDiscard()) return;
+      setLoadShiftIndex(); return;
+    }
+    if (act === 'shsavew'){ setShiftSaveWeekly(); return; }
+    if (act === 'shopenmod'){ setShiftOpenDateModal(b.getAttribute('data-date'), Number(b.getAttribute('data-dow'))); return; }
+    if (act === 'shmodclose'){ setShiftCloseModal(); return; }
+    if (act === 'shmodsave'){ setShiftSaveDate(); return; }
+    if (act === 'shmodrestore'){ setShiftRestoreDate(); return; }
+    if (act === 'shmonth'){ setShiftMonthShift(Number(b.getAttribute('data-delta'))); return; }
+  });
+  // data-shft 入力 → draft 反映（time/checkbox は change で十分）
+  root.addEventListener('change', function(e){
+    var t=e.target; if (!t || !t.getAttribute) return;
+    if (t.getAttribute('data-shft')) shOnInputChange(t);
   });
   // アイコン写真／症例写真：ファイル選択（input[type=file]）の検知（クリックではなくchange）。
   root.addEventListener('change', function(e){
