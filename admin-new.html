@@ -2385,6 +2385,7 @@ function pushConsentLink(rid){
    ============================================================================ */
 var MB_OPTS = null;     // { nurses:[{id,name}], menus:[{id,name}], certified:[{artist_id,menu_id}] }
 var MB_LOADING = false;
+var MB_OPTS_SLUG = null; // 選択肢を読み込んだ時の店スラッグ（店切替で再読込するため）
 
 function openManualBooking(){
   var f = document.getElementById('mbForm');
@@ -2392,7 +2393,9 @@ function openManualBooking(){
   if (f.style.display !== 'none'){ closeManualBooking(); return; }
   f.style.display = ''; btn.textContent = '✕ 入力をやめる';
   mbSetMsg('');
-  if (!MB_OPTS && !MB_LOADING) loadManualOptions();
+  // 未読込、または店を切り替えた（前回読込時とスラッグが違う）場合は読み直す
+  var slug = currentStoreSlug();
+  if (!MB_LOADING && (!MB_OPTS || MB_OPTS_SLUG !== slug)) loadManualOptions();
 }
 function closeManualBooking(){
   document.getElementById('mbForm').style.display = 'none';
@@ -2406,14 +2409,16 @@ function mbSetMsg(t, ok){
 /* 選択肢を Supabase から取得（店舗スコープで artists/artist_menus を絞る） */
 function loadManualOptions(){
   MB_LOADING = true; mbSetMsg('選択肢を読み込み中…', true);
+  var loadSlug = currentStoreSlug();
   ensureStoreMap().then(function(){
-    var storeId = storeIdForSlug(currentStoreSlug());
+    var storeId = storeIdForSlug(loadSlug);
     var artistsPath = 'artists?select=id,name&is_active=eq.true&order=name' + (storeId ? '&store_id=eq.'+storeId : '');
     var menusPath   = 'menus?select=id,name&is_active=eq.true&order=name';
     var pairPath    = 'artist_menus?select=artist_id,menu_id&is_certified=eq.true';
     return Promise.all([ sbGet(artistsPath), sbGet(menusPath), sbGet(pairPath) ]);
   }).then(function(res){
     MB_LOADING = false; mbSetMsg('');
+    MB_OPTS_SLUG = loadSlug;
     MB_OPTS = {
       nurses:    (res[0]||[]).map(function(a){ return { nurse_id:a.id, name:a.name }; }),
       menus:     (res[1]||[]).map(function(m){ return { menu_id:m.id, name:m.name }; }),
@@ -4318,8 +4323,8 @@ function setLoadStores(){
         + '<div class="set-hint">'+esc(s.slot_interval_min||'—')+'分ごと ／ 席数 '+(s.seat_count>0?('<b>'+esc(s.seat_count)+'席</b>（同時施術の上限）'):'制限なし')+(s.google_calendar_id?'':' ／ ⚠️ カレンダーID未設定')+'</div>'
         + '<div class="set-acts"><button type="button" class="set-btn set-ghost" data-act="sedit" data-store="'+id+'">✏️ 受付時間を変更</button></div>'
         + '<div class="set-edit" id="set-sedit-'+id+'">'
-        +   '<label>予約受付の開始</label><input type="time" id="set-ss-'+id+'" value="'+esc(s.business_hours_start||'')+'">'
-        +   '<label>最終受付（この時刻の枠まで予約可）</label><input type="time" id="set-se-'+id+'" value="'+esc(s.business_hours_end||'')+'">'
+        +   '<label>予約受付の開始</label><input type="time" id="set-ss-'+id+'" value="'+esc(setHM(s.business_hours_start))+'">'
+        +   '<label>最終受付（この時刻の枠まで予約可）</label><input type="time" id="set-se-'+id+'" value="'+esc(setHM(s.business_hours_end))+'">'
         +   '<label>予約の刻み（分）</label><input type="number" inputmode="numeric" id="set-si-'+id+'" value="'+esc(s.slot_interval_min==null?'':s.slot_interval_min)+'">'
         +   '<label>席数（同時に施術できる人数・1以上）</label><input type="number" inputmode="numeric" id="set-sc-'+id+'" value="'+esc(s.seat_count==null?'':s.seat_count)+'">'
         +   '<div class="set-hint">保存すると予約ページの空き枠に反映されます。席数は同時刻の予約上限です（例：2席なら同時2件まで）。</div>'
@@ -4341,8 +4346,8 @@ function setLoadStores(){
 function setIsHHMM(v){ return /^([01]\d|2[0-3]):[0-5]\d$/.test(String(v||'')); }
 
 function setSaveStore(id){
-  var start = (document.getElementById('set-ss-'+id)||{}).value || '';
-  var end   = (document.getElementById('set-se-'+id)||{}).value || '';
+  var start = setHM((document.getElementById('set-ss-'+id)||{}).value || '');
+  var end   = setHM((document.getElementById('set-se-'+id)||{}).value || '');
   var intv  = (document.getElementById('set-si-'+id)||{}).value;
   var seat  = (document.getElementById('set-sc-'+id)||{}).value;
   if (!setIsHHMM(start) || !setIsHHMM(end)){ setMsg('set-storeMsg','時刻は HH:MM 形式で入力してください。', false); return; }
