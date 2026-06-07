@@ -1359,17 +1359,21 @@ var SETUP_STATUS_ROWS = [];
 
 function setupPickDefaultTenant(rows, selectedTenant){
   rows = Array.isArray(rows) ? rows : [];
+  // 1) 明示指定（セレクト onchange など）が最優先。
   if (selectedTenant) return selectedTenant;
-  var current = document.getElementById("setupTenantSelect");
-  if (current && current.value) return current.value;
+  // 2) いま入っている店（ヘッダで選択中＝TENANT_ID）を最優先にする。
+  //    これを current.value や特定店ハードコードより前に置くことで、
+  //    「小倉の管理画面に入っているのに初期設定タブだけ別の店（久留米）を指す」
+  //    誤操作事故を根絶する。
   if (TENANT_ID) {
     for (var j=0; j<rows.length; j++) {
       if (rows[j] && rows[j].tenant_id === TENANT_ID) return TENANT_ID;
     }
   }
-  for (var i=0; i<rows.length; i++) {
-    if (rows[i] && (rows[i].store_name === "小倉店" || rows[i].store_code === "kokura")) return rows[i].tenant_id;
-  }
+  // 3) 画面に残っているセレクト値があれば維持（TENANT_ID が rows に無いときの保険）。
+  var current = document.getElementById("setupTenantSelect");
+  if (current && current.value) return current.value;
+  // 4) どれにも当たらなければ先頭。
   return rows[0] ? rows[0].tenant_id : "";
 }
 
