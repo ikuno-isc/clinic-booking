@@ -4164,6 +4164,7 @@ function setLoadArtists(){
         +     '<button type="button" class="set-btn set-ghost" data-act="acancel" data-aid="'+aid+'">やめる</button>'
         +   '</div>'
         +   setArtistMenuAssignHtml(aid, SET_AM_MENUS, pairMap[a.id] || {})
+        +   setArtistCasePhotosHtml(aid)
         + '</div></div>';
     });
     h += '<div class="set-msg" id="set-artistMsg"></div>';
@@ -4257,6 +4258,183 @@ function setSaveArtistMenus(aid){
   Promise.all(ops)
     .then(function(){ setMsg(msgId,'✅ 担当メニューを保存しました。', true); setLoadArtists(); })
     .catch(function(err){ if (setHandleAuth(err)) return; setMsg(msgId, setReason(err), false); });
+}
+
+/* ============================================================================
+   症例写真（artist_case_photos / case-photos バケット）— manager 専用
+   ・docs/artist-profile-page-design.md §5 の「症例写真：アップロード／公開承認ON-OFF／削除」。
+   ・アップロード/一覧/承認/削除はすべて Edge Function manage-artists（service_role）経由。
+     ＝ブラウザ直アップロードは publishable key だと auth.uid() 未解決で 403 になるため代理方式。
+   ・承認（approved_at）するまで公開ページ（artists.html）に出ない（公開RPCが承認済のみ返す）。
+   ・このセクションは window.IS_MANAGER のときだけ描画＝一般スタッフには出さない（最終防御は関数側）。
+   ・XSS：caption は esc()／画像URLは Supabase 公開URL(case-photos)・https のみ許可。
+   ============================================================================ */
+/* 編集パネル内の症例写真セクションの“器”だけ描く（中身は開いた時に setLoadCasePhotos が埋める）。
+   manager 以外には何も出さない。 */
+function setArtistCasePhotosHtml(aid){
+  if (!window.IS_MANAGER) return '';   // 見た目の制御（最終防御は manage-artists 側）
+  return '<div class="set-cp-wrap" style="margin-top:14px;border-top:1px solid #eef0f2;padding-top:12px">'
+    + '<label>症例写真（紹介ページに出すビフォーアフター）</label>'
+    + '<div class="set-hint" style="margin:2px 0 8px">アップロードしただけでは公開されません。「✅ 公開する」を押した写真だけが、お客様の紹介ページに表示されます（JPEG / PNG / WebP・5MBまで）。</div>'
+    + '<div class="set-acts" style="margin:0 0 8px">'
+    +   '<button type="button" class="set-btn set-ghost" data-act="cpadd" data-aid="'+esc(aid)+'">📷 症例写真を追加</button>'
+    +   '<label style="display:inline-flex;align-items:center;gap:4px;font-weight:600;color:#6b7280">区分'
+    +     '<select id="set-cpkind-'+esc(aid)+'" style="padding:4px 6px"><option value="single">単発</option><option value="before">ビフォー</option><option value="after">アフター</option></select>'
+    +   '</label>'
+    + '</div>'
+    + '<input type="text" id="set-cpcap-'+esc(aid)+'" placeholder="ひとこと説明（例：眉 1回目 直後）任意" style="margin:0 0 8px">'
+    + '<input type="file" accept="image/jpeg,image/png,image/webp" id="set-cpfile-'+esc(aid)+'" style="display:none">'
+    + '<div id="set-cplist-'+esc(aid)+'" class="set-cp-list"><div class="set-hint">「✏️ 編集」を開くと読み込みます。</div></div>'
+    + '<div class="set-msg" id="set-cpMsg-'+esc(aid)+'"></div>'
+    + '</div>';
+}
+
+/* 症例写真一覧を Edge Function 経由で取得し、サムネ＋caption＋公開状態＋承認/削除ボタンを描く。
+   ・画像は新規DOM要素(img)に textContent でなく src を代入。URLは case-photos 公開URLか https のみ許可。
+   ・操作ボタンは data-act/data-pid で委譲（動的値を onclick へ文字列連結しない）。 */
+function setIsSafePhotoUrl(u){
+  u = String(u||'');
+  return u.indexOf(SB_URL + '/storage/v1/object/public/case-photos/') === 0 || /^https:\/\//.test(u);
+}
+function setLoadCasePhotos(aid){
+  if (!window.IS_MANAGER) return;
+  var list = document.getElementById('set-cplist-'+aid);
+  if (!list) return;
+  list.textContent = '読み込み中…';
+  setCasePhotoCall({ action:'list_case_photos', artist_id:aid }).then(function(d){
+    if (!d || !d.ok){ list.textContent = setCasePhotoErr(d); return; }
+    var photos = (d.photos||[]);
+    list.textContent = '';
+    if (!photos.length){ var ph=document.createElement('div'); ph.className='set-hint'; ph.textContent='まだ症例写真はありません。'; list.appendChild(ph); return; }
+    photos.forEach(function(p){
+      var card = document.createElement('div');
+      card.className = 'set-cp-card';
+      card.style.cssText = 'display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid #f3f4f6';
+      // サムネイル（安全なURLのみ）
+      if (setIsSafePhotoUrl(p.image_url)){
+        var img = document.createElement('img');
+        img.src = p.image_url; img.alt = '';
+        img.style.cssText = 'width:64px;height:64px;border-radius:8px;object-fit:cover;flex-shrink:0;background:#eef0f2';
+        card.appendChild(img);
+      }
+      var meta = document.createElement('div');
+      meta.style.cssText = 'flex:1;min-width:0';
+      var approved = !!p.approved_at;
+      var badge = document.createElement('div');
+      badge.style.cssText = 'font-weight:700;font-size:12px;margin-bottom:2px;color:'+(approved?'#15803d':'#b45309');
+      badge.textContent = approved ? '✅ 公開中' : '⏳ 未公開（下書き）';
+      meta.appendChild(badge);
+      var kindMap = { before:'ビフォー', after:'アフター', single:'単発' };
+      var kindLine = document.createElement('div');
+      kindLine.style.cssText = 'font-size:12px;color:#6b7280';
+      kindLine.textContent = '区分：' + (kindMap[p.kind] || p.kind || '単発');
+      meta.appendChild(kindLine);
+      if (p.caption){
+        var cap = document.createElement('div');
+        cap.style.cssText = 'font-size:13px;color:#374151;margin-top:2px;word-break:break-all';
+        cap.textContent = p.caption;   // textContent＝XSS無効化
+        meta.appendChild(cap);
+      }
+      var acts = document.createElement('div');
+      acts.className = 'set-acts'; acts.style.marginTop = '4px';
+      var bApprove = document.createElement('button');
+      bApprove.type = 'button'; bApprove.className = 'set-btn set-ghost';
+      bApprove.setAttribute('data-act', approved ? 'cpunapprove' : 'cpapprove');
+      bApprove.setAttribute('data-pid', p.id);
+      bApprove.setAttribute('data-aid', aid);
+      bApprove.textContent = approved ? '↩ 下書きに戻す' : '✅ 公開する';
+      acts.appendChild(bApprove);
+      var bDel = document.createElement('button');
+      bDel.type = 'button'; bDel.className = 'set-btn set-ghost'; bDel.style.color = '#c2410c';
+      bDel.setAttribute('data-act', 'cpdel'); bDel.setAttribute('data-pid', p.id); bDel.setAttribute('data-aid', aid);
+      bDel.textContent = '🗑 削除';
+      acts.appendChild(bDel);
+      meta.appendChild(acts);
+      card.appendChild(meta);
+      list.appendChild(card);
+    });
+  }).catch(function(){ list.textContent = '取得に失敗しました。通信状況をご確認ください。'; });
+}
+
+/* 共通：manage-artists を呼ぶ（TOKEN必須）。戻りは JSON。 */
+function setCasePhotoCall(payload){
+  if (!TOKEN){ if (typeof showLogin==='function') showLogin('もう一度ログインしてください。'); return Promise.resolve({ok:false,reason:'no_auth'}); }
+  return fetch(SB_URL + '/functions/v1/manage-artists', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'apikey':SB_KEY, 'Authorization':'Bearer '+TOKEN },
+    body: JSON.stringify(payload)
+  }).then(function(r){ return r.json().catch(function(){ return {ok:false,reason:'bad_json'}; }); });
+}
+function setCasePhotoErr(d){
+  var rs = (d&&d.reason)||'';
+  if (/forbidden_manager|forbidden/.test(rs)) return 'オーナー／管理者のみ操作できます。';
+  if (/too_large/.test(rs)) return '画像は5MBまでにしてください。';
+  if (/bad_image/.test(rs)) return '対応していない画像です（JPEG / PNG / WebP）。';
+  if (/no_auth|invalid_token/.test(rs)) return 'もう一度ログインしてください。';
+  if (/upload_failed/.test(rs) && /bucket not found/i.test((d&&d.detail)||'')) return '画像置き場（case-photos）が未作成です。patch-36 を適用してください。';
+  return '処理に失敗しました。';
+}
+
+/* 症例写真アップロード：選んだ画像を最大1280pxへ縮小→JPEGにして data URL 化→Edge Function へ。
+   ・区分(kind)・caption は編集パネルの入力欄から読む。
+   ・縮小理由＝5MB上限・転送量削減。元が小さければそのまま。 */
+function setPickCasePhoto(aid, file){
+  if (!file || !/^image\/(jpeg|png|webp)$/.test(file.type)){ setMsg('set-cpMsg-'+aid,'JPEG / PNG / WebP の画像を選んでください。', false); return; }
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    var img = new Image();
+    img.onload = function(){
+      var maxW = 1280;
+      var scale = Math.min(1, maxW / Math.max(img.width, img.height));
+      var w = Math.round(img.width * scale), hgt = Math.round(img.height * scale);
+      var cn = document.createElement('canvas'); cn.width = w; cn.height = hgt;
+      cn.getContext('2d').drawImage(img, 0, 0, w, hgt);
+      var dataUrl = cn.toDataURL('image/jpeg', 0.85);
+      setUploadCasePhoto(aid, dataUrl);
+    };
+    img.onerror = function(){ setMsg('set-cpMsg-'+aid,'画像を読み込めませんでした。別の画像でお試しください。', false); };
+    img.src = ev.target.result;
+  };
+  reader.onerror = function(){ setMsg('set-cpMsg-'+aid,'ファイルを読み込めませんでした。', false); };
+  reader.readAsDataURL(file);
+}
+function setUploadCasePhoto(aid, dataUrl){
+  var kindSel = document.getElementById('set-cpkind-'+aid);
+  var capInp  = document.getElementById('set-cpcap-'+aid);
+  var kind = kindSel ? kindSel.value : 'single';
+  var caption = capInp ? (capInp.value||'').trim() : '';
+  setMsg('set-cpMsg-'+aid,'アップロード中…', true);
+  setCasePhotoCall({ action:'add_case_photo', artist_id:aid, data_url:dataUrl, kind:kind, caption:caption })
+    .then(function(d){
+      if (!d || !d.ok){ setMsg('set-cpMsg-'+aid, setCasePhotoErr(d), false); return; }
+      if (capInp) capInp.value = '';
+      setMsg('set-cpMsg-'+aid,'✅ 追加しました。「✅ 公開する」を押すと紹介ページに表示されます。', true);
+      setLoadCasePhotos(aid);
+    })
+    .catch(function(){ setMsg('set-cpMsg-'+aid,'アップロードに失敗しました。通信状況をご確認ください。', false); });
+}
+/* 公開承認 ON/OFF。approve=true で公開、false で下書きに戻す。 */
+function setApproveCasePhoto(aid, pid, approve){
+  setMsg('set-cpMsg-'+aid, approve?'公開しています…':'下書きに戻しています…', true);
+  setCasePhotoCall({ action:'approve_case_photo', photo_id:pid, approve:approve })
+    .then(function(d){
+      if (!d || !d.ok){ setMsg('set-cpMsg-'+aid, setCasePhotoErr(d), false); return; }
+      setMsg('set-cpMsg-'+aid, approve?'✅ 公開しました（紹介ページに表示されます）。':'✅ 下書きに戻しました。', true);
+      setLoadCasePhotos(aid);
+    })
+    .catch(function(){ setMsg('set-cpMsg-'+aid,'処理に失敗しました。通信状況をご確認ください。', false); });
+}
+/* 症例写真の削除（バケットの実体と行を両方消す＝Edge Function 側で実施）。 */
+function setDeleteCasePhoto(aid, pid){
+  if (!window.confirm('この症例写真を削除します。よろしいですか？\n※紹介ページからも消えます。')) return;
+  setMsg('set-cpMsg-'+aid,'削除しています…', true);
+  setCasePhotoCall({ action:'delete_case_photo', photo_id:pid })
+    .then(function(d){
+      if (!d || !d.ok){ setMsg('set-cpMsg-'+aid, setCasePhotoErr(d), false); return; }
+      setMsg('set-cpMsg-'+aid,'✅ 削除しました。', true);
+      setLoadCasePhotos(aid);
+    })
+    .catch(function(){ setMsg('set-cpMsg-'+aid,'削除に失敗しました。通信状況をご確認ください。', false); });
 }
 
 /* アイコン写真：選択された画像を正方形・最大320pxへ縮小しJPEGで圧縮→data URL にして
@@ -4595,7 +4773,7 @@ function setMsg(id, text, ok){
     if (act === 'maddsave'){ setAddMenu(); return; }
     if (act === 'mdel'){ setDeleteMenu(b.getAttribute('data-mid')); return; }
     // アーティスト
-    if (act === 'aedit'){ var ae = document.getElementById('set-aedit-'+b.getAttribute('data-aid')); if (ae) ae.classList.add('set-open'); return; }
+    if (act === 'aedit'){ var ae = document.getElementById('set-aedit-'+b.getAttribute('data-aid')); if (ae) ae.classList.add('set-open'); if (window.IS_MANAGER) setLoadCasePhotos(b.getAttribute('data-aid')); return; }
     if (act === 'acancel'){ var ac = document.getElementById('set-aedit-'+b.getAttribute('data-aid')); if (ac) ac.classList.remove('set-open'); return; }
     if (act === 'asave'){ setSaveArtist(b.getAttribute('data-aid')); return; }
     if (act === 'amsave'){ setSaveArtistMenus(b.getAttribute('data-aid')); return; }
@@ -4605,6 +4783,11 @@ function setMsg(id, text, ok){
     if (act === 'atoggle'){ setToggleArtist(b.getAttribute('data-aid'), b.getAttribute('data-to')); return; }
     if (act === 'aphoto'){ var fi = document.getElementById('set-aphotofile-'+b.getAttribute('data-aid')); if (fi) fi.click(); return; }
     if (act === 'aphotodel'){ setSaveArtistPhoto(b.getAttribute('data-aid'), null); return; }
+    // 症例写真（manager専用。最終防御は manage-artists 側）
+    if (act === 'cpadd'){ var cf = document.getElementById('set-cpfile-'+b.getAttribute('data-aid')); if (cf) cf.click(); return; }
+    if (act === 'cpapprove'){ setApproveCasePhoto(b.getAttribute('data-aid'), b.getAttribute('data-pid'), true); return; }
+    if (act === 'cpunapprove'){ setApproveCasePhoto(b.getAttribute('data-aid'), b.getAttribute('data-pid'), false); return; }
+    if (act === 'cpdel'){ setDeleteCasePhoto(b.getAttribute('data-aid'), b.getAttribute('data-pid')); return; }
     // 受付時間
     if (act === 'sedit'){ var se = document.getElementById('set-sedit-'+b.getAttribute('data-store')); if (se) se.classList.add('set-open'); return; }
     if (act === 'scancel'){ var sc = document.getElementById('set-sedit-'+b.getAttribute('data-store')); if (sc) sc.classList.remove('set-open'); return; }
@@ -4616,14 +4799,24 @@ function setMsg(id, text, ok){
     if (act === 'shdelex'){ var row = b.closest('.set-ex-row'); if (row) row.remove(); return; }
     if (act === 'shsave'){ setSaveShift(b.getAttribute('data-aid')); return; }
   });
-  // アイコン写真：ファイル選択（input[type=file]）の検知（クリックではなくchange）。
+  // アイコン写真／症例写真：ファイル選択（input[type=file]）の検知（クリックではなくchange）。
   root.addEventListener('change', function(e){
     var inp = e.target;
-    if (!inp || inp.tagName !== 'INPUT' || inp.type !== 'file' || inp.id.indexOf('set-aphotofile-') !== 0) return;
-    var aid = inp.id.slice('set-aphotofile-'.length);
-    var f = inp.files && inp.files[0];
-    if (f) setPickArtistPhoto(aid, f);
-    inp.value = '';
+    if (!inp || inp.tagName !== 'INPUT' || inp.type !== 'file') return;
+    if (inp.id.indexOf('set-aphotofile-') === 0){
+      var aid = inp.id.slice('set-aphotofile-'.length);
+      var f = inp.files && inp.files[0];
+      if (f) setPickArtistPhoto(aid, f);
+      inp.value = '';
+      return;
+    }
+    if (inp.id.indexOf('set-cpfile-') === 0){
+      var aid2 = inp.id.slice('set-cpfile-'.length);
+      var f2 = inp.files && inp.files[0];
+      if (f2) setPickCasePhoto(aid2, f2);
+      inp.value = '';
+      return;
+    }
   });
 })();
 
