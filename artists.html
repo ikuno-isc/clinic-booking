@@ -177,7 +177,7 @@ function loadList(){
   }).catch(function(){ errBox('情報を取得できませんでした。電波の良い場所で、もう一度お試しください。'); });
 }
 function renderList(list){
-  setHeader('アーティスト紹介', STORE_NAME + '店');
+  setHeader('アーティスト紹介', STORE_NAME);
   var h = '';
   if(!list.length){
     h = '<div class="empty">現在ご案内できるアーティストがいません。</div>';
@@ -277,7 +277,7 @@ function renderReviews(reviews){
 }
 function renderProfile(d){
   var a = d.artist;
-  setHeader(a.name + ' さん', STORE_NAME + '店');
+  setHeader(a.name + ' さん', STORE_NAME);
   var spec = [];
   if(a.qualification) spec.push(a.qualification);
   if(a.specialty) spec.push(a.specialty);
