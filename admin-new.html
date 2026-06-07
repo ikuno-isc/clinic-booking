@@ -2385,7 +2385,14 @@ function pushConsentLink(rid){
    ============================================================================ */
 var MB_OPTS = null;     // { nurses:[{id,name}], menus:[{id,name}], certified:[{artist_id,menu_id}] }
 var MB_LOADING = false;
-var MB_OPTS_SLUG = null; // 選択肢を読み込んだ時の店スラッグ（店切替で再読込するため）
+var MB_OPTS_SLUG = null; // 選択肢を読み込んだ時のスコープ鍵（店切替で再読込するため）
+// 選択肢のキャッシュ鍵。店の実体は TENANT_ID で分離されるため、これを主鍵にする
+// （resvStore は両店とも既定値 'all' になり slug だけでは小倉↔久留米を区別できない）。
+// 単一テナント内に複数店がある将来に備え slug も連結しておく。
+function mbScopeKey(){
+  var tid = (typeof TENANT_ID !== 'undefined' && TENANT_ID) ? TENANT_ID : '';
+  return tid + '|' + currentStoreSlug();
+}
 
 function openManualBooking(){
   var f = document.getElementById('mbForm');
@@ -2393,9 +2400,8 @@ function openManualBooking(){
   if (f.style.display !== 'none'){ closeManualBooking(); return; }
   f.style.display = ''; btn.textContent = '✕ 入力をやめる';
   mbSetMsg('');
-  // 未読込、または店を切り替えた（前回読込時とスラッグが違う）場合は読み直す
-  var slug = currentStoreSlug();
-  if (!MB_LOADING && (!MB_OPTS || MB_OPTS_SLUG !== slug)) loadManualOptions();
+  // 未読込、または店（テナント）を切り替えた場合は読み直す
+  if (!MB_LOADING && (!MB_OPTS || MB_OPTS_SLUG !== mbScopeKey())) loadManualOptions();
 }
 function closeManualBooking(){
   document.getElementById('mbForm').style.display = 'none';
@@ -2410,6 +2416,7 @@ function mbSetMsg(t, ok){
 function loadManualOptions(){
   MB_LOADING = true; mbSetMsg('選択肢を読み込み中…', true);
   var loadSlug = currentStoreSlug();
+  var loadKey  = mbScopeKey();
   ensureStoreMap().then(function(){
     var storeId = storeIdForSlug(loadSlug);
     var artistsPath = 'artists?select=id,name&is_active=eq.true&order=name' + (storeId ? '&store_id=eq.'+storeId : '');
@@ -2418,7 +2425,7 @@ function loadManualOptions(){
     return Promise.all([ sbGet(artistsPath), sbGet(menusPath), sbGet(pairPath) ]);
   }).then(function(res){
     MB_LOADING = false; mbSetMsg('');
-    MB_OPTS_SLUG = loadSlug;
+    MB_OPTS_SLUG = loadKey;
     MB_OPTS = {
       nurses:    (res[0]||[]).map(function(a){ return { nurse_id:a.id, name:a.name }; }),
       menus:     (res[1]||[]).map(function(m){ return { menu_id:m.id, name:m.name }; }),
