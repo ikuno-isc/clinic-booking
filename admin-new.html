@@ -364,6 +364,12 @@
 .setup-mgr-hint{flex-basis:100%;font-size:11.5px;color:#6b7280;line-height:1.6;margin-bottom:2px}
 .setup-mgr-btn{border:1px solid #cfe0dd;background:#f2f8f7;color:#0b5c55;border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:800;cursor:pointer}
 .setup-mgr-btn:hover{background:#e7f3f1}
+/* 担当できるメニューと施術時間（アーティスト編集パネル内）*/
+.set-am-wrap{margin-top:12px;padding-top:10px;border-top:1px dashed #e2e8e6}
+.set-am-row{padding:7px 0;border-top:1px solid #f3f4f6}
+.set-am-row:first-of-type{border-top:none}
+.set-am-durs{display:flex;gap:14px;flex-wrap:wrap;margin:5px 0 0 24px;font-size:12px;color:#566}
+.set-am-durs input{width:64px;padding:4px 6px;border:1px solid #d8dee4;border-radius:6px;margin:0 2px}
 
 /* ===== steps タブ CSS（接頭辞 .stp- 専用。他タブと非衝突）===== */
 #stepsView{max-width:760px;margin:0 auto;padding:12px}
@@ -942,6 +948,12 @@ function sbUpdate(table, filter, patch){
 function sbDelete(table, filter){
   return fetch(SB_URL+"/rest/v1/"+table+"?"+filter,{ method:"DELETE", headers:hdr() })
     .then(function(res){ if(!res.ok) return res.text().then(function(t){ throw new Error(t||("HTTP "+res.status)); }); return true; });
+}
+// upsert（主キー衝突時は更新）。artist_menus（複合PK）の担当割り当て保存に使う。RLSが権限判定。
+function sbUpsert(table, rows){
+  return fetch(SB_URL+"/rest/v1/"+table,{ method:"POST",
+    headers:Object.assign({"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"},hdr()), body:JSON.stringify(rows) })
+    .then(function(res){ return res.text().then(function(t){ var j=null; try{j=t?JSON.parse(t):null;}catch(e){} if(!res.ok) throw new Error((j&&j.message)||("HTTP "+res.status)); return j; }); });
 }
 
 // ===== ビュー切替（全タブ共通）=====
@@ -3909,7 +3921,7 @@ function setLoadMenus(){
         +     '<button type="button" class="set-btn set-primary" data-act="maddsave">💾 追加する</button>'
         +     '<button type="button" class="set-btn set-ghost" data-act="maddcancel">やめる</button>'
         +   '</div>'
-        +   '<div class="set-note" style="margin-top:6px">※ 追加後、予約ページに表示するには「アーティスト × メニュー」の担当割り当て（施術時間）が必要です（次の改善で対応予定）。</div>'
+        +   '<div class="set-note" style="margin-top:6px">※ 追加後、予約ページに表示するには「アーティスト」タブで各アーティストの「✏️ 編集」を開き、「担当できるメニューと施術時間」を設定してください。</div>'
         + '</div></div>';
       if (!rows.length){ h += '<div class="set-ph">登録済みメニューはまだありません。</div>'; }
       rows.forEach(function(m){
@@ -3931,7 +3943,7 @@ function setLoadMenus(){
           + '</div></div>';
       });
       h += '<div class="set-msg" id="set-menuMsg"></div>';
-      h += '<div class="set-note">※ 料金・有効/無効の変更は保存後すぐ反映されます。施術時間や担当アーティストの割り当て（artist_menus）は別途設定します。編集はオーナー／管理者のみです。</div>';
+      h += '<div class="set-note">※ 料金・有効/無効の変更は保存後すぐ反映されます。担当アーティストと施術時間は「アーティスト」タブで各アーティストの「✏️ 編集」→「担当できるメニューと施術時間」から設定します。編集はオーナー／管理者のみです。</div>';
       body.innerHTML = h;
     }).catch(function(err){
       if (setHandleAuth(err)) return;
@@ -3992,11 +4004,23 @@ function setDeleteMenu(mid){
 function setLoadArtists(){
   var body = document.getElementById('setBody');
   body.innerHTML = '<div class="set-ph">読み込み中…</div>';
+  // 担当割り当て用に、現テナントの有効メニューと既存の紐付け(artist_menus)も一緒に取得する。
+  // ※menus は TENANT_ID で絞る（platform_admin は RLS で全テナント見えるため、他店メニューを
+  //   割り当て候補に出さない＝越境UIを作らない。最終防御は RLS manager_write_am）。
+  var menuTenantFilter = TENANT_ID ? '&tenant_id=eq.'+encodeURIComponent(TENANT_ID) : '';
   ensureStoreMap().then(function(){
-    var path = 'artists?select=id,name,qualification,specialty,career,nomination_fee,is_active,store_id,profile_photo_url&order=name';
-    return sbGet(path);
-  }).then(function(rows){
-    rows = rows || [];
+    return Promise.all([
+      sbGet('artists?select=id,name,qualification,specialty,career,nomination_fee,is_active,store_id,profile_photo_url&order=name'),
+      sbGet('menus?select=id,name&is_active=eq.true&order=name'+menuTenantFilter).catch(function(){ return []; }),
+      sbGet('artist_menus?select=artist_id,menu_id,is_certified,duration_new_min,duration_retouch_min').catch(function(){ return []; })
+    ]);
+  }).then(function(res){
+    var rows = res[0] || [];
+    var SET_AM_MENUS = res[1] || [];
+    var pairs = res[2] || [];
+    // pairMap[artist_id][menu_id] = { duration_new_min, duration_retouch_min }
+    var pairMap = {};
+    pairs.forEach(function(p){ (pairMap[p.artist_id] = pairMap[p.artist_id] || {})[p.menu_id] = p; });
     var h = '';
     // ★新規アーティスト追加フォーム（オーナー/管理者のみ。RLS manager_write_artists が権限判定）
     h += '<div class="set-card set-addcard">'
@@ -4011,7 +4035,7 @@ function setLoadArtists(){
       +     '<button type="button" class="set-btn set-primary" data-act="aaddsave">💾 追加する</button>'
       +     '<button type="button" class="set-btn set-ghost" data-act="aaddcancel">やめる</button>'
       +   '</div>'
-      +   '<div class="set-note" style="margin-top:6px">※ 追加後、予約ページに出すには「アーティスト × メニュー」の担当割り当て（施術時間）が必要です（次の改善で対応予定）。</div>'
+      +   '<div class="set-note" style="margin-top:6px">※ 追加したら「✏️ 編集」を開いて「担当できるメニューと施術時間」を設定すると、予約ページに出ます。</div>'
       + '</div></div>';
     if (!rows.length){ h += '<div class="set-ph">登録済みアーティストはまだいません。</div>'; }
     rows.forEach(function(a){
@@ -4049,6 +4073,7 @@ function setLoadArtists(){
         +     '<button type="button" class="set-btn set-primary" data-act="asave" data-aid="'+aid+'">💾 保存</button>'
         +     '<button type="button" class="set-btn set-ghost" data-act="acancel" data-aid="'+aid+'">やめる</button>'
         +   '</div>'
+        +   setArtistMenuAssignHtml(aid, SET_AM_MENUS, pairMap[a.id] || {})
         + '</div></div>';
     });
     h += '<div class="set-msg" id="set-artistMsg"></div>';
@@ -4076,6 +4101,72 @@ function setSaveArtist(aid){
   sbUpdate('artists','id=eq.'+encodeURIComponent(aid), patch)
     .then(function(){ setMsg('set-artistMsg','✅ 保存しました。', true); setLoadArtists(); })
     .catch(function(err){ if (setHandleAuth(err)) return; setMsg('set-artistMsg', setReason(err), false); });
+}
+
+/* 担当できるメニューと施術時間（artist_menus）の編集UI。アーティスト編集パネル内に描く。
+   ・チェックON＝そのメニューを担当可（予約ページの担当→メニュー絞り込みに出る）。
+   ・施術時間（新規/リタッチ・分）＝予約の所要時間。空欄なら予約時60分扱い（RPC側 coalesce）。
+   ・メニュー名は esc() で必ずエスケープ（XSS対策）。値は data-mid から取り保存時に読む。 */
+function setArtistMenuAssignHtml(aid, menus, pmap){
+  var h = '<div class="set-am-wrap">'
+    + '<label>担当できるメニューと施術時間</label>'
+    + '<div class="set-hint" style="margin:2px 0 8px">チェックしたメニューが、このアーティストの予約で選べるようになります。施術時間（分）は予約の所要時間に使われます（空欄なら60分）。</div>';
+  if (!menus.length){
+    h += '<div class="set-hint">先に「メニュー・料金」でメニューを登録すると、ここで担当を割り当てられます。</div></div>';
+    return h;
+  }
+  menus.forEach(function(m){
+    var mid = esc(m.id);
+    var pr = pmap[m.id];
+    // ★認定済み(is_certified=true)のときだけチェックON。過去に無効化した(is_certified=false)行を
+    //   開いただけで true に再公開してしまう事故を防ぐ（Codexレビュー指摘）。
+    var on = !!(pr && pr.is_certified === true);
+    var dn = (pr && pr.duration_new_min != null) ? pr.duration_new_min : '';
+    var dr = (pr && pr.duration_retouch_min != null) ? pr.duration_retouch_min : '';
+    h += '<div class="set-am-row" data-mid="'+mid+'">'
+      + '<label class="set-chk"><input type="checkbox" class="set-am-on"'+(on?' checked':'')+'> '+esc(m.name)+'</label>'
+      + '<div class="set-am-durs">'
+      +   '<span>新規 <input type="number" inputmode="numeric" class="set-am-dn" value="'+esc(dn)+'" placeholder="分">分</span>'
+      +   '<span>リタッチ <input type="number" inputmode="numeric" class="set-am-dr" value="'+esc(dr)+'" placeholder="分">分</span>'
+      + '</div></div>';
+  });
+  h += '<div class="set-acts"><button type="button" class="set-btn set-primary" data-act="amsave" data-aid="'+aid+'">💾 担当メニューを保存</button></div>'
+    + '<div class="set-msg" id="set-amMsg-'+aid+'"></div>'
+    + '</div>';
+  return h;
+}
+
+/* 担当メニュー保存：チェックON→upsert（施術時間つき）、OFF→既存があれば削除。
+   テナント越境（自店artist×他店menu）は RLS manager_write_am が最終的に弾く（UIは現テナントmenuのみ提示）。 */
+function setSaveArtistMenus(aid){
+  var panel = document.getElementById('set-aedit-'+aid);
+  var msgId = 'set-amMsg-'+aid;
+  if (!panel){ return; }
+  var rowEls = panel.querySelectorAll('.set-am-row');
+  var upserts = [], delMids = [], invalid = false;
+  for (var i=0; i<rowEls.length; i++){
+    var r = rowEls[i];
+    var mid = r.getAttribute('data-mid');
+    var on = r.querySelector('.set-am-on').checked;
+    if (on){
+      var dnRaw = r.querySelector('.set-am-dn').value;
+      var drRaw = r.querySelector('.set-am-dr').value;
+      var dn = (dnRaw==='' || dnRaw==null) ? null : parseInt(dnRaw,10);
+      var dr = (drRaw==='' || drRaw==null) ? null : parseInt(drRaw,10);
+      if ((dn!==null && (isNaN(dn)||dn<=0)) || (dr!==null && (isNaN(dr)||dr<=0))){ invalid = true; }
+      upserts.push({ artist_id: aid, menu_id: mid, is_certified: true, duration_new_min: dn, duration_retouch_min: dr });
+    } else {
+      delMids.push(mid);
+    }
+  }
+  if (invalid){ setMsg(msgId,'施術時間は1以上の半角数字で入力してください（空欄なら60分扱い）。', false); return; }
+  var ops = [];
+  if (upserts.length) ops.push(sbUpsert('artist_menus', upserts));
+  if (delMids.length) ops.push(sbDelete('artist_menus','artist_id=eq.'+encodeURIComponent(aid)+'&menu_id=in.('+delMids.map(encodeURIComponent).join(',')+')'));
+  if (!ops.length){ setMsg(msgId,'担当するメニューにチェックを入れてください。', false); return; }
+  Promise.all(ops)
+    .then(function(){ setMsg(msgId,'✅ 担当メニューを保存しました。', true); setLoadArtists(); })
+    .catch(function(err){ if (setHandleAuth(err)) return; setMsg(msgId, setReason(err), false); });
 }
 
 /* アイコン写真：選択された画像を正方形・最大320pxへ縮小しJPEGで圧縮→data URL にして
@@ -4417,6 +4508,7 @@ function setMsg(id, text, ok){
     if (act === 'aedit'){ var ae = document.getElementById('set-aedit-'+b.getAttribute('data-aid')); if (ae) ae.classList.add('set-open'); return; }
     if (act === 'acancel'){ var ac = document.getElementById('set-aedit-'+b.getAttribute('data-aid')); if (ac) ac.classList.remove('set-open'); return; }
     if (act === 'asave'){ setSaveArtist(b.getAttribute('data-aid')); return; }
+    if (act === 'amsave'){ setSaveArtistMenus(b.getAttribute('data-aid')); return; }
     if (act === 'aaddtoggle'){ var aaf = document.getElementById('set-aaddform'); if (aaf) aaf.classList.toggle('set-open'); return; }
     if (act === 'aaddcancel'){ var aaf2 = document.getElementById('set-aaddform'); if (aaf2) aaf2.classList.remove('set-open'); return; }
     if (act === 'aaddsave'){ setAddArtist(); return; }
