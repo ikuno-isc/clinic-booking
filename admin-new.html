@@ -4692,7 +4692,7 @@ function setLoadShiftIndex(){
         + '<div class="set-acts"><button type="button" class="set-btn set-ghost" data-act="shedit" data-aid="'+aid+'" data-name="'+esc(a.name)+'">🗓 シフトを編集</button></div>'
         + '</div>';
     });
-    h += '<div class="set-note">※ 曜日ごとの出勤時間と、特定日の例外（休み・臨時出勤）を登録します。編集はオーナー／管理者のみです。</div>';
+    h += '<div class="set-note">※ 曜日ごとの出勤時間と、特定日の例外（休み・臨時出勤）を登録します。同じ店のスタッフであれば誰でも編集できます。</div>';
     body.innerHTML = h;
   }).catch(function(err){
     if (setHandleAuth(err)) return;
