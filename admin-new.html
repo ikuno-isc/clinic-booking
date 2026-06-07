@@ -3956,6 +3956,7 @@ function setLoadMenus(){
           + '<div class="set-id">ID：'+mid+'</div>'
           + '<div class="set-acts"><button type="button" class="set-btn set-ghost" data-act="medit" data-mid="'+mid+'">✏️ 編集</button></div>'
           + '<div class="set-edit" id="set-medit-'+mid+'">'
+          +   '<label>メニュー名（必須）</label><input type="text" id="set-mn-'+mid+'" value="'+esc(m.name||'')+'">'
           +   '<label>モニター価格（円）</label><input type="number" inputmode="numeric" id="set-mm-'+mid+'" value="'+esc(m.price_monitor==null?'':m.price_monitor)+'">'
           +   '<label>通常価格（円）</label><input type="number" inputmode="numeric" id="set-mp-'+mid+'" value="'+esc(m.price_normal==null?'':m.price_normal)+'">'
           +   '<label class="set-chk"><input type="checkbox" id="set-mact-'+mid+'"'+(m.is_active?' checked':'')+'>このメニューを予約ページに表示する（有効）</label>'
@@ -3976,14 +3977,16 @@ function setLoadMenus(){
 }
 
 function setSaveMenu(mid){
+  var nm  = (((document.getElementById('set-mn-'+mid)||{}).value)||'').trim();
   var mon = (document.getElementById('set-mm-'+mid)||{}).value;
   var nor = (document.getElementById('set-mp-'+mid)||{}).value;
   var act = !!(document.getElementById('set-mact-'+mid)||{}).checked;
   var nMon = parseInt(mon,10), nNor = parseInt(nor,10);
+  if (!nm){ setMsg('set-menuMsg','メニュー名を入力してください。', false); return; }
   if (mon===''||nor===''||isNaN(nMon)||isNaN(nNor)||nMon<0||nNor<0){
     setMsg('set-menuMsg','料金は0以上の半角数字で入力してください。', false); return;
   }
-  var patch = { price_normal:nNor, price_monitor:nMon, is_active:act };
+  var patch = { name:nm, price_normal:nNor, price_monitor:nMon, is_active:act };
   sbUpdate('menus','id=eq.'+encodeURIComponent(mid), patch)
     .then(function(){ setMsg('set-menuMsg','✅ 保存しました。', true); setLoadMenus(); })
     .catch(function(err){ if (setHandleAuth(err)) return; setMsg('set-menuMsg', setReason(err), false); });
