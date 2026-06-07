@@ -5028,6 +5028,8 @@ function setShiftSaveDate(){
       shiftState.server=shApplyDateSaveResult(shiftState.server, dd.date, v.payload);
       var saved=dd.date;
       shiftState.dateDraft=null;
+      // モーダルoverlayは #setView 直下に置いてあり setBody.innerHTML 書き換えでは消えないので明示削除
+      var ov=document.getElementById('shDateOverlay'); if (ov) ov.remove();
       setRenderShiftBody();
       setMsg('set-shiftMsg','✅ '+saved+' を保存しました。', true);
     })
@@ -5047,6 +5049,7 @@ function setShiftRestoreDate(){
       shiftState.server=shApplyDateSaveResult(shiftState.server, dd.date, []);
       var saved=dd.date;
       shiftState.dateDraft=null;
+      var ov=document.getElementById('shDateOverlay'); if (ov) ov.remove();
       setRenderShiftBody();
       setMsg('set-shiftMsg','✅ '+saved+' を曜日パターンに戻しました。', true);
     })
