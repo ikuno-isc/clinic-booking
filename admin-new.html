@@ -4557,13 +4557,14 @@ function setLoadStores(){
         + '<div class="set-name">🏪 '+esc(s.name||'—')+'</div>'
         + '<div class="set-now">現在の予約受付：<b>'+esc(s.business_hours_start||'—')+' 〜 '+esc(s.business_hours_end||'—')+'</b></div>'
         + '<div class="set-hint">'+esc(s.slot_interval_min||'—')+'分ごと ／ 席数 '+(s.seat_count>0?('<b>'+esc(s.seat_count)+'席</b>（同時施術の上限）'):'制限なし')+(s.google_calendar_id?'':' ／ ⚠️ カレンダーID未設定')+'</div>'
-        + '<div class="set-acts"><button type="button" class="set-btn set-ghost" data-act="sedit" data-store="'+id+'">✏️ 受付時間を変更</button></div>'
+        + '<div class="set-acts"><button type="button" class="set-btn set-ghost" data-act="sedit" data-store="'+id+'">✏️ 設定を変更</button></div>'
         + '<div class="set-edit" id="set-sedit-'+id+'">'
+        +   '<label>店舗名（管理画面・公開ページに表示されます）</label><input type="text" id="set-sname-'+id+'" value="'+esc(s.name||'')+'" placeholder="例）久留米店">'
+        +   '<div class="set-hint" style="margin:2px 0 8px">テナント複製で作った店の名前もここから変えられます。お客様の予約ページ・症例写真ページのタイトルにも反映されます。</div>'
         +   '<label>予約受付の開始</label><input type="time" id="set-ss-'+id+'" value="'+esc(setHM(s.business_hours_start))+'">'
         +   '<label>最終受付（この時刻の枠まで予約可）</label><input type="time" id="set-se-'+id+'" value="'+esc(setHM(s.business_hours_end))+'">'
         +   '<label>予約の刻み（分）</label><input type="number" inputmode="numeric" id="set-si-'+id+'" value="'+esc(s.slot_interval_min==null?'':s.slot_interval_min)+'">'
         +   '<label>席数（同時に施術できる人数・1以上）</label><input type="number" inputmode="numeric" id="set-sc-'+id+'" value="'+esc(s.seat_count==null?'':s.seat_count)+'">'
-        +   '<div class="set-hint">保存すると予約ページの空き枠に反映されます。席数は同時刻の予約上限です（例：2席なら同時2件まで）。</div>'
         +   '<div class="set-acts">'
         +     '<button type="button" class="set-btn set-primary" data-act="ssave" data-store="'+id+'">💾 保存</button>'
         +     '<button type="button" class="set-btn set-ghost" data-act="scancel" data-store="'+id+'">やめる</button>'
@@ -4582,16 +4583,19 @@ function setLoadStores(){
 function setIsHHMM(v){ return /^([01]\d|2[0-3]):[0-5]\d$/.test(String(v||'')); }
 
 function setSaveStore(id){
+  var name  = String(((document.getElementById('set-sname-'+id)||{}).value || '')).trim();
   var start = setHM((document.getElementById('set-ss-'+id)||{}).value || '');
   var end   = setHM((document.getElementById('set-se-'+id)||{}).value || '');
   var intv  = (document.getElementById('set-si-'+id)||{}).value;
   var seat  = (document.getElementById('set-sc-'+id)||{}).value;
+  if (!name){ setMsg('set-storeMsg','店舗名を入力してください。', false); return; }
+  if (name.length > 60){ setMsg('set-storeMsg','店舗名は60文字以内で入力してください。', false); return; }
   if (!setIsHHMM(start) || !setIsHHMM(end)){ setMsg('set-storeMsg','時刻は HH:MM 形式で入力してください。', false); return; }
   if (start >= end){ setMsg('set-storeMsg','最終受付は開始より後の時刻にしてください。', false); return; }
   var nIntv = parseInt(intv,10), nSeat = parseInt(seat,10);
   if (isNaN(nIntv) || nIntv < 5 || nIntv > 120){ setMsg('set-storeMsg','刻みは5〜120分で入力してください。', false); return; }
   if (isNaN(nSeat) || nSeat < 1){ setMsg('set-storeMsg','席数は1以上の半角数字で入力してください。', false); return; }
-  var patch = { business_hours_start:start, business_hours_end:end, slot_interval_min:nIntv, seat_count:nSeat };
+  var patch = { name:name, business_hours_start:start, business_hours_end:end, slot_interval_min:nIntv, seat_count:nSeat };
   sbUpdate('stores','id=eq.'+encodeURIComponent(id), patch)
     .then(function(){ setMsg('set-storeMsg','✅ 保存しました。', true); setLoadStores(); })
     .catch(function(err){ if (setHandleAuth(err)) return; setMsg('set-storeMsg', setReason(err), false); });
