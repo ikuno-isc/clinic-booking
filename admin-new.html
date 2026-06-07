@@ -356,6 +356,9 @@
 .setup-badge.done{background:#dcfce7;color:#15803d}
 .setup-badge.err{background:#fee2e2;color:#b91c1c}
 .setup-desc{font-size:12.5px;color:#666;line-height:1.5}
+/* STEP3：未完了の各ステップから該当設定画面へ飛ぶ導線 */
+.setup-jump{margin-top:7px;display:inline-flex;align-items:center;gap:4px;border:1px solid #0b5c55;background:#0b5c55;color:#fff;border-radius:9px;padding:6px 12px;font-size:12.5px;font-weight:800;cursor:pointer}
+.setup-jump:hover{background:#0a4d47}
 .setup-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 14px 14px}
 .setup-link{display:inline-block;border:1px solid #cfe0dd;background:#f2f8f7;color:#0b5c55;border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:800;text-decoration:none}
 .setup-note{font-size:11.5px;color:#9ca3af;line-height:1.6;margin:10px 4px 0}
@@ -794,7 +797,7 @@
       <div class="setup-kv"><span>対象</span><span id="setupTarget">読み込み中</span></div>
     </div>
     <div class="setup-tenant-select" id="setupTenantSelectWrap">
-      <label for="setupTenantSelect">対象テナント</label>
+      <label for="setupTenantSelect">対象のお店</label>
       <select id="setupTenantSelect" onchange="loadSetupStatus(this.value)"></select>
     </div>
     <div class="setup-next" id="setupNext">次にやること: セットアップ状況を確認してください</div>
@@ -1207,23 +1210,36 @@ function setupDefaultStatus(){
 
 function setupStepRows(status){
   status = status || setupDefaultStatus();
+  // jump：未完了のときに「ここを設定する →」で飛ばす先。
+  //   jumpFn＝お店の設定グループ内の小タブ関数名（gotoSubtabで遷移）。
+  //   jumpLabel＝ボタンの言い回し（初心者向けの日本語）。
+  //   テナント作成・テスト・本番開始チェックは飛ぶ先の入力画面が無いので jump 無し。
   var defs = [
-    { key:"tenant", field:"tenant_done", name:"テナント作成", desc:"tenant_id / store_id を作る準備です。" },
-    { key:"store", field:"store_done", name:"店舗情報", desc:"住所、営業時間、予約間隔、席数、休業日を設定します。" },
-    { key:"line", field:"line_done", name:"LINE接続", desc:"Webhook URL、チャネルシークレット、アクセストークン、通知先を設定します。" },
-    { key:"liff", field:"liff_done", name:"LIFF接続", desc:"予約、問診、同意書のLIFF URLを設定します。" },
-    { key:"calendar", field:"calendar_done", name:"Googleカレンダー", desc:"店舗専用カレンダーIDを設定します。" },
-    { key:"staff", field:"staff_done", name:"スタッフ", desc:"ユーザー管理タブで、管理者とスタッフを登録します。" },
-    { key:"menu", field:"menu_done", name:"メニュー/アーティスト", desc:"設定タブで、予約に出すメニューと担当者を登録します。" },
-    { key:"test", field:"test_done", name:"テスト", desc:"LINE送信、予約ページ、カレンダー、問診、同意書を確認します。" },
-    { key:"production", field:"production_ready", name:"本番開始チェック", desc:"必須項目がすべて完了した時だけ、本番開始可能にします。" }
+    { key:"tenant", field:"tenant_done", name:"お店をつくる", desc:"このお店（医院）をシステムに登録する最初の準備です。" },
+    { key:"store", field:"store_done", name:"お店の基本情報", desc:"住所・予約の受付時間・予約の刻み・席数・お休みの日を入れます。",
+      jumpFn:"showStoreBasic", jumpLabel:"お店の基本を設定する" },
+    { key:"line", field:"line_done", name:"LINEとつなぐ", desc:"このお店の公式LINEと安全につなぐ鍵（LINE管理画面からコピーして貼る2つの文字列）を登録します。",
+      jumpFn:"__samepage", jumpLabel:"下のLINE接続パネルへ" },
+    { key:"liff", field:"liff_done", name:"予約ページのリンク", desc:"お客様がLINEのトーク内で開く「予約・問診・同意書」のページのリンクを設定します。",
+      jumpFn:"showStoreBasic", jumpLabel:"予約ページのリンクを確認する" },
+    { key:"calendar", field:"calendar_done", name:"Googleカレンダー連携", desc:"予約をこのお店専用のGoogleカレンダーへ自動で書き込む設定です。",
+      jumpFn:"showStoreBasic", jumpLabel:"カレンダー連携を確認する" },
+    { key:"staff", field:"staff_done", name:"スタッフのログイン", desc:"この管理画面に入れる管理者・スタッフのログインを作ります。",
+      jumpFn:"showUsers", jumpLabel:"スタッフを登録する" },
+    { key:"menu", field:"menu_done", name:"メニューと担当者", desc:"予約ページに出すメニュー（料金・所要時間）と、担当するアーティストを登録します。",
+      jumpFn:"showMenuArtist", jumpLabel:"メニューと担当者を登録する" },
+    { key:"test", field:"test_done", name:"テスト", desc:"LINEの通知・予約ページ・カレンダー・問診・同意書が動くか実際に確認します。" },
+    { key:"production", field:"production_ready", name:"本番スタート", desc:"上の項目がすべて終わったときだけ、お店を本番公開できるようになります。" }
   ];
   return defs.map(function(d){
     var done = !!status[d.field];
     var current = status.current_step === d.key;
     var row = {
+      key: d.key,
       name: d.name,
       desc: d.desc,
+      jumpFn: d.jumpFn || "",
+      jumpLabel: d.jumpLabel || "",
       status: done ? "完了" : (current ? "入力中" : "未着手"),
       cls: done ? "done" : (current ? "doing" : "todo")
     };
@@ -1281,19 +1297,49 @@ function renderSetupSteps(status){
   status = status || setupDefaultStatus();
   renderSetupSummary(status, !!status._fromDb);
   var steps = setupStepRows(status);
-  box.innerHTML = steps.map(function(s, i){
-    return '<div class="setup-step">'
-      + '<div class="setup-num">' + esc(i + 1) + '</div>'
-      + '<div class="setup-main">'
-        + '<div class="setup-row">'
-          + '<div class="setup-name">' + esc(s.name) + '</div>'
-          + '<span class="setup-badge ' + esc(s.cls) + '">' + esc(s.status) + '</span>'
-        + '</div>'
-        + '<div class="setup-desc">' + esc(s.desc) + '</div>'
-      + '</div>'
-    + '</div>';
-  }).join("");
+  // XSS回避：innerHTMLで文字列連結せず DOM API で組み、ジャンプボタンは addEventListener で配線。
+  while (box.firstChild) box.removeChild(box.firstChild);
+  steps.forEach(function(s, i){
+    var step = document.createElement("div"); step.className = "setup-step";
+    var num = document.createElement("div"); num.className = "setup-num"; num.textContent = String(i + 1);
+    step.appendChild(num);
+    var main = document.createElement("div"); main.className = "setup-main";
+    var rowEl = document.createElement("div"); rowEl.className = "setup-row";
+    var nameEl = document.createElement("div"); nameEl.className = "setup-name"; nameEl.textContent = s.name;
+    var badge = document.createElement("span"); badge.className = "setup-badge " + s.cls; badge.textContent = s.status;
+    rowEl.appendChild(nameEl); rowEl.appendChild(badge); main.appendChild(rowEl);
+    var desc = document.createElement("div"); desc.className = "setup-desc"; desc.textContent = s.desc; main.appendChild(desc);
+    // 「ここを設定する →」：未完了かつジャンプ先があるステップだけに出す。
+    var done = (s.status === "完了");
+    if (!done && s.jumpFn) {
+      var jump = document.createElement("button");
+      jump.type = "button"; jump.className = "setup-jump";
+      jump.textContent = (s.jumpLabel || "ここを設定する") + " →";
+      jump.addEventListener("click", function(){ setupJumpTo(s.jumpFn); });
+      main.appendChild(jump);
+    }
+    step.appendChild(main);
+    box.appendChild(step);
+  });
   renderSetupManagerActions(box, status);
+}
+
+/* 「ここを設定する →」の遷移。
+   ・__samepage＝この初期設定画面内のLINE接続パネル(#lineSecretPanel)へスクロール。
+   ・それ以外＝お店の設定グループの該当小タブへ gotoSubtab で移動（戻ると進捗は自動再判定）。 */
+function setupJumpTo(fnName){
+  if (!fnName) return;
+  if (fnName === "__samepage"){
+    var p = document.getElementById("lineSecretPanel");
+    if (p && p.style.display !== "none" && typeof p.scrollIntoView === "function"){
+      p.scrollIntoView({ behavior:"smooth", block:"start" });
+    } else if (typeof window !== "undefined"){
+      window.scrollTo({ top: document.body.scrollHeight, behavior:"smooth" });
+    }
+    return;
+  }
+  if (typeof gotoSubtab === "function"){ gotoSubtab("settings", fnName); return; }
+  if (typeof window[fnName] === "function") window[fnName](null);
 }
 
 /* 手動確定（テスト完了／本番開始）のボタンを描く。
@@ -1310,7 +1356,7 @@ function renderSetupManagerActions(box, status){
 
   var hint = document.createElement("div");
   hint.className = "setup-mgr-hint";
-  hint.textContent = "手動で確定する項目（管理者のみ）。本番開始は必須項目がすべて完了している時だけ有効にできます。";
+  hint.textContent = "ここは手動で確定する項目です（管理者のみ）。「本番スタート」は、上の必須の設定がすべて完了している時だけ有効にできます。";
   wrap.appendChild(hint);
 
   var bTest = document.createElement("button");
@@ -1323,7 +1369,7 @@ function renderSetupManagerActions(box, status){
   var bProd = document.createElement("button");
   bProd.type = "button";
   bProd.className = "setup-mgr-btn";
-  bProd.textContent = status.production_ready ? "本番開始を無効にする" : "本番開始を有効にする";
+  bProd.textContent = status.production_ready ? "本番スタートを無効にする" : "本番スタートを有効にする";
   bProd.addEventListener("click", function(){ setupSetFlag("production_ready", !status.production_ready, tid); });
   wrap.appendChild(bProd);
 
@@ -1344,7 +1390,7 @@ function setupSetFlag(field, value, tenantId){
     .catch(function(err){
       var m = (err && err.message) ? String(err.message) : String(err);
       if (m.indexOf("setup_incomplete") >= 0){
-        window.alert("まだ必須項目（テナント〜メニュー）が完了していないため、本番開始は有効にできません。");
+        window.alert("まだ必須の設定（お店づくり〜メニューと担当者）が終わっていないため、本番スタートは有効にできません。先に上の項目をすべて完了してください。");
       } else if (m.indexOf("forbidden") >= 0){
         window.alert("この操作の権限がありません。");
       } else if (m.indexOf("invalid_field") >= 0){
@@ -3953,6 +3999,7 @@ function setLoadMenus(){
         +   '<label>メニュー名（必須）</label><input type="text" id="set-maname" placeholder="例）眉アートメイク（2D/3D/4D）">'
         +   '<label>通常価格（円）</label><input type="number" inputmode="numeric" id="set-manor" placeholder="例）55000">'
         +   '<label>モニター価格（円・空なら通常と同額）</label><input type="number" inputmode="numeric" id="set-mamon" placeholder="例）44000">'
+        +   '<div class="set-hint" style="margin:2px 0 8px">モニター価格＝モニター（症例写真の協力）として予約された方向けの料金です。設定が無ければ空欄で大丈夫です。</div>'
         +   '<div class="set-acts">'
         +     '<button type="button" class="set-btn set-primary" data-act="maddsave">💾 追加する</button>'
         +     '<button type="button" class="set-btn set-ghost" data-act="maddcancel">やめる</button>'
@@ -4067,9 +4114,12 @@ function setLoadArtists(){
       + '<div class="set-edit" id="set-aaddform">'
       +   '<label>名前（表示名・必須）</label><input type="text" id="set-aaname" placeholder="例）遠山（uta）">'
       +   '<label>資格</label><input type="text" id="set-aaqual" placeholder="例）看護師">'
+      +   '<div class="set-hint" style="margin:2px 0 8px">予約ページの紹介に出ます（例：看護師・医師）。無ければ空欄でOK。</div>'
       +   '<label>得意・専門</label><input type="text" id="set-aaspec" placeholder="例）眉・リップ">'
+      +   '<div class="set-hint" style="margin:2px 0 8px">この人が得意な施術。お客様が担当を選ぶときの参考になります。</div>'
       +   '<label>経歴</label><input type="text" id="set-aacareer" placeholder="">'
-      +   '<label>指名料（円・空欄で無し）</label><input type="number" inputmode="numeric" id="set-aafee" placeholder="">'
+      +   '<label>指名料（この担当を指名したときの追加料金・円）</label><input type="number" inputmode="numeric" id="set-aafee" placeholder="">'
+      +   '<div class="set-hint" style="margin:2px 0 8px">この担当を指名すると通常料金に上乗せされる金額です。指名料が無い場合は空欄にしてください。</div>'
       +   '<div class="set-acts">'
       +     '<button type="button" class="set-btn set-primary" data-act="aaddsave">💾 追加する</button>'
       +     '<button type="button" class="set-btn set-ghost" data-act="aaddcancel">やめる</button>'
@@ -4107,7 +4157,8 @@ function setLoadArtists(){
         +   '<label>資格</label><input type="text" id="set-aqual-'+aid+'" value="'+esc(a.qualification||'')+'">'
         +   '<label>得意・専門</label><input type="text" id="set-aspec-'+aid+'" value="'+esc(a.specialty||'')+'">'
         +   '<label>経歴</label><input type="text" id="set-acareer-'+aid+'" value="'+esc(a.career||'')+'">'
-        +   '<label>指名料（円・空欄で無し）</label><input type="number" inputmode="numeric" id="set-afee-'+aid+'" value="'+esc(a.nomination_fee==null?'':a.nomination_fee)+'">'
+        +   '<label>指名料（この担当を指名したときの追加料金・円）</label><input type="number" inputmode="numeric" id="set-afee-'+aid+'" value="'+esc(a.nomination_fee==null?'':a.nomination_fee)+'">'
+        +   '<div class="set-hint" style="margin:2px 0 8px">この担当を指名すると通常料金に上乗せされる金額です。指名料が無い場合は空欄にしてください。</div>'
         +   '<div class="set-acts">'
         +     '<button type="button" class="set-btn set-primary" data-act="asave" data-aid="'+aid+'">💾 保存</button>'
         +     '<button type="button" class="set-btn set-ghost" data-act="acancel" data-aid="'+aid+'">やめる</button>'
