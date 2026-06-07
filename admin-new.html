@@ -3836,7 +3836,7 @@ function setLoadInfo(){
   // 件数は個別にcatch（1つ失敗しても画面全体は落とさない。失敗はnull＝「—」表示）。
   function cnt(path){ return sbGet(path).then(function(r){ return (r&&r.length!=null)?r.length:0; }).catch(function(){ return null; }); }
   ensureStoreMap().then(function(){
-    var storesPath = 'stores?select=id,name,code,business_hours_start,business_hours_end,slot_interval_min,seat_count,closed_days,google_calendar_id,accept_outside_business_hours&order=name';
+    var storesPath = 'stores?select=id,name,code,liff_id,business_hours_start,business_hours_end,slot_interval_min,seat_count,closed_days,google_calendar_id,accept_outside_business_hours&order=name';
     return Promise.all([
       sbGet(storesPath).catch(function(){ return []; }),
       cnt('menus?select=id'), cnt('artists?select=id'), cnt('reviews?select=id'),
@@ -3884,10 +3884,30 @@ function setLoadInfo(){
       + '</div>';
 
     // 🔗 公開ページ（鍵情報ではないので表示OK・毎回URLを探さなくて済む）
-    h += '<div class="set-sect"><h3>🔗 公開ページ</h3>'
-      + row('予約ページ（お客様用）', lk('https://liff.line.me/2010236479-4ANlMg3d','LINEで開く'))
-      + row('予約ページ（直リンク）', lk('https://ikuno-isc.github.io/clinic-booking/new.html','new.html'))
-      + row('この管理画面', lk('https://ikuno-isc.github.io/clinic-booking/admin-new.html','admin-new.html'))
+    //   ★店ごとに正しいリンクを出す（久留米固定のハードコードを撤去）。
+    //     直リンクは ?store=<店コード> で店を確定。お客様用は店の liff_id から生成（未設定なら警告）。
+    //     複数店のときは店名を頭に付ける。code/liff_id は encodeURIComponent で href を安全化。
+    var pubBase = 'https://ikuno-isc.github.io/clinic-booking/';
+    h += '<div class="set-sect"><h3>🔗 公開ページ</h3>';
+    if (stores.length){
+      stores.forEach(function(s){
+        var pre = (stores.length>1 ? esc(s.name||'店')+'：' : '');
+        if (s.code){
+          var direct = pubBase + 'new.html?store=' + encodeURIComponent(s.code);
+          h += row(pre+'予約ページ（直リンク）', lk(direct, 'new.html?store='+esc(s.code)));
+        } else {
+          h += row(pre+'予約ページ（直リンク）', '<span class="set-ngb">⚠️ 店コード未設定</span>');
+        }
+        if (s.liff_id){
+          h += row(pre+'予約ページ（お客様用）', lk('https://liff.line.me/'+encodeURIComponent(s.liff_id),'LINEで開く'));
+        } else {
+          h += row(pre+'予約ページ（お客様用）', '<span class="set-ngb">⚠️ LIFF未設定</span>');
+        }
+      });
+    } else {
+      h += row('予約ページ', '<span class="set-v">店舗が未登録です</span>');
+    }
+    h += row('この管理画面', lk(pubBase+'admin-new.html','admin-new.html'))
       + '</div>';
 
     h += '<div class="set-note">※ 読み取り専用の確認画面です。数字は開いた時点の集計。LINEのトークンなど鍵情報は安全のため表示していません。各種編集は上の各タブから（オーナー／管理者のみ）。</div>';
