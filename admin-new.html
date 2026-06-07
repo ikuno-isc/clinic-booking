@@ -359,6 +359,11 @@
 .setup-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 14px 14px}
 .setup-link{display:inline-block;border:1px solid #cfe0dd;background:#f2f8f7;color:#0b5c55;border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:800;text-decoration:none}
 .setup-note{font-size:11.5px;color:#9ca3af;line-height:1.6;margin:10px 4px 0}
+/* セットアップ手動確定（管理者のみ表示。最終防御はRPC側 set_tenant_setup_flag）*/
+.setup-mgr-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 14px;border-top:1px solid #f0f0f0;background:#fafbfb}
+.setup-mgr-hint{flex-basis:100%;font-size:11.5px;color:#6b7280;line-height:1.6;margin-bottom:2px}
+.setup-mgr-btn{border:1px solid #cfe0dd;background:#f2f8f7;color:#0b5c55;border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:800;cursor:pointer}
+.setup-mgr-btn:hover{background:#e7f3f1}
 
 /* ===== steps タブ CSS（接頭辞 .stp- 専用。他タブと非衝突）===== */
 #stepsView{max-width:760px;margin:0 auto;padding:12px}
@@ -1276,6 +1281,66 @@ function renderSetupSteps(status){
       + '</div>'
     + '</div>';
   }).join("");
+  renderSetupManagerActions(box, status);
+}
+
+/* 手動確定（テスト完了／本番開始）のボタンを描く。
+   ・managerのみ表示（window.IS_MANAGER）。ただし“本当の防御”はRPC側
+     set_tenant_setup_flag（権限/フィールド許可/越境補正/本番完了再確認）。
+   ・XSS回避：innerHTML を使わず DOM API＋textContent で組み立てる。 */
+function renderSetupManagerActions(box, status){
+  if (!box) return;
+  if (!window.IS_MANAGER) return;                       // managerのみ（見た目の制御）
+  if (!status || !status._fromDb || !status.tenant_id) return;  // DB由来＝対象テナント確定時だけ
+  var tid = status.tenant_id;
+  var wrap = document.createElement("div");
+  wrap.className = "setup-mgr-actions";
+
+  var hint = document.createElement("div");
+  hint.className = "setup-mgr-hint";
+  hint.textContent = "手動で確定する項目（管理者のみ）。本番開始は必須項目がすべて完了している時だけ有効にできます。";
+  wrap.appendChild(hint);
+
+  var bTest = document.createElement("button");
+  bTest.type = "button";
+  bTest.className = "setup-mgr-btn";
+  bTest.textContent = status.test_done ? "テストを未完了に戻す" : "テスト完了にする";
+  bTest.addEventListener("click", function(){ setupSetFlag("test_done", !status.test_done, tid); });
+  wrap.appendChild(bTest);
+
+  var bProd = document.createElement("button");
+  bProd.type = "button";
+  bProd.className = "setup-mgr-btn";
+  bProd.textContent = status.production_ready ? "本番開始を無効にする" : "本番開始を有効にする";
+  bProd.addEventListener("click", function(){ setupSetFlag("production_ready", !status.production_ready, tid); });
+  wrap.appendChild(bProd);
+
+  box.appendChild(wrap);
+}
+
+/* 手動フラグの切替を RPC set_tenant_setup_flag に投げる。
+   JS側ガードは“最初の一歩”にすぎず、権限・フィールド・越境・本番完了の最終判定は
+   すべて DB 側の RPC が行う（ボタンを偽装して直叩きしても破れない）。 */
+function setupSetFlag(field, value, tenantId){
+  if (!window.IS_MANAGER) return;                              // JS側ガード（最終防御はRPC側）
+  if (field !== "test_done" && field !== "production_ready") return;  // 許可フィールドのみ
+  if (typeof sbRpc !== "function" || !TOKEN) return;
+  var body = { p_field: field, p_value: !!value };
+  if (tenantId) body.p_tenant = tenantId;
+  sbRpc("set_tenant_setup_flag", body)
+    .then(function(){ loadSetupStatus(tenantId || undefined); })  // 成功→DBから読み直して再描画
+    .catch(function(err){
+      var m = (err && err.message) ? String(err.message) : String(err);
+      if (m.indexOf("setup_incomplete") >= 0){
+        window.alert("まだ必須項目（テナント〜メニュー）が完了していないため、本番開始は有効にできません。");
+      } else if (m.indexOf("forbidden") >= 0){
+        window.alert("この操作の権限がありません。");
+      } else if (m.indexOf("invalid_field") >= 0){
+        window.alert("この項目は手動で変更できません。");
+      } else {
+        window.alert("できませんでした：" + m);
+      }
+    });
 }
 
 var SETUP_STATUS_ROWS = [];
@@ -4089,22 +4154,24 @@ function setAddArtist(){
   var fee = (document.getElementById('set-aafee')||{}).value;
   var nFee = (fee==='') ? null : parseInt(fee,10);
   if (nFee!=null && (isNaN(nFee)||nFee<0)){ setMsg('set-artistMsg','指名料は0以上の半角数字で入力してください。', false); return; }
-  // 店舗を解決（設定タブに店舗セレクタが無い）。解決できない時は「このテナントの店が1つだけならその店」を使う。
-  //   ★旧来の「久留米店を既定」は多テナントで誤り：小倉テナントに久留米店は無く store_id が NULL になり、
-  //     予約ページ(public_booking_options は store_id 一致のみ表示)に担当者が出ない不具合になっていた。
-  var storeId = storeIdForSlug(currentStoreSlug());
-  if (!storeId && STORE_MAP){
-    var _codes = Object.keys(STORE_MAP);
-    if (_codes.length === 1) storeId = STORE_MAP[_codes[0]].id;  // 1店運用（久留米/小倉など）は唯一の店に確定
-  }
-  var row = {
-    tenant_id: TENANT_ID, store_id: storeId || null, name: name,
-    qualification: (((document.getElementById('set-aaqual')||{}).value)||'').trim() || null,
-    specialty:     (((document.getElementById('set-aaspec')||{}).value)||'').trim() || null,
-    career:        (((document.getElementById('set-aacareer')||{}).value)||'').trim() || null,
-    nomination_fee: nFee, is_active: true
-  };
-  sbInsert('artists', row)
+  // 店舗を解決する前に一覧を読み込む。設定タブを先に開いた直後は STORE_MAP が未読込のことがあり、
+  // そのままだと 1店テナントでも store_id が NULL になって予約ページに担当者が出なくなる。
+  ensureStoreMap().then(function(){
+    // 設定タブに店舗セレクタは無い。解決できない時は「このテナントの店が1つだけならその店」を使う。
+    var storeId = storeIdForSlug(currentStoreSlug());
+    if (!storeId && STORE_MAP){
+      var _codes = Object.keys(STORE_MAP);
+      if (_codes.length === 1) storeId = STORE_MAP[_codes[0]].id;  // 1店運用（久留米/小倉など）は唯一の店に確定
+    }
+    var row = {
+      tenant_id: TENANT_ID, store_id: storeId || null, name: name,
+      qualification: (((document.getElementById('set-aaqual')||{}).value)||'').trim() || null,
+      specialty:     (((document.getElementById('set-aaspec')||{}).value)||'').trim() || null,
+      career:        (((document.getElementById('set-aacareer')||{}).value)||'').trim() || null,
+      nomination_fee: nFee, is_active: true
+    };
+    return sbInsert('artists', row);
+  })
     .then(function(){ setMsg('set-artistMsg','✅ アーティストを追加しました。', true); setLoadArtists(); })
     .catch(function(err){ if (setHandleAuth(err)) return; setMsg('set-artistMsg', setReason(err), false); });
 }
