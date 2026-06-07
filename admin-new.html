@@ -4597,7 +4597,38 @@ function setSaveStore(id){
   if (isNaN(nSeat) || nSeat < 1){ setMsg('set-storeMsg','席数は1以上の半角数字で入力してください。', false); return; }
   var patch = { name:name, business_hours_start:start, business_hours_end:end, slot_interval_min:nIntv, seat_count:nSeat };
   sbUpdate('stores','id=eq.'+encodeURIComponent(id), patch)
-    .then(function(){ setMsg('set-storeMsg','✅ 保存しました。', true); setLoadStores(); })
+    .then(function(){
+      // ★テナント管理コンソールに出る tenant_name も一括で揃える（1テナント=1店舗運用の現実に合わせる）。
+      //   ・platform_admin だけ実行可（manage-tenant 側で行80-85のガードで弾く）。それ以外は黙って失敗してOK。
+      //   ・店舗名の保存は既に成功しているので、テナント名の失敗で「保存しました」表示は維持する。
+      if (!window.IS_PLATFORM_ADMIN || !TENANT_ID) {
+        setMsg('set-storeMsg','✅ 保存しました。', true); setLoadStores(); return;
+      }
+      return fetch(SB_URL + "/functions/v1/manage-tenant", {
+        method:"POST",
+        headers: Object.assign({ "Content-Type":"application/json" }, hdr()),
+        body: JSON.stringify({ action:"rename_tenant", tenant_id: TENANT_ID, name: name })
+      })
+        .then(function(res){ return res.json().catch(function(){ return {}; }); })
+        .then(function(j){
+          if (j && j.ok === true) {
+            setMsg('set-storeMsg','✅ 保存しました（テナント名も揃えました）。', true);
+            // 画面ヘッダー（現在の店名）も即時更新
+            try {
+              var nameEl = document.getElementById('tenantHeaderName');
+              if (nameEl) nameEl.textContent = name;
+              MY_TENANTS.forEach(function(t){ if (t.tenant_id === TENANT_ID) t.tenant_name = name; });
+            } catch(_e){}
+          } else {
+            setMsg('set-storeMsg','✅ 店舗名は保存しましたが、テナント名は変更できませんでした（権限不足の可能性）。', true);
+          }
+          setLoadStores();
+        })
+        .catch(function(){
+          setMsg('set-storeMsg','✅ 店舗名は保存しました（テナント名の同期は通信エラーで失敗）。', true);
+          setLoadStores();
+        });
+    })
     .catch(function(err){ if (setHandleAuth(err)) return; setMsg('set-storeMsg', setReason(err), false); });
 }
 
