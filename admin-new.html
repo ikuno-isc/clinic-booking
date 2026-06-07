@@ -786,6 +786,14 @@
   </div>
 
   <h3>📊 流入分析（どこから予約が来たか）</h3>
+  <div class="acq-hint" style="margin:0 4px 6px">
+    集計の基準を選べます。「申込日」は<b>その月に予約申込が入った件数</b>＝集客の効き目を見る用。
+    「施術日」は<b>その月に施術された件数</b>＝来店や売上の実績を見る用。
+  </div>
+  <div class="acq-tabs">
+    <button type="button" class="acq-tab active" data-ab="created" onclick="setAcqBasis('created')">📥 申込日ベース</button>
+    <button type="button" class="acq-tab" data-ab="start" onclick="setAcqBasis('start')">📅 施術日ベース</button>
+  </div>
   <div class="acq-tabs">
     <button type="button" class="acq-tab active" data-ap="this_month" onclick="setAcqPeriod('this_month')">今月</button>
     <button type="button" class="acq-tab" data-ap="last_month" onclick="setAcqPeriod('last_month')">先月</button>
@@ -5194,6 +5202,8 @@ function setMsg(id, text, ok){
 /* 予約ページのベースURL（?ref=タグ を付けて配布する） */
 var BOOKING_URL = 'https://ikuno-isc.github.io/clinic-booking/new.html';
 var ACQ_PERIOD = 'this_month';
+/* 集計の基準軸：'created'＝申込日（マーケ視点・既定）／'start'＝施術日（実績視点） */
+var ACQ_BASIS  = 'created';
 
 /* ===== 表示切替（必須パターン）。hideAllViews → setActiveNav → 表示 → 読込 ===== */
 function showAcq(el){
@@ -5747,13 +5757,22 @@ function setAcqPeriod(p){
   loadAcqStats();
 }
 
+/* 集計の基準（申込日/施術日）切替 */
+function setAcqBasis(b){
+  if (b !== 'created' && b !== 'start') return;
+  ACQ_BASIS = b;
+  var ts = document.querySelectorAll('#acqView .acq-tab[data-ab]');
+  for(var i=0;i<ts.length;i++){ ts[i].classList.toggle('active', ts[i].getAttribute('data-ab') === b); }
+  loadAcqStats();
+}
+
 function loadAcqStats(){
   var box = document.getElementById('acqStats');
   if(!box) return;
   box.innerHTML = '<div class="placeholder">読み込み中…</div>';
   var r = acqRange(ACQ_PERIOD);
-  sbRpc('ref_stats', { p_from: r[0], p_to: r[1], p_tenant: TENANT_ID })
-    .then(function(rows){ renderAcqStats(Array.isArray(rows) ? rows : [], ACQ_PERIOD); })
+  sbRpc('ref_stats', { p_from: r[0], p_to: r[1], p_tenant: TENANT_ID, p_basis: ACQ_BASIS })
+    .then(function(rows){ renderAcqStats(Array.isArray(rows) ? rows : [], ACQ_PERIOD, ACQ_BASIS); })
     .catch(function(err){
       if(acqNeedsLogin()) return;
       box.innerHTML = '<div class="placeholder">取得に失敗しました<br>'+esc(acqReason(err))+'</div>';
@@ -5767,28 +5786,37 @@ function acqYen(n){
   return '¥' + Math.round(v).toLocaleString('ja-JP');
 }
 
-/* 集計描画：ref 別の件数・来店・売上をバー＋表で表示。reservations 降順は RPC 側で確定済み。 */
-function renderAcqStats(rows, period){
+/* 集計描画：ref 別の件数・キャンセル・来店・売上をバー＋表で表示。
+   reservations 降順は RPC 側で確定済み。
+   basis: 'created'＝申込日（既定／マーケ視点）、'start'＝施術日（実績視点） */
+function renderAcqStats(rows, period, basis){
   var box = document.getElementById('acqStats');
   if(!box) return;
   var label = acqPeriodLabel(period);
+  var basisLabel = (basis === 'start') ? '施術日' : '申込日';
+  var emptyHint = (basis === 'start')
+    ? esc(label) + '：その月に施術された予約はまだありません。'
+    : esc(label) + '：その月に申込みが入った予約はまだありません。';
   if(!rows.length){
-    box.innerHTML = '<div class="placeholder">'+esc(label)+'：データがありません。<br>追跡リンクから予約が入ると、ここに流入元別の集計が出ます。</div>';
+    box.innerHTML = '<div class="placeholder">'+emptyHint+'<br>追跡リンクから予約が入ると、ここに流入元別の集計が出ます。</div>';
     return;
   }
 
   // バー（予約件数）の最大値で正規化
-  var maxResv = 0, totResv = 0, totVisited = 0, totSales = 0;
+  var maxResv = 0, totResv = 0, totCanc = 0, totVisited = 0, totSales = 0;
   rows.forEach(function(r){
     var rv = Number(r.reservations) || 0;
     if(rv > maxResv) maxResv = rv;
-    totResv += rv;
-    totVisited += (Number(r.visited) || 0);
-    totSales += (Number(r.sales) || 0);
+    totResv    += rv;
+    totCanc    += (Number(r.cancelled) || 0);
+    totVisited += (Number(r.visited)   || 0);
+    totSales   += (Number(r.sales)     || 0);
   });
   if(maxResv <= 0) maxResv = 1;
 
-  var h = '<div class="acq-hint" style="margin:0 4px 8px">'+esc(label)+'</div>';
+  var h = '<div class="acq-hint" style="margin:0 4px 8px">'
+        + esc(label) + '（' + esc(basisLabel) + 'ベース）'
+        + '</div>';
 
   // 予約件数バー
   h += rows.map(function(r){
@@ -5803,16 +5831,17 @@ function renderAcqStats(rows, period){
 
   // 明細表
   h += '<table class="acq-tbl" style="margin-top:10px">'
-    + '<tr><th>流入元</th><th>予約</th><th>来店</th><th>売上</th></tr>';
+    + '<tr><th>流入元</th><th>予約</th><th>キャンセル</th><th>来店</th><th>売上</th></tr>';
   h += rows.map(function(r){
     return '<tr>'
       + '<td>'+esc(r.ref)+'</td>'
       + '<td>'+esc(Number(r.reservations) || 0)+'</td>'
-      + '<td>'+esc(Number(r.visited) || 0)+'</td>'
+      + '<td>'+esc(Number(r.cancelled)    || 0)+'</td>'
+      + '<td>'+esc(Number(r.visited)      || 0)+'</td>'
       + '<td>'+esc(acqYen(r.sales))+'</td>'
       + '</tr>';
   }).join('');
-  h += '<tr class="tot"><td>合計</td><td>'+esc(totResv)+'</td><td>'+esc(totVisited)+'</td><td>'+esc(acqYen(totSales))+'</td></tr>';
+  h += '<tr class="tot"><td>合計</td><td>'+esc(totResv)+'</td><td>'+esc(totCanc)+'</td><td>'+esc(totVisited)+'</td><td>'+esc(acqYen(totSales))+'</td></tr>';
   h += '</table>';
 
   box.innerHTML = h;
