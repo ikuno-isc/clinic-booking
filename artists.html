@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <!--
-  poc/artists.html — お客様向け「アーティスト紹介ページ」（Supabase版・公開ページ）。
-  設計：docs/artist-profile-page-design.md (v2)。設計は ?mode=profile 拡張(案A)も挙げるが、
-        予約ページ(index.html)を一切触らず独立して出すため、ここでは別ページ(案B)で実装。
+  poc/artists.html — お客様向け「症例写真ページ」（Supabase版・公開ページ）。
+  ねらい：リッチメニュー「症例写真」→ このページ。上にアーティストのタブ（丸顔＋名前）、
+          下にそのアーティストの症例写真スライド、一番下に「このアーティストで予約する」。
+          経歴・口コミは載せない（口コミはリッチメニューの別ボタン＝chat-webhook の自動返信で完結）。
 
   ・店解決は予約ページ(index.html)と同じ public_store_resolve(slug)。?store= で店舗slug切替（既定 kurume）。
   ・データは公開RPCのみで取得（anonに生テーブルは開けない）：
       一覧       … public_artist_list(p_store_id)
-      プロフィール … public_artist_profile(p_store_id, p_artist_id)
-  ・XSS対策：自由入力(career/caption/口コミ本文等)は必ず esc()。画像URLは https:// か
-    Supabase Storage 公開URL のみ許可（safeImg）。それ以外は表示しない。
+      症例写真   … public_artist_profile(p_store_id, p_artist_id) の photos を使う（career/reviews は使わない）
+  ・XSS対策：自由入力(caption等)は必ず esc()。画像URLは https:// か Supabase Storage 公開URL のみ許可（safeImg）。
   ・「予約する」は予約ページ(new.html?store=...)へ遷移。施術者を初期選択する artist パラメータも付ける。
   ・GitHub Pages で配信する純粋な静的HTML（外部依存なし）。LIFFは不要（公開閲覧のみ・PIIを扱わない）。
 -->
@@ -18,47 +18,40 @@
   <base target="_top">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <title>アーティスト紹介</title>
+  <title>症例写真</title>
   <style>
     *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
     body { font-family:-apple-system,'Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif; background:#f5f5f5; color:#222; line-height:1.6; }
     .app-hd { background:#06c755; color:#fff; padding:12px 16px; }
     .app-hd h1 { font-size:16px; font-weight:700; }
     .app-hd .sub { font-size:12px; opacity:.9; margin-top:1px; }
-    .wrap { max-width:600px; margin:0 auto; padding:18px 16px 40px; }
+    .wrap { max-width:600px; margin:0 auto; }
 
     /* ローディング/エラー */
     #loading { min-height:60vh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:#888; font-size:14px; }
     .spinner { width:26px; height:26px; border:3px solid #e0e0e0; border-top-color:#06c755; border-radius:50%; animation:spin .8s linear infinite; }
     @keyframes spin { to { transform:rotate(360deg); } }
-    .msg-err { background:#fdecea; color:#c00; padding:14px; border-radius:8px; font-size:13px; line-height:1.7; }
-    .empty { text-align:center; color:#888; padding:48px 8px; font-size:14px; }
+    .msg-err { background:#fdecea; color:#c00; padding:14px; border-radius:8px; font-size:13px; line-height:1.7; margin:16px; }
+    .empty { text-align:center; color:#888; padding:48px 16px; font-size:14px; }
 
-    /* 一覧カード */
-    .a-list { display:flex; flex-direction:column; gap:14px; }
-    .a-card { background:#fff; border:1px solid #e6e6e6; border-radius:16px; padding:16px; display:flex; gap:14px; align-items:center; box-shadow:0 1px 4px rgba(0,0,0,.04); }
-    .a-av { width:72px; height:72px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:26px; font-weight:800; color:#fff; overflow:hidden; }
-    .a-av img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
-    .a-meta { flex:1; min-width:0; }
-    .a-nm { font-size:18px; font-weight:700; }
-    .a-spec { font-size:12.5px; color:#777; margin-top:3px; line-height:1.45; }
-    .a-go { margin-top:10px; }
-    .btn { display:inline-block; padding:11px 18px; font-size:14px; font-weight:700; border-radius:10px; border:none; cursor:pointer; text-decoration:none; text-align:center; }
-    .btn-o { background:#eafaf0; color:#06845a; border:1px solid #b6e7c9; }
-    .btn-p { background:#06c755; color:#fff; }
-    .btn-bk { background:#f5f5f5; color:#555; border:1px solid #ddd; }
+    /* ===== アーティストタブ（丸顔＋名前・横スクロール） ===== */
+    .tabs-wrap { background:#fff; border-bottom:1px solid #eaeaea; position:sticky; top:0; z-index:5; }
+    .tabs { display:flex; gap:6px; overflow-x:auto; -webkit-overflow-scrolling:touch; padding:12px 14px; scrollbar-width:none; }
+    .tabs::-webkit-scrollbar { display:none; }
+    .tab { flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:6px; width:74px; padding:6px 4px 8px; border:none; background:transparent; cursor:pointer; border-radius:12px; }
+    .tab-av { width:54px; height:54px; border-radius:50%; overflow:hidden; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:800; color:#fff; border:2px solid transparent; transition:border-color .15s; }
+    .tab-av img { width:100%; height:100%; object-fit:cover; }
+    .tab-nm { font-size:12px; color:#666; font-weight:600; line-height:1.25; text-align:center; word-break:break-word; }
+    .tab.active .tab-av { border-color:#06c755; }
+    .tab.active .tab-nm { color:#06845a; font-weight:800; }
 
-    /* プロフィール */
-    .p-hero { background:#fff; border-radius:16px; padding:22px 18px; text-align:center; box-shadow:0 1px 4px rgba(0,0,0,.04); }
-    .p-av { width:104px; height:104px; border-radius:50%; margin:0 auto 12px; display:flex; align-items:center; justify-content:center; font-size:38px; font-weight:800; color:#fff; overflow:hidden; }
-    .p-av img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
-    .p-nm { font-size:22px; font-weight:700; }
-    .p-spec { font-size:13px; color:#777; margin-top:6px; line-height:1.5; }
-    .sec { margin-top:24px; }
+    /* 本文 */
+    .body { padding:18px 16px 24px; min-height:36vh; }
+    .lead { text-align:center; font-size:13px; color:#777; margin-bottom:14px; }
+    .lead b { color:#06845a; }
+
+    /* 症例写真スライド（横スワイプ・カルーセル） */
     .sec-h { font-size:14px; font-weight:700; color:#06845a; border-left:3px solid #06c755; padding-left:9px; margin-bottom:12px; }
-    .career { background:#fff; border-radius:12px; padding:16px; font-size:14px; line-height:1.9; white-space:pre-wrap; word-break:break-word; }
-
-    /* 横スワイプ・カルーセル（症例写真・口コミ） */
     .caro { display:flex; gap:12px; overflow-x:auto; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain; padding:2px 2px 10px; }
     .caro::-webkit-scrollbar { height:4px; }
     .caro::-webkit-scrollbar-thumb { background:#d0d0d0; border-radius:2px; }
@@ -71,23 +64,24 @@
     .ph-pair .pair-col img { aspect-ratio:1; }
     .ph-lbl { font-size:11px; font-weight:700; color:#fff; background:rgba(0,0,0,.45); padding:2px 8px; border-radius:0 0 6px 0; position:absolute; }
     .ph-pos { position:relative; }
-
-    .rv { scroll-snap-align:start; flex:0 0 80%; background:#fff; border:1px solid #eee; border-radius:12px; padding:14px 16px; display:flex; flex-direction:column; }
-    .rv-stars { color:#f5a623; font-size:14px; }
-    .rv-body { font-size:13px; color:#333; margin-top:8px; line-height:1.7; white-space:pre-wrap; word-break:break-word; flex:1; }
-    .rv-period { font-size:11px; color:#999; margin-top:10px; }
-
     .med-note { font-size:11px; color:#999; margin-top:10px; line-height:1.6; }
-    .book-bar { position:sticky; bottom:0; background:#fff; border-top:1px solid #eee; padding:12px 16px; margin:24px -16px 0; }
-    .book-bar .btn { width:100%; font-size:16px; padding:14px; }
+    .nophoto { text-align:center; color:#999; padding:40px 12px; font-size:14px; background:#fff; border:1px dashed #ddd; border-radius:12px; }
+
+    /* 予約バー（画面下に固定） */
+    .book-bar { position:sticky; bottom:0; background:#fff; border-top:1px solid #eee; padding:12px 16px; }
+    .btn { display:block; width:100%; padding:14px; font-size:16px; font-weight:700; border-radius:10px; border:none; cursor:pointer; text-decoration:none; text-align:center; background:#06c755; color:#fff; }
   </style>
 </head>
 <body>
 
 <div id="loading"><div class="spinner"></div><div>読み込み中…</div></div>
 <div id="app" style="display:none;">
-  <div class="app-hd"><h1 id="hdTitle">アーティスト紹介</h1><div class="sub" id="hdSub"></div></div>
-  <div class="wrap" id="content"></div>
+  <div class="app-hd"><h1>症例写真</h1><div class="sub" id="hdSub"></div></div>
+  <div class="wrap">
+    <div class="tabs-wrap"><div class="tabs" id="tabs"></div></div>
+    <div class="body" id="body"></div>
+    <div class="book-bar"><a class="btn" id="bookBtn" href="#">予約する</a></div>
+  </div>
 </div>
 
 <script>
@@ -116,7 +110,7 @@ function getQueryParam(name){
 }
 var STORE_RAW   = getQueryParam('store');
 var STORE       = STORE_RAW || 'kurume';
-var INIT_ARTIST = getQueryParam('artist');   // 直接プロフィールを開く場合（任意）
+var INIT_ARTIST = getQueryParam('artist');   // 最初に開くアーティスト（任意）
 
 var H = { "apikey": SB_KEY, "Authorization": "Bearer " + SB_KEY };
 function sbRpc(fn, args){
@@ -140,7 +134,7 @@ function safeImg(u){
   return '';                              // それ以外（http:, data:, javascript: 等）は出さない
 }
 var AC = ['#e07b54','#26a69a','#7c4dff','#1565c0','#d81b60','#00897b'];
-function avHtml(url, name, idx, cls, avcls){
+function avHtml(url, name, idx, avcls){
   var img = safeImg(url);
   if(img) return '<div class="'+avcls+'"><img src="'+esc(img)+'" alt="'+esc(name)+'"></div>';
   var ch = esc((name||'?').charAt(0).toUpperCase());
@@ -150,14 +144,11 @@ function show(id){
   document.getElementById('loading').style.display = (id==='loading')?'flex':'none';
   document.getElementById('app').style.display = (id==='app')?'block':'none';
 }
-function setHeader(title, sub){
-  document.getElementById('hdTitle').textContent = title || 'アーティスト紹介';
-  document.getElementById('hdSub').textContent   = sub || '';
-}
-function contentEl(){ return document.getElementById('content'); }
 function errBox(msg){
   show('app');
-  contentEl().innerHTML = '<div class="msg-err">'+esc(msg)+'</div>';
+  document.getElementById('tabs').innerHTML = '';
+  document.getElementById('body').innerHTML = '<div class="msg-err">'+esc(msg)+'</div>';
+  document.getElementById('bookBtn').style.display = 'none';
 }
 
 // 予約ページURL（new.html?store=...）。施術者を初期選択する artist も付ける（任意）。
@@ -167,69 +158,43 @@ function bookUrl(artistId){
   return u;
 }
 
-// ===== 一覧 =====
-function loadList(){
-  show('loading');
-  sbRpc('public_artist_list', { p_store_id: STORE_ID }).then(function(r){
-    if(!r.ok){ errBox('情報を取得できませんでした。電波の良い場所で、もう一度お試しください。'); return; }
-    var list = Array.isArray(r.data) ? r.data : [];
-    renderList(list);
-  }).catch(function(){ errBox('情報を取得できませんでした。電波の良い場所で、もう一度お試しください。'); });
-}
-function renderList(list){
-  setHeader('アーティスト紹介', STORE_NAME);
+// ===== 状態 =====
+var ARTISTS = [];        // public_artist_list の結果
+var PROFILE_CACHE = {};  // artist_id -> profile（症例写真を一度取ったらキャッシュ）
+var CURRENT = null;      // 選択中の artist_id
+
+// ===== タブ描画 =====
+function renderTabs(){
+  var tabs = document.getElementById('tabs');
   var h = '';
-  if(!list.length){
-    h = '<div class="empty">現在ご案内できるアーティストがいません。</div>';
-  }else{
-    h += '<div class="a-list">';
-    list.forEach(function(a, i){
-      var spec = [];
-      if(a.qualification) spec.push(a.qualification);
-      if(a.specialty) spec.push(a.specialty);
-      h += '<div class="a-card">';
-      h += avHtml(a.profile_photo_url, a.name, i, 'a-card', 'a-av');
-      h += '<div class="a-meta"><div class="a-nm">'+esc(a.name)+'</div>';
-      if(spec.length) h += '<div class="a-spec">'+esc(spec.join('・'))+'</div>';
-      h += '<div class="a-go"><a class="btn btn-o" href="#" data-artist="'+esc(a.id)+'">プロフィールを見る</a></div>';
-      h += '</div></div>';
-    });
-    h += '</div>';
-  }
-  show('app');
-  contentEl().innerHTML = h;
+  ARTISTS.forEach(function(a, i){
+    var cls = (a.id === CURRENT) ? 'tab active' : 'tab';
+    h += '<button class="'+cls+'" data-artist="'+esc(a.id)+'">';
+    h += avHtml(a.profile_photo_url, a.name, i, 'tab-av');
+    h += '<span class="tab-nm">'+esc(a.name)+'</span>';
+    h += '</button>';
+  });
+  tabs.innerHTML = h;
 }
 
-// ===== プロフィール =====
-function loadProfile(artistId){
-  show('loading');
-  sbRpc('public_artist_profile', { p_store_id: STORE_ID, p_artist_id: artistId }).then(function(r){
-    if(!r.ok){ errBox('情報を取得できませんでした。もう一度お試しください。'); return; }
-    if(!r.data || !r.data.artist){
-      // 越境・無効・存在しない等 → 一覧へ戻す
-      errBox('このアーティストのプロフィールは現在ご覧いただけません。');
-      return;
-    }
-    renderProfile(r.data);
-  }).catch(function(){ errBox('情報を取得できませんでした。もう一度お試しください。'); });
-}
 // 症例写真の描画。pair_key が同じ before/after は左右ペアで、それ以外は単発スライドで出す。
 function renderPhotos(photos){
-  if(!photos || !photos.length) return '';
-  // pair_key ごとにグルーピング（pair_key 無しは単発扱い）
+  if(!photos || !photos.length){
+    return '<div class="nophoto">このアーティストの症例写真は準備中です🙏</div>';
+  }
   var pairs = {}, order = [];
   photos.forEach(function(p){
     var key = p.pair_key ? ('pair:'+p.pair_key) : ('single:'+order.length);
     if(!pairs[key]){ pairs[key] = []; order.push(key); }
     pairs[key].push(p);
   });
-  var h = '<div class="sec"><div class="sec-h">症例写真</div><div class="caro">';
+  var h = '<div class="caro">';
+  var shown = 0;
   order.forEach(function(key){
     var grp = pairs[key];
     var before = null, after = null;
     grp.forEach(function(p){ if(p.kind==='before') before=p; else if(p.kind==='after') after=p; });
     if(key.indexOf('pair:')===0 && before && after){
-      // Before/After 左右ペア
       var bi = safeImg(before.image_url), ai = safeImg(after.image_url);
       if(!bi || !ai){ return; }   // 片方でも不正URLなら出さない
       h += '<div class="ph ph-pair"><div class="pair-row">';
@@ -239,8 +204,8 @@ function renderPhotos(photos){
       var cap = (after && after.caption) || (before && before.caption) || '';
       if(cap) h += '<div class="ph-cap">'+esc(cap)+'</div>';
       h += '</div>';
+      shown++;
     }else{
-      // 単発スライド（グループ内の各写真を1枚ずつ）
       grp.forEach(function(p){
         var img = safeImg(p.image_url);
         if(!img) return;
@@ -252,63 +217,80 @@ function renderPhotos(photos){
         }
         if(p.caption) h += '<div class="ph-cap">'+esc(p.caption)+'</div>';
         h += '</div>';
+        shown++;
       });
     }
   });
-  h += '</div><div class="med-note">※効果には個人差があります。掲載写真はご本人の同意を得たものです。</div></div>';
-  return h;
-}
-function stars(n){
-  var r = parseInt(n,10); if(isNaN(r)||r<1) r=5; if(r>5) r=5;
-  var s=''; for(var i=0;i<5;i++) s += (i<r?'★':'☆');
-  return s;
-}
-function renderReviews(reviews){
-  if(!reviews || !reviews.length) return '';
-  var h = '<div class="sec"><div class="sec-h">お客様の声</div><div class="caro">';
-  reviews.forEach(function(r){
-    h += '<div class="rv"><div class="rv-stars">'+stars(r.rating)+'</div>';
-    h += '<div class="rv-body">'+esc(r.body)+'</div>';
-    if(r.period_label) h += '<div class="rv-period">'+esc(r.period_label)+'</div>';
-    h += '</div>';
-  });
-  h += '</div></div>';
-  return h;
-}
-function renderProfile(d){
-  var a = d.artist;
-  setHeader(a.name + ' さん', STORE_NAME);
-  var spec = [];
-  if(a.qualification) spec.push(a.qualification);
-  if(a.specialty) spec.push(a.specialty);
-
-  var h = '<div style="margin-bottom:14px;"><a class="btn btn-bk" href="#" id="backToList">‹ 一覧へ戻る</a></div>';
-  h += '<div class="p-hero">';
-  h += avHtml(a.profile_photo_url, a.name, 0, 'p-hero', 'p-av');
-  h += '<div class="p-nm">'+esc(a.name)+'</div>';
-  if(spec.length) h += '<div class="p-spec">'+esc(spec.join('・'))+'</div>';
   h += '</div>';
-
-  if(a.career){
-    h += '<div class="sec"><div class="sec-h">経歴・ごあいさつ</div><div class="career">'+esc(a.career)+'</div></div>';
-  }
-  h += renderPhotos(d.photos);
-  h += renderReviews(d.reviews);
-
-  h += '<div class="book-bar"><a class="btn btn-p" href="'+esc(bookUrl(a.id))+'">このアーティストで予約する</a></div>';
-
-  show('app');
-  contentEl().innerHTML = h;
-  window.scrollTo(0,0);
+  if(!shown) return '<div class="nophoto">このアーティストの症例写真は準備中です🙏</div>';
+  h += '<div class="med-note">※効果には個人差があります。掲載写真はご本人の同意を得たものです。</div>';
+  return h;
 }
 
-// ===== ルーティング（クリックはイベント委譲。onclick に値を文字列連結しない＝XSS/壊れ防止） =====
+// ===== アーティスト選択 → 症例写真を表示 =====
+function selectArtist(artistId){
+  CURRENT = artistId;
+  renderTabs();
+  var a = null;
+  ARTISTS.forEach(function(x){ if(x.id===artistId) a = x; });
+  var nm = a ? a.name : '';
+  // 予約ボタン更新
+  var btn = document.getElementById('bookBtn');
+  btn.style.display = 'block';
+  btn.textContent = (nm ? nm + ' さんで予約する' : '予約する');
+  btn.setAttribute('href', bookUrl(artistId));
+
+  var body = document.getElementById('body');
+  body.innerHTML = '<div class="lead"><b>'+esc(nm)+'</b> さんの症例写真</div><div class="sec-h">症例写真</div><div style="text-align:center;color:#aaa;padding:24px;">読み込み中…</div>';
+
+  if(PROFILE_CACHE[artistId]){
+    paintCases(nm, PROFILE_CACHE[artistId]);
+    return;
+  }
+  sbRpc('public_artist_profile', { p_store_id: STORE_ID, p_artist_id: artistId }).then(function(r){
+    if(r.ok && r.data) PROFILE_CACHE[artistId] = r.data;   // 取得できたらキャッシュ（描画しなくても保存しておく）
+    if(CURRENT !== artistId) return;                        // ★古い応答は捨てる：タブを素早く切替えた時に別アーティストの写真で上書きしない（Codex P2）
+    if(!r.ok || !r.data){ body.innerHTML = '<div class="nophoto">情報を取得できませんでした。もう一度お試しください。</div>'; return; }
+    paintCases(nm, r.data);
+  }).catch(function(){ if(CURRENT !== artistId) return; body.innerHTML = '<div class="nophoto">情報を取得できませんでした。もう一度お試しください。</div>'; });
+}
+function paintCases(nm, profile){
+  var photos = (profile && profile.photos) || [];
+  var body = document.getElementById('body');
+  var h = '<div class="lead"><b>'+esc(nm)+'</b> さんの症例写真</div>';
+  h += '<div class="sec-h">症例写真</div>';
+  h += renderPhotos(photos);
+  body.innerHTML = h;
+}
+
+// ===== 一覧取得 =====
+function loadArtists(){
+  show('loading');
+  sbRpc('public_artist_list', { p_store_id: STORE_ID }).then(function(r){
+    if(!r.ok){ errBox('情報を取得できませんでした。電波の良い場所で、もう一度お試しください。'); return; }
+    ARTISTS = Array.isArray(r.data) ? r.data : [];
+    document.getElementById('hdSub').textContent = STORE_NAME;
+    if(!ARTISTS.length){
+      show('app');
+      document.getElementById('tabs').innerHTML = '';
+      document.getElementById('body').innerHTML = '<div class="empty">現在ご案内できるアーティストがいません。</div>';
+      document.getElementById('bookBtn').style.display = 'none';
+      return;
+    }
+    show('app');
+    // 初期選択：?artist= が一覧にあればそれ、なければ先頭。
+    var first = ARTISTS[0].id;
+    if(INIT_ARTIST){
+      ARTISTS.forEach(function(x){ if(x.id===INIT_ARTIST) first = INIT_ARTIST; });
+    }
+    selectArtist(first);
+  }).catch(function(){ errBox('情報を取得できませんでした。電波の良い場所で、もう一度お試しください。'); });
+}
+
+// ===== クリック（イベント委譲。タブ押下でアーティスト切替） =====
 document.addEventListener('click', function(e){
-  var t = e.target && e.target.closest ? e.target : null;
-  if(!t) return;
-  var goProf = e.target.closest('[data-artist]');
-  if(goProf){ e.preventDefault(); loadProfile(goProf.getAttribute('data-artist')); return; }
-  if(e.target.closest('#backToList')){ e.preventDefault(); loadList(); return; }
+  var t = e.target && e.target.closest ? e.target.closest('[data-artist]') : null;
+  if(t){ e.preventDefault(); selectArtist(t.getAttribute('data-artist')); }
 });
 
 // ===== 起動 =====
@@ -325,12 +307,10 @@ document.addEventListener('click', function(e){
       errBox('お店が見つかりませんでした。お店の公式LINEのメニューから、もう一度お試しください。');
       return;
     }
-    if(INIT_ARTIST) loadProfile(INIT_ARTIST);
-    else loadList();
+    loadArtists();
   }).catch(function(){
     if(!fallbackOk()){ errBox('お店が見つかりませんでした。'); return; }
-    if(INIT_ARTIST) loadProfile(INIT_ARTIST);
-    else loadList();
+    loadArtists();
   });
 })();
 </script>
