@@ -719,6 +719,10 @@
 
   <!-- ===== dashboard ===== -->
 <div id="dashView" style="display:none">
+  <div class="help-bar">
+    <span class="help-label">📖 操作方法</span>
+    <a href="https://ikuno-isc.github.io/clinic-booking/admin-operation-pack.html" target="_blank" rel="noopener">経営の見方</a>
+  </div>
   <div class="dash-tabs" id="dashTabs">
     <span class="dash-tab active" data-dp="this_month">今月</span>
     <span class="dash-tab" data-dp="last_month">先月</span>
@@ -731,6 +735,10 @@
 
   <!-- ===== AI活用レポート ===== -->
 <div id="aiView" style="display:none">
+  <div class="help-bar">
+    <span class="help-label">📖 操作方法</span>
+    <a href="https://ikuno-isc.github.io/clinic-booking/admin-operation-pack.html" target="_blank" rel="noopener">AI活用レポートの見方</a>
+  </div>
   <div class="dash-tabs" id="aiTabs">
     <span class="dash-tab active" data-ap="this_month">今月</span>
     <span class="dash-tab" data-ap="last_month">先月</span>
@@ -750,6 +758,10 @@
      poc/admin.html の <div class="wrap"> 内、<script> ブロックより前に挿入する。
      ============================================================================ -->
 <div id="reviewView" style="display:none">
+  <div class="help-bar">
+    <span class="help-label">📖 操作方法</span>
+    <a href="https://ikuno-isc.github.io/clinic-booking/staff-operation-pack.html" target="_blank" rel="noopener">口コミの追加・公開切替</a>
+  </div>
   <div class="rev-form">
     <h3>➕ 口コミを追加</h3>
     <p class="rev-hint">Googleの<b>本物の口コミ</b>をコピペしてください（追加すると公開されます）。</p>
@@ -797,6 +809,11 @@
      poc/admin.html の <div class="wrap"> 内、<script> ブロックより前に挿入する。
      ============================================================================ -->
 <div id="acqView" style="display:none">
+  <div class="help-bar">
+    <span class="help-label">📖 操作方法</span>
+    <a href="https://ikuno-isc.github.io/clinic-booking/admin-operation-pack.html" target="_blank" rel="noopener">集客（流入経路）の使い方</a>
+  </div>
+  <div class="help-hint">💡 <b>流入経路</b>とは「お客様がどこから予約に来たか」のことです。Instagram・チラシ・Google広告など、媒体ごとに専用リンクを発行してお客様に渡すと、どの媒体が一番効いているか自動で集計できます。</div>
   <h3>🔗 流入元リンク（発行・コピー）</h3>
   <div id="acqList"><div class="placeholder">読み込み中…</div></div>
 
@@ -833,6 +850,11 @@
        Edge Function manage-steps（staff認証・service_role）でCRUD。画像は Storage(step-images)。
        ============================================================================ -->
 <div id="stepsView" style="display:none">
+  <div class="help-bar">
+    <span class="help-label">📖 操作方法</span>
+    <a href="https://ikuno-isc.github.io/clinic-booking/admin-operation-pack.html" target="_blank" rel="noopener">ステップ配信の作り方</a>
+  </div>
+  <div class="help-hint">💡 配信は<b>朝〜夜の時間帯のみ</b>。<b>予約が入ると自動で停止</b>します（追わない＝ブロック対策）。</div>
   <div class="stp-note">
     友だち追加をきっかけに、決めた順番でメッセージを自動配信します。各メッセージに<b>画像も添付</b>でき、
     <b>予約が入ったら自動で停止</b>します（追わない＝ブロック対策）。配信は朝〜夜の時間帯のみ。
@@ -895,6 +917,11 @@
      ============================================================================ -->
 <div id="usersView" style="display:none">
 
+  <div class="help-bar">
+    <span class="help-label">📖 操作方法</span>
+    <a href="https://ikuno-isc.github.io/clinic-booking/admin-operation-pack.html" target="_blank" rel="noopener">スタッフ管理の使い方</a>
+  </div>
+
   <div class="usr-note">
     ログイン情報の発行は<b>オーナー／管理者のみ</b>。発行した暗証番号（パスワード）は
     画面に表示されるので、コピーして<b>本人へ安全に</b>お伝えください
@@ -923,6 +950,7 @@
         </select>
       </div>
     </div>
+    <div class="help-hint">⚠️ <b>役割の選び間違いに注意。</b>　スタッフ＝予約・カルテの閲覧のみ／管理者＝ユーザー管理も可／オーナー＝最上位（お店の設定すべて）。<b>新しい人はまず「スタッフ」</b>で発行し、必要になってから上げるのが安全です。</div>
 
     <label style="margin-top:8px">担当店舗</label>
     <select id="usrStore"><option value="all">🏢 全店</option></select>
