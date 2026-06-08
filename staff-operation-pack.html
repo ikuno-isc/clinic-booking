@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>スタッフ用 運用マニュアル | アートメイクLINEシステム</title>
+<meta name="robots" content="noindex,nofollow">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue","Hiragino Sans","ヒラギノ角ゴ ProN W3","Yu Gothic UI",sans-serif;color:#1f2937;line-height:1.75;background:#fafafa}
+.wrap{max-width:760px;margin:0 auto;padding:14px 16px 60px}
+.help-back{display:inline-block;padding:7px 14px;background:#fff;border:1px solid #cdd6d4;border-radius:8px;font-weight:700;color:#0b5c55;text-decoration:none;margin-bottom:12px;font-size:13px}
+.help-back:hover{background:#eef7f3}
+h1{font-size:22px;border-bottom:3px solid #0b5c55;padding-bottom:6px;margin:16px 0 14px;color:#0b5c55}
+h2{font-size:17px;color:#0b5c55;background:#eef7f3;padding:7px 10px;border-left:5px solid #0b5c55;border-radius:0 6px 6px 0;margin:24px 0 10px}
+h3{font-size:15px;color:#0b5c55;margin:18px 0 6px}
+p{margin:8px 0}
+table{border-collapse:collapse;width:100%;font-size:13px;margin:10px 0;background:#fff;border-radius:6px;overflow:hidden}
+th,td{border:1px solid #e6ebe9;padding:7px 9px;text-align:left;vertical-align:top}
+th{background:#f4f7f6;color:#557;font-weight:700}
+code{background:#f4f7f6;padding:2px 6px;border-radius:4px;font-size:90%;color:#0b5c55}
+pre{background:#1f2937;color:#e6f4f0;padding:10px 12px;border-radius:8px;overflow-x:auto;font-size:12px}
+blockquote{border-left:4px solid #fbbf24;background:#fef3c7;padding:8px 12px;margin:10px 0;border-radius:0 6px 6px 0;color:#92400e}
+hr{border:none;border-top:1px solid #e6ebe9;margin:18px 0}
+a{color:#0b5c55;word-break:break-word}
+ul,ol{padding-left:22px;margin:6px 0}
+li{margin:3px 0}
+strong,b{color:#0b5c55}
+input[type=checkbox]{margin-right:6px;transform:scale(1.1)}
+li.task-list-item{list-style:none;margin-left:-18px}
+@media (max-width:480px){
+  .wrap{padding:10px 12px 50px}
+  body{font-size:14px}
+  h1{font-size:19px;margin:12px 0 10px}
+  h2{font-size:15px;padding:6px 8px}
+  h3{font-size:14px}
+  table{font-size:12px}
+  th,td{padding:5px 6px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<a class="help-back" href="./admin-new.html">← 管理画面に戻る</a>
+<div class="content">
+<h1>スタッフ用 運用マニュアル</h1>
+<blockquote>
+<p>このマニュアルは <strong>「上から順にやれば操作できる台本」</strong> です。
+研修なしで読みながら作業できるように作っています。</p>
+<p>困った時は「困った時の分岐表」を見てください。
+それでも分からなければ管理者（オーナー）に連絡してください。</p>
+</blockquote>
+<p><strong>管理画面URL</strong>：<a href="https://ikuno-isc.github.io/clinic-booking/admin-new.html">https://ikuno-isc.github.io/clinic-booking/admin-new.html</a></p>
+<hr>
+<h2>📋 1ページ早見表</h2>
+<h3>今日の流れ</h3>
+<table>
+<thead>
+<tr>
+<th>時間</th>
+<th>やること</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>朝イチ</td>
+<td>ホーム画面で <strong>今日の予約件数</strong> と <strong>要対応</strong> の数字を確認</td>
+</tr>
+<tr>
+<td>予約の前</td>
+<td>問診が「⏳未記入」のお客様に <strong>問診リマインド</strong> を送る</td>
+</tr>
+<tr>
+<td>来店時</td>
+<td>来店したら必ず <strong>「✅ 来店済み」</strong> を押す</td>
+</tr>
+<tr>
+<td>LINE相談があったら</td>
+<td>内容を確認して返信 → 終わったら <strong>「対応済み」</strong> に切り替える</td>
+</tr>
+<tr>
+<td>閉店前</td>
+<td>来店ボタン押し忘れ・無断キャンセルがないか確認</td>
+</tr>
+</tbody>
+</table>
+<h3>困った時の分岐（詳しくは末尾の分岐表）</h3>
+<table>
+<thead>
+<tr>
+<th>困った</th>
+<th>まず見る場所</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>予約が見当たらない</td>
+<td>期間タブが「今日」になってないか</td>
+</tr>
+<tr>
+<td>問診リマインドが送れない</td>
+<td>電話予約のお客様は送れません</td>
+</tr>
+<tr>
+<td>要対応の数字が減らない</td>
+<td>カルテで「対応済み」に変えたか</td>
+</tr>
+<tr>
+<td>ボタンが灰色</td>
+<td>ページを再読み込み</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>🗓 毎日やること</h2>
+<h3>毎朝（開店前）</h3>
+<ol>
+<li>管理画面を開く</li>
+<li><strong>ホーム画面</strong> を表示</li>
+<li>「今日の予約件数」「要対応」「次の予約」を見る</li>
+<li>要対応が <strong>0以上</strong> だったら、顧客カルテタブで内容を確認する</li>
+</ol>
+<h3>毎晩（閉店前）</h3>
+<ol>
+<li><strong>予約管理タブ</strong> で「今日」を選ぶ</li>
+<li>「✅ 来店済み」を押し忘れている予約がないかチェック</li>
+<li>無断キャンセルがあれば「⚠️ 無断」で記録</li>
+<li>「要対応」が残っていれば、対応してから「対応済み」に変更</li>
+</ol>
+<hr>
+<h2>🏠 ホーム画面で見る場所</h2>
+<p>ホームには3つのカードが並びます。</p>
+<h3>① 📋 今日やること</h3>
+<ul>
+<li><strong>左の数字</strong>：今日の予約の合計件数</li>
+<li><strong>真ん中（赤）</strong>：要対応のお客様の人数。<strong>0より大きければ優先</strong></li>
+<li><strong>「次の予約：○○ 様」</strong>：これから来るお客様の時刻と名前</li>
+</ul>
+<h3>② ⚡ よく使う入口</h3>
+<ul>
+<li><strong>「📋 予約管理」</strong>：今日の予約一覧へ</li>
+<li><strong>「🗂 顧客カルテ」</strong>：お客様の情報・履歴を見る</li>
+<li><strong>「🌐 予約ページを開く」</strong>：お客様が見ている予約画面を別タブで確認</li>
+</ul>
+<h3>③ 📈 売上ハイライト（任意）</h3>
+<h2>- 今月の予約数・来店数の小さな数字が出ます。閉店前のチェックに使えます。</h2>
+<h2>📅 今日の予約を見る</h2>
+<h3>開き方</h3>
+<ul>
+<li>ホームの <strong>「📋 予約管理」</strong> ボタン、または上の <strong>「予約・顧客」</strong> タブ</li>
+</ul>
+<h3>期間タブ</h3>
+<ul>
+<li><strong>📅 今日</strong> … 今日の予約だけ</li>
+<li><strong>今週</strong> … 今週分</li>
+<li><strong>今後すべて</strong> … 未来の予約全部</li>
+</ul>
+<blockquote>
+<p>普段は <strong>「今日」</strong> タブで作業します。
+「あの予約どこ？」となったら <strong>「今後すべて」</strong> に切り替え。</p>
+</blockquote>
+<h3>予約カードの見方</h3>
+<table>
+<thead>
+<tr>
+<th>場所</th>
+<th>意味</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>左上の時刻</td>
+<td>予約の開始〜終了時間</td>
+</tr>
+<tr>
+<td>右上のバッジ</td>
+<td>🆕新規 / 🔁○回目（リピート回数）</td>
+</tr>
+<tr>
+<td>「📋問診済み」「⏳問診 未記入」</td>
+<td>問診の状況</td>
+</tr>
+<tr>
+<td>「✅来店済み」「⚠️無断キャンセル」</td>
+<td>来店結果</td>
+</tr>
+</tbody>
+</table>
+<h3>絞り込み</h3>
+<ul>
+<li><strong>アーティスト</strong>：担当者ごとに絞り込み</li>
+<li><strong>問診ステータス</strong>：「問診：未記入」を選ぶと <strong>問診リマインドを送るべき人だけ</strong> が出る</li>
+</ul>
+<hr>
+<h2>⚠️ 要対応のお客様に返信する</h2>
+<h3>「要対応」とは</h3>
+<p>お客様がLINEで「担当者に聞きたい」「不安なんです」と送ってきたとき、AIが自動で「スタッフが確認します」と答えて、このリストに名前が上がります。</p>
+<p><strong>このとき AI の自動返信は止まっています。</strong> スタッフが直接 LINE で返信するか、電話で対応してください。</p>
+<h3>一覧の開き方</h3>
+<ul>
+<li>ホームの <strong>「要対応を見る」</strong> ボタン、または <strong>顧客カルテ</strong> タブ → 「要対応」フィルターをタップ</li>
+</ul>
+<h3>お客様カルテ内の確認</h3>
+<ul>
+<li>カルテの上のほうに <strong>「⚠️ 有人対応中：○○（理由）」</strong> が出ます</li>
+<li>来店回数、最終来店日、累計利用額もここで見られます</li>
+<li>過去のメモ・対応履歴も時系列で表示されます</li>
+</ul>
+<h3>LINEへの返信</h3>
+<h2>LINE公式アカウントから普通にスタッフが返信してください（この管理画面からLINE送信はしません）。</h2>
+<h2>✅ 対応完了にする（押すと AI 返信が再開）</h2>
+<blockquote>
+<p>⚠️ <strong>このボタンが一番大切です。</strong>
+対応が終わったら <strong>必ずその日のうちに「対応済み」</strong> にしてください。
+押さないと、AIがそのお客様にずっと返信しない状態が続きます。</p>
+</blockquote>
+<h3>手順</h3>
+<ol>
+<li><strong>顧客カルテ</strong> タブで対象のお客様をタップ</li>
+<li>画面の下のほうにスクロール</li>
+<li><strong>「✏️ メモ・区分・有人対応の更新」</strong> パネルを探す</li>
+<li><strong>「有人対応」</strong> のドロップダウンを <strong>「対応済み」</strong> に変える</li>
+<li>「有人対応の理由」欄に一言メモを残す（例：電話で説明済み、来店時に確認）</li>
+<li><strong>「この内容で更新する」</strong> を押す</li>
+</ol>
+<h3>押したあとに何が起きるか</h3>
+<ul>
+<li>カルテの「要対応」バッジが消える</li>
+<li><strong>AI がそのお客様に自動返信できる状態に戻る</strong> ✅</li>
+<li>ホームの「要対応」カウントが −1 される</li>
+</ul>
+<h3>注意</h3>
+<ul>
+<li>「対応中（要フォロー）」のまま残すと <strong>ずっと AI が止まったまま</strong> です</li>
+<li>必ずその日のうちに「対応済み」へ</li>
+</ul>
+<hr>
+<h2>🗂 お客様カルテを見る</h2>
+<h3>入り方</h3>
+<ul>
+<li><strong>顧客カルテ</strong> タブ → 検索ボックスにお名前 or LINE名 → 名前をタップ</li>
+</ul>
+<h3>画面に出る内容</h3>
+<ul>
+<li>上：お名前・来店回数・累計利用額・最終来店日</li>
+<li><strong>📝 同意書（電子署名）</strong>：署名済みなら日付＋写真使用可否</li>
+<li><strong>📋 事前問診票</strong>：アレルギーなど問診内容</li>
+<li><strong>背景メモ</strong>：スタッフが残した対応メモの累積</li>
+<li><strong>来店・対応履歴</strong>：時系列のタイムライン</li>
+</ul>
+<h3>メモを追記する</h3>
+<ol>
+<li>下部 <strong>「背景メモに追記」</strong> に一言書く</li>
+<li>「この内容で更新する」 を押す</li>
+<li>自動で日付が付いて、既存メモは消えずに追加される</li>
+</ol>
+<hr>
+<h2>📨 問診を送る</h2>
+<h3>いつ送る？</h3>
+<p>予約カードに <strong>「⏳問診 未記入」</strong> が出ているお客様で、<strong>来店までまだ時間がある</strong> とき。</p>
+<h3>手順</h3>
+<ol>
+<li>予約カード内の <strong>「📨 問診リマインド」</strong> ボタンを押す</li>
+<li>「このお客様に問診リマインドをLINEで送信しますか？」が出る</li>
+<li><strong>「OK」</strong> を押す</li>
+<li>お客様のLINEに問診フォームのリンクが届く</li>
+</ol>
+<h3>送れない時</h3>
+<h2>- <strong>「LINEと連携していないため送れませんでした」</strong> → 電話予約のお客様は送れません。来店時に紙の問診を渡してください。</h2>
+<h2>📝 同意書を送る</h2>
+<h3>いつ送る？</h3>
+<p><strong>初来店</strong> のお客様で、来店の <strong>数日前</strong> に送るとスムーズ（署名はスマホで完結）。</p>
+<h3>手順</h3>
+<ol>
+<li>予約カード内の <strong>「📝 同意書を送る」</strong> ボタンを押す</li>
+<li>「施術同意書の記入リンクをLINEで送信しますか？」が出る</li>
+<li><strong>「OK」</strong> を押す</li>
+<li>お客様のLINEに電子同意書リンクが届く</li>
+<li>お客様が署名すると、カルテに <strong>「✅ 署名済み」</strong> が表示される</li>
+</ol>
+<h3>送れない時</h3>
+<h2>- 電話予約のお客様はLINE連携がないため送れません。<strong>紙の同意書</strong> を来店時に使ってください。</h2>
+<h2>✅ 来店を記録する</h2>
+<h3>来店済み</h3>
+<ol>
+<li>予約カード内の <strong>「✅ 来店済み」</strong> ボタンを押す</li>
+<li>確認画面で <strong>「OK」</strong></li>
+<li>カードに「✅来店済み」バッジ</li>
+<li>カルテの <strong>来店回数・累計利用額が自動で更新</strong> される</li>
+</ol>
+<h3>無断キャンセル</h3>
+<ol>
+<li><strong>「⚠️ 無断」</strong> ボタンを押す</li>
+<li>「OK」</li>
+<li>カードに「⚠️無断キャンセル」バッジ</li>
+</ol>
+<h3>料金について</h3>
+<p>来店済みを押すと <strong>メニューの料金が累計に加算</strong> されます。
+特別な金額調整が必要な場合は、オーナー・管理者に伝えてください。</p>
+<hr>
+<h2>🔄 予約変更・キャンセル対応</h2>
+<h3>「日時を変えたい」と連絡がきた</h3>
+<ol>
+<li>お客様から希望の新しい日時を聞く</li>
+<li>現在の予約カードの <strong>「❌ キャンセル」</strong> → 「OK」</li>
+<li><strong>改めて新しい日時で予約を作る</strong>：
+   - <strong>「📞 ＋ 電話予約を登録する」</strong> ボタン
+   - お客様名・電話番号・担当・メニュー・日時を入力 → 「登録する」</li>
+</ol>
+<h3>「キャンセルしたい」と連絡がきた</h3>
+<ol>
+<li>予約カードの <strong>「❌ キャンセル」</strong> ボタン</li>
+<li>確認画面：「この予約をキャンセルしますか？カレンダーの枠も解放します。（お客様への自動連絡はしません）」</li>
+<li><strong>「OK」</strong></li>
+<li><strong>お客様への自動連絡はシステムから送られない</strong> ので、LINEか電話で一言伝えてください</li>
+</ol>
+<h3>電話で予約を受けた</h3>
+<ol>
+<li><strong>「📞 ＋ 電話予約を登録する」</strong> ボタンを押す</li>
+<li>お客様名・フリガナ・電話番号を入力</li>
+<li><strong>担当アーティスト</strong> を選ぶ（先に選ばないとメニューが出ません）</li>
+<li>メニュー・新規/リタッチ・日時を選ぶ</li>
+<li><strong>「登録する」</strong></li>
+</ol>
+<hr>
+<h2>🆘 困った時の分岐表</h2>
+<table>
+<thead>
+<tr>
+<th>状況</th>
+<th>まず確認する</th>
+<th>対処</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>今日の予約が見つからない</td>
+<td>期間タブが「今日」か</td>
+<td>「今後すべて」に切替</td>
+</tr>
+<tr>
+<td>問診リマインドが送れない</td>
+<td>アラートの文言</td>
+<td>電話予約のお客様は送れない。紙で対応</td>
+</tr>
+<tr>
+<td>同意書が送れない</td>
+<td>アラートの文言</td>
+<td>電話予約のお客様は送れない。紙で対応</td>
+</tr>
+<tr>
+<td>「権限がありません」</td>
+<td>自分の権限</td>
+<td>管理者（オーナー）に連絡</td>
+</tr>
+<tr>
+<td>画面が真っ白／ボタンが灰色</td>
+<td>ログイン状態</td>
+<td>ページを再読み込み（⌘+R）。それでも×ならオーナー連絡</td>
+</tr>
+<tr>
+<td>要対応の数が減らない</td>
+<td>カルテの「有人対応」が「対応済み」になったか</td>
+<td>カルテで再度「対応済み」→「この内容で更新する」</td>
+</tr>
+<tr>
+<td>お客様名が検索で出ない</td>
+<td>検索ワード（LINE名／お名前）</td>
+<td>別の名前で試す。電話予約はLINE名が無い場合あり</td>
+</tr>
+<tr>
+<td>来店ボタンを間違えて押した</td>
+<td>取り消し方法</td>
+<td>オーナー・管理者に依頼（スタッフでは取り消せない）</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>✅ 毎日チェック欄</h2>
+<p>印刷して使う場合は日付を書いてチェックしてください。</p>
+<table>
+<thead>
+<tr>
+<th>✓</th>
+<th>作業</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>☐</td>
+<td>ホーム画面で今日の予約件数を確認した</td>
+</tr>
+<tr>
+<td>☐</td>
+<td>「要対応」がゼロ、または全員に連絡した</td>
+</tr>
+<tr>
+<td>☐</td>
+<td>問診未記入のお客様にリマインドを送った</td>
+</tr>
+<tr>
+<td>☐</td>
+<td>来店済みボタンを全予約に押した</td>
+</tr>
+<tr>
+<td>☐</td>
+<td>無断キャンセルを記録した</td>
+</tr>
+<tr>
+<td>☐</td>
+<td>対応が終わったお客様を「対応済み」に更新した</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>🚫 絶対にやってはいけないこと</h2>
+<h3>スタッフ画面に最初から「触れる導線がない」もの</h3>
+<blockquote>
+<p>安心してください。スタッフ権限では <strong>そもそも画面に出ません</strong>。</p>
+</blockquote>
+<ul>
+<li><strong>LINE接続（鍵の登録）</strong> … 設定タブの「LINE接続」パネルは表示されません</li>
+<li><strong>スタッフの追加・削除・パスワード発行</strong> … 「ユーザー管理」タブは管理者のみ</li>
+<li><strong>メニュー・料金の変更</strong> … 「設定を変更」ボタンが灰色で押せません</li>
+<li><strong>アーティストの情報・担当メニューの変更</strong> … 同上</li>
+<li><strong>初期設定の本番開始ボタン</strong> … 表示されません</li>
+</ul>
+<h3>スタッフが気をつけること（誤操作防止）</h3>
+<table>
+<thead>
+<tr>
+<th>⚠️</th>
+<th>注意</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>❌ キャンセル ボタン</td>
+<td>「OK」を押したら取り消せない。日時と名前を声に出して確認してから押す</td>
+</tr>
+<tr>
+<td>⚠️ 無断 ボタン</td>
+<td>同様に取り消し不可。本当に無断か確認してから押す</td>
+</tr>
+<tr>
+<td>「この内容で更新する」</td>
+<td>有人対応が「対応不要」になっていないか確認（誤ってAI返信を再開しないように）</td>
+</tr>
+<tr>
+<td>キャンセル後</td>
+<td>お客様へ自動連絡されない。<strong>LINE or 電話で必ず一言</strong> 伝える</td>
+</tr>
+<tr>
+<td>---</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>困った時の最後の連絡先：オーナー（システム管理者）まで。画面のスクショを撮って一緒に送ると早く解決します。</p>
+</blockquote></div>
+</div>
+</body>
+</html>
