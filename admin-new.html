@@ -352,6 +352,12 @@
 .set-shmod-row input[type=time]{padding:6px;border:1px solid #cdd6d4;border-radius:7px;font-size:13px;width:90px}
 .set-shmod-row input[type=checkbox]{width:auto}
 .set-shmod-actions{display:flex;gap:6px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+/* マニュアルリンク（ヘルプバー）＝各タブ先頭に小さく載せる。スマホで崩れないようflex-wrap */
+.help-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:#f4f7f6;border:1px solid #e6ebe9;border-radius:8px;padding:8px 10px;margin:6px auto 10px;max-width:760px;font-size:12px;color:#1f2937}
+.help-bar .help-label{font-weight:700;color:#557}
+.help-bar a{display:inline-block;padding:4px 8px;border-radius:6px;background:#fff;border:1px solid #cdd6d4;color:#0b5c55;text-decoration:none;font-weight:700}
+.help-bar a:hover{background:#eef7f3}
+.help-hint{background:#fef3c7;border:1px solid #fbbf24;color:#92400e;padding:6px 10px;border-radius:6px;font-size:12px;margin:6px 0}
 
 /* ===== setup タブ CSS ===== */
 #setupView{max-width:760px;margin:0 auto;padding:12px}
@@ -608,6 +614,13 @@
      poc/admin.html の <div class="wrap"> 内、表示したい位置に挿入する。
      ============================================================================ -->
 <div id="resvView" style="display:none">
+  <!-- マニュアル誘導：スタッフ用の操作手順を別タブで開く -->
+  <div class="help-bar">
+    <span class="help-label">📖 操作方法</span>
+    <a href="https://ikuno-isc.github.io/clinic-booking/staff-operation-pack.html" target="_blank" rel="noopener">予約の見方・操作</a>
+    <a href="https://ikuno-isc.github.io/clinic-booking/staff-operation-pack.html" target="_blank" rel="noopener">変更・キャンセル</a>
+  </div>
+  <div class="help-hint">💡 電話予約のお客様は <b>問診リマインド・同意書送信</b> はできません（LINE未連携のため）。来店時に紙でご対応ください。</div>
   <!-- 店舗切替（任意）。全店=owner/admin のみ。staff は自店に固定されるので隠してもよい -->
   <div class="resv-storebar" id="resvStoreBar" style="display:none">
     <label>店舗</label>
@@ -677,6 +690,11 @@
      ・フッタ：メモ追記/区分変更/有人対応を customers に sbUpdate（自店・authenticated）
      ============================================================================ -->
 <div id="custView" style="display:none">
+  <div class="help-bar">
+    <span class="help-label">📖 操作方法</span>
+    <a href="https://ikuno-isc.github.io/clinic-booking/staff-operation-pack.html" target="_blank" rel="noopener">要対応のお客様に返信する</a>
+    <a href="https://ikuno-isc.github.io/clinic-booking/staff-operation-pack.html" target="_blank" rel="noopener">対応完了 → AI再開</a>
+  </div>
   <!-- 一覧（左/上） -->
   <div class="crm-listwrap">
     <div class="crm-listhead">
@@ -756,6 +774,12 @@
 
   <!-- ===== settings ===== -->
 <div id="setView" style="display:none">
+  <div class="help-bar">
+    <span class="help-label">📖 操作方法</span>
+    <a href="https://ikuno-isc.github.io/clinic-booking/admin-operation-pack.html" target="_blank" rel="noopener">メニュー / アーティスト</a>
+    <a href="https://ikuno-isc.github.io/clinic-booking/admin-operation-pack.html" target="_blank" rel="noopener">シフト</a>
+    <a href="https://ikuno-isc.github.io/clinic-booking/admin-operation-pack.html" target="_blank" rel="noopener">症例写真の承認</a>
+  </div>
   <!-- 旧・内部チップ(.set-tabs)は撤去。お店の設定の各カードは上部の小タブ(#subnav)が直接呼ぶ(STEP1)。
        「メニューとアーティスト」だけ第2段チップ(#setSubTabs)で 💉メニュー/👩‍⚕️アーティスト/🗓シフト を切替。 -->
   <div class="set-tabs" id="setSubTabs" style="display:none">
@@ -823,6 +847,11 @@
 
   <!-- ===== setup ===== -->
 <div id="setupView" style="display:none">
+  <div class="help-bar">
+    <span class="help-label">📖 操作方法</span>
+    <a href="https://ikuno-isc.github.io/clinic-booking/admin-operation-pack.html" target="_blank" rel="noopener">初期設定の進め方</a>
+    <a href="https://ikuno-isc.github.io/clinic-booking/go-live-one-page-checklist.html" target="_blank" rel="noopener">📋 本番開始 1枚チェックリスト</a>
+  </div>
   <div class="setup-head">
     <div class="setup-title" id="setupTitle">セットアップ</div>
     <div class="setup-summary">
@@ -3261,6 +3290,7 @@ function crmFooterHtml(uid, curType, curHuman, hasUid, c){
   return '<div class="crm-foot">' +
     '<div class="crm-edit">' +
       '<h3>✏️ メモ・区分・有人対応の更新</h3>' +
+      '<div class="help-hint">💡 <b>有人対応を「対応済み」に変えて保存すると、AIの自動返信が再開します。</b>対応が終わったら必ずその日のうちに切り替えてください。</div>' +
       '<label class="crm-el">背景メモに追記</label>' +
       '<textarea id="crmMemoAdd" rows="2" placeholder="このお客様への申し送り・対応メモを追記…"></textarea>' +
       '<div class="crm-row2">' +
