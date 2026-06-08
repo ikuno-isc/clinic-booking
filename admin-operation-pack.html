@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>管理者用 運用マニュアル | アートメイクLINEシステム</title>
+<meta name="robots" content="noindex,nofollow">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue","Hiragino Sans","ヒラギノ角ゴ ProN W3","Yu Gothic UI",sans-serif;color:#1f2937;line-height:1.75;background:#fafafa}
+.wrap{max-width:760px;margin:0 auto;padding:14px 16px 60px}
+.help-back{display:inline-block;padding:7px 14px;background:#fff;border:1px solid #cdd6d4;border-radius:8px;font-weight:700;color:#0b5c55;text-decoration:none;margin-bottom:12px;font-size:13px}
+.help-back:hover{background:#eef7f3}
+h1{font-size:22px;border-bottom:3px solid #0b5c55;padding-bottom:6px;margin:16px 0 14px;color:#0b5c55}
+h2{font-size:17px;color:#0b5c55;background:#eef7f3;padding:7px 10px;border-left:5px solid #0b5c55;border-radius:0 6px 6px 0;margin:24px 0 10px}
+h3{font-size:15px;color:#0b5c55;margin:18px 0 6px}
+p{margin:8px 0}
+table{border-collapse:collapse;width:100%;font-size:13px;margin:10px 0;background:#fff;border-radius:6px;overflow:hidden}
+th,td{border:1px solid #e6ebe9;padding:7px 9px;text-align:left;vertical-align:top}
+th{background:#f4f7f6;color:#557;font-weight:700}
+code{background:#f4f7f6;padding:2px 6px;border-radius:4px;font-size:90%;color:#0b5c55}
+pre{background:#1f2937;color:#e6f4f0;padding:10px 12px;border-radius:8px;overflow-x:auto;font-size:12px}
+blockquote{border-left:4px solid #fbbf24;background:#fef3c7;padding:8px 12px;margin:10px 0;border-radius:0 6px 6px 0;color:#92400e}
+hr{border:none;border-top:1px solid #e6ebe9;margin:18px 0}
+a{color:#0b5c55;word-break:break-word}
+ul,ol{padding-left:22px;margin:6px 0}
+li{margin:3px 0}
+strong,b{color:#0b5c55}
+input[type=checkbox]{margin-right:6px;transform:scale(1.1)}
+li.task-list-item{list-style:none;margin-left:-18px}
+@media (max-width:480px){
+  .wrap{padding:10px 12px 50px}
+  body{font-size:14px}
+  h1{font-size:19px;margin:12px 0 10px}
+  h2{font-size:15px;padding:6px 8px}
+  h3{font-size:14px}
+  table{font-size:12px}
+  th,td{padding:5px 6px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<a class="help-back" href="./admin-new.html">← 管理画面に戻る</a>
+<div class="content">
+<h1>管理者（店長・オーナー）用 運用マニュアル</h1>
+<blockquote>
+<p>対象：<strong>owner / admin</strong> ロールの人（店長・管理者）
+このマニュアルは <strong>「上から順にやれば操作できる台本」</strong> として作っています。</p>
+</blockquote>
+<p><strong>管理画面URL</strong>：<a href="https://ikuno-isc.github.io/clinic-booking/admin-new.html">https://ikuno-isc.github.io/clinic-booking/admin-new.html</a></p>
+<blockquote>
+<p>関連：
+- スタッフの操作は <a href="staff-operation-pack.md">スタッフ用運用マニュアル</a>
+- 本番開始直前は <a href="go-live-one-page-checklist.md">本番開始 1枚チェックリスト</a></p>
+</blockquote>
+<hr>
+<h2>📋 管理者の1ページ早見表</h2>
+<h3>よくやること</h3>
+<table>
+<thead>
+<tr>
+<th>やりたいこと</th>
+<th>飛ぶ場所</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>メニュー追加・料金変更</td>
+<td>お店の設定 → 💉メニュー</td>
+</tr>
+<tr>
+<td>アーティスト追加・担当メニュー</td>
+<td>お店の設定 → 👩‍⚕️アーティスト</td>
+</tr>
+<tr>
+<td>シフト・休み変更</td>
+<td>お店の設定 → 🗓シフト</td>
+</tr>
+<tr>
+<td>症例写真の公開承認</td>
+<td>お店の設定 → 👩‍⚕️アーティスト → 各人の編集</td>
+</tr>
+<tr>
+<td>営業時間・席数・休日</td>
+<td>お店の設定 → 🏪 お店の基本</td>
+</tr>
+<tr>
+<td>AI活用レポート</td>
+<td>📊 分析 → AI活用</td>
+</tr>
+<tr>
+<td>集客（流入分析）</td>
+<td>📣 集客</td>
+</tr>
+<tr>
+<td>スタッフ追加・権限</td>
+<td>お店の設定 → 👥 スタッフ</td>
+</tr>
+<tr>
+<td>初期設定（本番準備）</td>
+<td>お店の設定 → 🧭 初期設定</td>
+</tr>
+<tr>
+<td>本番開始の最終チェック</td>
+<td><a href="go-live-one-page-checklist.md">go-live-one-page-checklist.md</a></td>
+</tr>
+</tbody>
+</table>
+<h3>権限の3段階</h3>
+<table>
+<thead>
+<tr>
+<th>役割</th>
+<th>何ができる</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>オーナー (owner)</strong></td>
+<td>すべて。スタッフ追加・権限変更も可</td>
+</tr>
+<tr>
+<td><strong>管理者 (admin)</strong></td>
+<td>スタッフ追加可・設定変更可。一部最上位操作のみ不可</td>
+</tr>
+<tr>
+<td><strong>スタッフ (staff)</strong></td>
+<td>予約・カルテ閲覧のみ。シフトはスタッフでも編集可</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>💉 メニュー変更</h2>
+<h3>一覧を開く</h3>
+<p><strong>お店の設定</strong> → <strong>メニューとアーティスト</strong> → <strong>💉 メニュー・料金</strong></p>
+<h3>編集する</h3>
+<ol>
+<li>変えたいメニューの <strong>「✏️ 設定を変更」</strong> を押す</li>
+<li>編集できる項目：
+   - メニュー名
+   - 通常料金 / モニター料金
+   - 所要時間（新規 / リタッチ）
+   - 表示順
+   - 有効 / 無効</li>
+<li><strong>「💾 保存」</strong> を押す → 「✅ 保存しました」が出れば完了</li>
+</ol>
+<h3>追加する</h3>
+<ol>
+<li>一覧下部の <strong>「＋ 新規メニューを追加」</strong> を開く</li>
+<li>名前・料金・所要時間を入力</li>
+<li><strong>「＋ 追加」</strong> を押す</li>
+<li>追加後は <strong>アーティスト</strong> タブで担当を割り当てる（やらないと予約ページに出てきません）</li>
+</ol>
+<h3>非表示にする・削除する</h3>
+<ul>
+<li>一時的に外す → 編集して <strong>「有効」のチェックを外す</strong> → 「💾 保存」</li>
+<li>完全に消す → <strong>「🗑 削除」</strong>（予約や担当割り当てで使用中は削除できません）</li>
+</ul>
+<hr>
+<h2>👩‍⚕️ アーティスト変更</h2>
+<h3>一覧を開く</h3>
+<p><strong>お店の設定</strong> → <strong>メニューとアーティスト</strong> → <strong>👩‍⚕️ アーティスト</strong></p>
+<h3>編集する</h3>
+<ol>
+<li>対象アーティストの <strong>「✏️ 設定を変更」</strong></li>
+<li>編集項目：
+   - 表示名（「漢字（ローマ字）」推奨。例：「大下（maho）」）
+   - 自己紹介
+   - 指名料
+   - 公開 / 非公開</li>
+<li><strong>「💾 保存」</strong></li>
+</ol>
+<h3>担当できるメニューと施術時間を設定する</h3>
+<p>編集欄の下のほうの <strong>「担当できるメニューと施術時間」</strong> で：
+1. このアーティストが施術できるメニューにチェック
+2. 新規 / リタッチの所要時間（分）を入力。空欄なら60分
+3. <strong>「💾 担当メニューを保存」</strong></p>
+<blockquote>
+<p>💡 <strong>担当メニューが1件も紐付いていないアーティストは、予約ページに出てきません。</strong></p>
+</blockquote>
+<h3>追加する</h3>
+<ol>
+<li>一覧下部の <strong>「＋ 新規アーティストを追加」</strong></li>
+<li>名前を入力 → 「＋ 追加」</li>
+<li>追加後、写真と担当メニューを設定する（次項）</li>
+</ol>
+<h3>プロフィール写真を変更する</h3>
+<ol>
+<li>編集欄を開く</li>
+<li><strong>「📷 写真を変更」</strong> → 端末の画像選択が開く</li>
+<li>自動で縮小されてアップロードされる</li>
+<li>「✅ 写真を更新しました」 → 予約ページに即反映</li>
+<li>消したいときは <strong>「🗑 写真を消す」</strong></li>
+</ol>
+<h3>停止する（予約ページから外す）</h3>
+<h2>編集欄の <strong>「停止する」</strong> を押す → 予約ページから消える。再開も同じボタン。</h2>
+<h2>🗓 シフト変更（カレンダー化済み）</h2>
+<h3>シフト編集を開く</h3>
+<p><strong>お店の設定</strong> → <strong>メニューとアーティスト</strong> → <strong>🗓 シフト</strong> → 対象アーティストの <strong>「🗓 シフトを編集」</strong></p>
+<h3>① 基本シフト（曜日パターン）</h3>
+<p>画面上部の表で曜日ごとに設定：
+- 列：曜日 / 休 / 区間1 / 区間2
+- <strong>「休」</strong> にチェック → その曜日はまるごと予約不可
+- 区間は <strong>「09:00〜12:00 / 14:00〜18:00」</strong> のように <strong>昼休みを空ける</strong> 使い方ができる
+- 何も入れない曜日 → <strong>受付時間内ずっと予約可</strong>
+- <strong>「💾 基本シフトを保存」</strong></p>
+<h3>② 月カレンダーで特定日の例外を設定する</h3>
+<p>基本シフトの下にカレンダー：
+- <strong>◀ 前月 / 今月 / 翌月 ▶</strong> で月を切り替え
+- セルの色：
+  - 白＝曜日パターン通り
+  - 薄黄（「例外」バッジ）＝例外日が登録済み
+  - 薄赤＝休み
+- <strong>日付セルをタップ</strong> → ポップアップが開く
+- 「休み」にチェック → その日だけ休み
+- または時刻を入力 → その日だけ特別な時間
+- <strong>「💾 この日を保存」</strong></p>
+<h3>③ 曜日パターンに戻す</h3>
+<p>日付ポップアップ内の <strong>「🔁 曜日パターンに戻す」</strong> → その日の例外を消して基本シフトに戻る</p>
+<h3>④ 未保存のまま画面を離れようとした場合</h3>
+<h2><strong>「未保存のシフトがあります。破棄しますか？」</strong> の確認が出る。</h2>
+<h2>🖼 症例写真の追加・公開承認（管理者のみ）</h2>
+<h3>追加する</h3>
+<ol>
+<li><strong>お店の設定</strong> → <strong>アーティスト</strong> → 対象の <strong>「✏️ 設定を変更」</strong></li>
+<li>編集欄下部の <strong>「症例写真」</strong> セクション</li>
+<li><strong>「📷 症例写真を追加」</strong> → 画像を選択（JPEG/PNG/WebP・5MBまで）</li>
+<li>アップロード完了後は <strong>「未承認」</strong> 状態で一覧に出ます</li>
+</ol>
+<h3>承認して公開する</h3>
+<ul>
+<li>未承認写真の <strong>「✅ 公開する」</strong> を押す → 予約ページの症例ギャラリーに即反映</li>
+<li>元に戻すには <strong>「🙈 非公開にする」</strong></li>
+</ul>
+<h3>削除する</h3>
+<p><strong>「🗑 削除」</strong> → ストレージからも削除されます（戻せません）</p>
+<h2>&gt; ⚠️ <strong>「アップロードしただけでは非公開」</strong>。必ず「公開する」を押すまでお客様には見えません。</h2>
+<h2>🏪 店舗情報変更</h2>
+<h3>店舗カードを開く</h3>
+<p><strong>お店の設定</strong> → <strong>🏪 お店の基本</strong></p>
+<h3>編集する</h3>
+<ol>
+<li>店舗カードの <strong>「✏️ 設定を変更」</strong></li>
+<li>編集項目：店舗名（予約ページタイトルにも反映）</li>
+<li><strong>「💾 保存」</strong></li>
+</ol>
+<h3>注意</h3>
+<ul>
+<li>店舗名を変えると <strong>予約ページ・症例写真ページのタイトル</strong> にも反映される</li>
+<li>テナント複製で作った店もここから名前変更可能</li>
+</ul>
+<hr>
+<h2>⏰ 営業時間変更</h2>
+<h3>編集する</h3>
+<p><strong>お店の設定</strong> → <strong>🏪 お店の基本</strong> → 店舗カードの <strong>「✏️ 設定を変更」</strong></p>
+<h3>編集できる項目</h3>
+<ul>
+<li><strong>予約受付の開始時刻</strong>（HH:MM）</li>
+<li><strong>最終受付</strong>（この時刻の枠まで予約可）</li>
+<li><strong>予約の刻み</strong>（5〜120分。例：60分刻み＝毎正時に枠が出る）</li>
+<li><strong>席数</strong>（同時に施術できる人数）</li>
+<li><strong>定休日</strong>（曜日 or 日付）</li>
+</ul>
+<h3>保存後の確認</h3>
+<h2>- <strong>必ず予約ページを開いて空き枠が想定どおりか確認</strong>（「お店の設定 → システム情報」の予約ページリンクからジャンプ）</h2>
+<h2>🤖 AI活用レポートの見方</h2>
+<h3>開く</h3>
+<p>上部タブの <strong>📊 分析</strong> → <strong>🤖 AI活用</strong></p>
+<h3>期間タブ</h3>
+<p>今月 / 先月 / 今年 / 直近6ヶ月 で切り替え。</p>
+<h3>数字の読み方</h3>
+<table>
+<thead>
+<tr>
+<th>数字</th>
+<th>意味</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>AI自動返信</strong></td>
+<td>AIがお客様に自動で返信した件数</td>
+</tr>
+<tr>
+<td><strong>有人対応</strong></td>
+<td>AIが「答えられない」と判断してスタッフに回した件数</td>
+</tr>
+<tr>
+<td><strong>有人対応率</strong></td>
+<td>全チャットのうち有人に回った割合（%）。高い＝スタッフ負担増</td>
+</tr>
+<tr>
+<td><strong>予約につながった</strong></td>
+<td>AIの会話の後に予約が入った件数</td>
+</tr>
+<tr>
+<td><strong>推定削減時間</strong></td>
+<td>AIが処理した分の節約時間（時間単位）</td>
+</tr>
+<tr>
+<td><strong>要対応の未完了</strong></td>
+<td>まだ対応が終わっていない案件数。0より大きいと赤</td>
+</tr>
+</tbody>
+</table>
+<h3>FAQ化候補</h3>
+<p>「AIがよく失敗した質問」のランキングが出ます。
+ここに多く出る内容は、テンプレ追加 or AIへの追加学習の候補。<strong>システム管理者（システム管理者）に共有してください</strong>。</p>
+<hr>
+<h2>🧭 初期設定チェック（新店舗の準備）</h2>
+<h3>開く</h3>
+<p><strong>お店の設定</strong> → <strong>🧭 初期設定</strong></p>
+<h3>9つのステップ</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>内容</th>
+<th>操作場所</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>お店をつくる（テナント登録）</td>
+<td>コンソール（システム管理者）</td>
+</tr>
+<tr>
+<td>2</td>
+<td>お店の基本情報</td>
+<td>🏪 お店の基本</td>
+</tr>
+<tr>
+<td>3</td>
+<td>LINEとつなぐ（鍵2本）</td>
+<td>🔗 LINE接続（システム管理者のみ）</td>
+</tr>
+<tr>
+<td>4</td>
+<td>予約ページのリンク確認</td>
+<td>ℹ️ システム情報</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Googleカレンダー連携</td>
+<td>🔗 LINE接続 内</td>
+</tr>
+<tr>
+<td>6</td>
+<td>スタッフのログイン</td>
+<td>👥 スタッフ</td>
+</tr>
+<tr>
+<td>7</td>
+<td>メニューと担当者</td>
+<td>💉メニュー＋👩‍⚕️アーティスト</td>
+</tr>
+<tr>
+<td>8</td>
+<td>テスト（実際に動かす）</td>
+<td>各機能を実機テスト</td>
+</tr>
+<tr>
+<td>9</td>
+<td>本番スタート</td>
+<td>「本番スタートを有効にする」ボタン</td>
+</tr>
+</tbody>
+</table>
+<h3>「ここを設定する →」リンク</h3>
+<p>未完了のステップを押すと、その設定画面へワンタップで飛びます。</p>
+<h3>「テスト完了にする」ボタン（ステップ8）</h3>
+<p><strong>管理者のみ</strong> に表示。実機でLINE通知・予約・Googleカレンダーが動くことを確認してから押す。</p>
+<h3>「本番スタートを有効にする」ボタン（ステップ9）</h3>
+<p>ステップ 1〜8 が <strong>全部完了</strong> のときだけ押せます。
+押すと、システム側で <strong>再度1〜8を確認</strong> し、未完了があれば「必須項目未完了」エラーで弾かれます。</p>
+<hr>
+<h2>✈️ 本番開始前チェック</h2>
+<p><strong>本番開始の直前は専用の1枚チェックリストを使ってください</strong>：
+👉 <a href="go-live-one-page-checklist.md">go-live-one-page-checklist.md</a></p>
+<p>ざっくり前確認：
+- ☐ テストメニュー・テスト担当・テスト予約は全部削除した
+- ☐ 正式メニュー・料金・所要時間が正しい
+- ☐ アーティストと担当メニューの紐付け全員分OK
+- ☐ シフト（基本＋例外日）が翌月分まで登録済み
+- ☐ 予約ページを実際に開いて選べる
+- ☐ LINE通知が届く
+- ☐ Googleカレンダーに反映される</p>
+<hr>
+<h2>👥 スタッフ追加・権限管理</h2>
+<h3>開く</h3>
+<p><strong>お店の設定</strong> → <strong>👥 スタッフ</strong>（オーナー / 管理者のみ表示）</p>
+<h3>追加する</h3>
+<ol>
+<li><strong>「＋ スタッフを追加（ログイン発行）」</strong> フォームに：
+   - メールアドレス
+   - 表示名
+   - 役割（owner / admin / staff）
+   - 担当店舗
+   - パスワード（<strong>「🎲 自動発行」</strong> ボタンで安全なランダム文字列を作れます）</li>
+<li><strong>「＋ 追加してログインを発行」</strong></li>
+<li>パスワードが <strong>画面に1回だけ</strong> 表示されます。<strong>本人に安全に伝えてください</strong>（LINEや口頭など）</li>
+<li>パスワードはどこにも保存されないため再表示できません</li>
+</ol>
+<h3>権限の種類</h3>
+<table>
+<thead>
+<tr>
+<th>役割</th>
+<th>できること</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>owner（オーナー）</strong></td>
+<td>全操作。最上位</td>
+</tr>
+<tr>
+<td><strong>admin（管理者）</strong></td>
+<td>スタッフ追加・設定変更可</td>
+</tr>
+<tr>
+<td><strong>staff（スタッフ）</strong></td>
+<td>予約・カルテ閲覧。シフト編集はOK</td>
+</tr>
+</tbody>
+</table>
+<h3>役割・店舗・有効/無効を変更する</h3>
+<ul>
+<li>一覧の各行で直接 <strong>「保存」</strong> ボタン</li>
+<li><strong>「無効にする」</strong> ボタン → そのスタッフはログイン不可になります</li>
+</ul>
+<hr>
+<h2>📊 集客分析（申込日 / 施術日 / キャンセル列）</h2>
+<h3>開く</h3>
+<p>上部タブの <strong>📣 集客</strong></p>
+<h3>流入元リンクを発行する</h3>
+<ol>
+<li><strong>「➕ 流入元を追加」</strong> で表示名（例：「遠山Instagram」「久留米チラシ」）を入力</li>
+<li><strong>「＋ 追加してリンク発行」</strong></li>
+<li><code>?ref=タグ</code> 付きの予約リンクが発行される</li>
+<li>このリンクを <strong>SNSプロフィール・チラシ</strong> に貼ると、どこから予約が来たか自動で記録されます</li>
+</ol>
+<h3>流入分析の見方</h3>
+<p>下部の <strong>「📊 流入分析」</strong>：</p>
+<h4>サブタブ：基準の切替</h4>
+<ul>
+<li><strong>📥 申込日ベース</strong>（既定）：その月に <strong>予約が入った</strong> 件数 → 集客の効き目を見る用</li>
+<li><strong>📅 施術日ベース</strong>：その月に <strong>施術された</strong> 件数 → 来店・売上の実績を見る用</li>
+</ul>
+<blockquote>
+<p>💡 SNSキャンペーンを6月にやったら <strong>「申込日ベース」</strong> で6月を見るのが正解。</p>
+</blockquote>
+<h4>期間タブ</h4>
+<p>今月 / 先月 / 今年 / 直近6ヶ月</p>
+<h4>表の列</h4>
+<table>
+<thead>
+<tr>
+<th>列</th>
+<th>意味</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>流入元</td>
+<td>リンクの表示名</td>
+</tr>
+<tr>
+<td>予約</td>
+<td>件数（キャンセル除く）</td>
+</tr>
+<tr>
+<td><strong>キャンセル</strong></td>
+<td>キャンセル件数</td>
+</tr>
+<tr>
+<td>来店</td>
+<td>実際に来店した件数</td>
+</tr>
+<tr>
+<td>売上</td>
+<td>来店した分の合計売上</td>
+</tr>
+</tbody>
+</table>
+<h2>&gt; 💡 <strong>キャンセル率が高い流入元</strong> は集客の質が低い可能性。広告費の見直し目安に。</h2>
+<h2>🆘 トラブル対応</h2>
+<h3>「要対応」のお客様への対応</h3>
+<ol>
+<li><strong>顧客カルテ</strong> → <strong>「要対応」</strong> フィルタ</li>
+<li>お客様を開く</li>
+<li>メモを書く → 有人対応を <strong>「対応済み」</strong> に → 「この内容で更新する」</li>
+<li>AI自動返信が再開</li>
+</ol>
+<h3>予約の二重登録が疑われる</h3>
+<ol>
+<li><strong>予約管理</strong> タブで同じ日時・担当のカードがないか</li>
+<li>重複していたら片方を <strong>「キャンセル」</strong></li>
+<li>お客様にLINEで連絡</li>
+</ol>
+<h3>予約のキャンセル処理</h3>
+<ul>
+<li>予約カードの <strong>「キャンセル」</strong> → Googleカレンダーからも自動削除（gcal-sync）</li>
+<li>LINE通知も自動でお客様に送信されます</li>
+</ul>
+<h3>取得失敗・画面エラー</h3>
+<ul>
+<li>まずページをリロード（⌘+R）</li>
+<li>改善しない → <strong>画面のスクショを撮ってシステム管理者に連絡</strong></li>
+</ul>
+<h3>ログインできない</h3>
+<ul>
+<li>パスワードを忘れた → システム管理者に連絡（パスワードリセット）</li>
+<li>何度も失敗 → システム管理者に連絡</li>
+</ul>
+<hr>
+<h2>🏢 マルチテナント（複数店舗の管理・システム管理者専用）</h2>
+<h3>店の切り替え</h3>
+<ul>
+<li>ログイン後ヘッダーに現在の店名</li>
+<li>複数店舗を管理できる権限（platform_admin）の場合、<strong>店選びコンソール</strong> が最初に出る</li>
+<li>操作したい店を選んでから各機能を使う</li>
+</ul>
+<h3>全体管理者（platform_admin）だけの操作</h3>
+<ul>
+<li><strong>LINE接続（鍵の登録）</strong></li>
+<li><strong>テナント複製・テナント削除</strong></li>
+<li><strong>🧭 初期設定 内の LINE接続パネル</strong></li>
+</ul>
+<hr>
+<h2>✅ 月次最終確認チェック欄</h2>
+<p>（毎月1日に実施推奨。印刷して使うときは日付を書いてチェック）</p>
+<table>
+<thead>
+<tr>
+<th>✓</th>
+<th>確認項目</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>☐</td>
+<td>メニューの料金・所要時間に誤りがない</td>
+</tr>
+<tr>
+<td>☐</td>
+<td>アーティストの担当メニュー紐付けが正しい</td>
+</tr>
+<tr>
+<td>☐</td>
+<td>シフト（基本＋例外日）が翌月分まで登録されている</td>
+</tr>
+<tr>
+<td>☐</td>
+<td>Googleカレンダーに過去の削除漏れがない</td>
+</tr>
+<tr>
+<td>☐</td>
+<td>AI活用レポートで「要対応の未完了」が0件</td>
+</tr>
+<tr>
+<td>☐</td>
+<td>スタッフの在籍変更（退職・入社）が反映されている</td>
+</tr>
+<tr>
+<td>☐</td>
+<td>テストデータ（テストメニュー・テスト予約）が残っていない</td>
+</tr>
+<tr>
+<td>---</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>困った時の最後の連絡先：システム管理者まで。画面のスクショと一緒に送ると早く解決します。</p>
+</blockquote></div>
+</div>
+</body>
+</html>
