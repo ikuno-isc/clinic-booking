@@ -3,6 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- H5 Phase1：CSP（enforcing）。GitHub Pagesは独自HTTPヘッダ不可のためmetaで設定。
+     ★Report-Onlyはmetaでは効かない仕様（Codex指摘で修正）→enforcingで投入。
+     既存のインラインJS/CSS/onclickは 'unsafe-inline' で許容（Phase2でnonce化等）。
+     ・外部script無し / eval無し / Function無し（grep確認済）→ 'unsafe-eval' 不要
+     ・全fetchはSupabaseのみ → connect-srcで縛り、想定外の外部送信を即遮断
+     ・img-srcは https: 全許可（Supabase Storage の署名URL等のドメイン非依存）
+     ・object-src 'none' で Flash等を遮断、base/form-action は 'self' 固定
+     ・frame-ancestors / report-uri は meta では効かない（必要なら前段で別途） -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https://stgarheuldubyrzdqzaq.supabase.co; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>管理ダッシュボード（Supabase版）</title>
 <style>
 
