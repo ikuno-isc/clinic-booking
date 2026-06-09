@@ -375,7 +375,7 @@ var st = {
   slErr:false,      // 空き枠の取得に失敗したか（true=通信エラー。「空き無し」とは区別する）
   slCache:{},       // 空き枠キャッシュ（nurse|menu|date → 配列）。日付タップ時の先読みもここへ保存。
   furigana:'', custName:'', phone:'',
-  coupon:'none', artExp:'', memo:'', agreed:false,
+  coupon:'no', artExp:'', memo:'', agreed:false,
   idemKey:null,     // ★#94 冪等キー：この予約内容ひと組に1つ。二度押し・通信リトライで同じキーを使い回し、DB側で2件入るのを防ぐ。
 };
 // ★#94 冪等キー：未生成なら crypto.randomUUID() で1つ作って保持し、以後の再送（二度押し/リトライ）で同じキーを使い回す。
@@ -744,16 +744,15 @@ function pickT(t){ st.time=t; s4(); }
 function s5(){
   var h='<div class="s-title">お客様情報を入力してください</div>';
   h+='<div class="field"><label class="fl">フリガナ<span class="req">*</span></label>';
-  h+='<input type="text" id="fk" value="'+esc(st.furigana)+'" placeholder="イクノ　ジンギ" autocomplete="off" oninput="st.furigana=this.value;v5()"></div>';
+  h+='<input type="text" id="fk" value="'+esc(st.furigana)+'" placeholder="ヤマダ　ハナコ" autocomplete="off" oninput="st.furigana=this.value;v5()"></div>';
   h+='<div class="field"><label class="fl">お名前<span class="req">*</span></label>';
-  h+='<input type="text" id="fn" value="'+esc(st.custName)+'" placeholder="生野　仁義" autocomplete="off" oninput="st.custName=this.value;v5()"></div>';
+  h+='<input type="text" id="fn" value="'+esc(st.custName)+'" placeholder="山田　花子" autocomplete="off" oninput="st.custName=this.value;v5()"></div>';
   h+='<div class="field"><label class="fl">電話番号<span class="req">*</span></label>';
   h+='<input type="tel" id="fp" value="'+esc(st.phone)+'" placeholder="09012345678" autocomplete="off" oninput="st.phone=this.value;v5()">';
   h+='<div class="ferr" id="f-perr">正しい電話番号を入力してください（例：09012345678）</div></div>';
-  h+='<div class="field"><label class="fl">クーポン使用の有無<span class="req">*</span></label><div class="radios-v">';
-  h+='<label><input type="radio" name="cp" value="2set"'+(st.coupon==='2set'?' checked':'')+' onchange="st.coupon=this.value;v5()"><span>2回セット</span></label>';
-  h+='<label><input type="radio" name="cp" value="50off"'+(st.coupon==='50off'?' checked':'')+' onchange="st.coupon=this.value;v5()"><span>50%OFFクーポン</span></label>';
-  h+='<label><input type="radio" name="cp" value="none"'+(st.coupon==='none'?' checked':'')+' onchange="st.coupon=this.value;v5()"><span>なし</span></label>';
+  h+='<div class="field"><label class="fl">クーポン使用の有無<span class="req">*</span></label><div class="radios">';
+  h+='<label><input type="radio" name="cp" value="yes"'+(st.coupon==='yes'?' checked':'')+' onchange="st.coupon=this.value;v5()"><span>有</span></label>';
+  h+='<label><input type="radio" name="cp" value="no"'+((st.coupon==='no'||st.coupon==='none')?' checked':'')+' onchange="st.coupon=this.value;v5()"><span>無</span></label>';
   h+='</div></div>';
   h+='<div class="field"><label class="fl">アートメイクの施術経験<span class="req">*</span></label><div class="radios">';
   h+='<label><input type="radio" name="ae" value="yes"'+(st.artExp==='yes'?' checked':'')+' onchange="st.artExp=this.value;v5()"><span>有</span></label>';
@@ -774,7 +773,7 @@ function v5(){
 }
 
 // ===== STEP 6: 確認・同意・送信 =====
-var CL={'2set':'2回セット','50off':'50%OFFクーポン','none':'なし'};
+var CL={'yes':'有','no':'無','2set':'2回セット','50off':'50%OFFクーポン','none':'無'};
 function s6(){
   var pts=st.date.split('-'), dd=new Date(+pts[0],+pts[1]-1,+pts[2]);
   var dtl=+pts[1]+'月'+parseInt(pts[2])+'日（'+DOW[dd.getDay()]+'）　'+st.time;
@@ -810,7 +809,7 @@ function doSub(){
   // 予約確定は create_public_reservation RPC に集約（店舗・担当・メニューの正当性／席数／重複をDB側で検証）。
   var startISO=st.date+'T'+st.time+':00+09:00';
   var treatmentType=(st.menuName&&st.menuName.indexOf('再来')>=0)?'retouch':'new';
-  var reservationType=(st.coupon==='none')?'normal':'monitor';
+  var reservationType=(st.coupon==='no'||st.coupon==='none')?'normal':'monitor';
   // メモにクーポン種別・施術経験も残す（GAS版の補足情報を引き継ぐ）。
   var memo=buildMemo();
   sbRpc('create_public_reservation',{
