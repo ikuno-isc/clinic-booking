@@ -2261,9 +2261,15 @@ function sbRpc(fn, body){
 /* stores（code→id）を1回ロードしてキャッシュ。store セレクタの店舗名も補完 */
 function ensureStoreMap(){
   if (STORE_MAP) return Promise.resolve(STORE_MAP);
-  return sbGet('stores?select=id,name,code&order=name').then(function(rows){
+  // ★public_slug も同時取得（patch-47.2）。集客リンク生成(acqTenantSlug)は code ではなく
+  //   public_slug を使う必要がある（予約ページ index.html の resolveStoreConfig が
+  //   public_store_resolve RPC で public_slug を引いて店を解決する設計）。
+  //   code は (tenant_id,code) でしか一意でないため、テナント横断の公開リンクには使えない。
+  return sbGet('stores?select=id,name,code,public_slug&order=name').then(function(rows){
     STORE_MAP = {};
-    (rows||[]).forEach(function(s){ if(s.code) STORE_MAP[s.code] = { id:s.id, name:s.name }; });
+    (rows||[]).forEach(function(s){
+      if(s.code) STORE_MAP[s.code] = { id:s.id, name:s.name, public_slug:s.public_slug||null };
+    });
     // ★店舗セレクタを「選択中テナントの店」で作り直す（多テナント対応）。
     //   固定の久留米/博多ではなく、実データの店だけを並べる。先頭は常に「全店まとめ」。
     var sel = document.getElementById('resvStore');
@@ -5682,15 +5688,21 @@ function acqRandToken(n){
 /* 1つの ref_sources 行から「現在のテナントの予約ページ」へのリンクを組み立てる。
    ?store=<slug>&ref=<tag>。store を明示しないと予約ページが既定（久留米）にフォールバックし、
    小倉テナントで発行したリンクからのお客様が全員久留米として予約される越境バグになる
-   （patch-47で根絶、patch-47.1で STORE_MAP 参照に修正）。
-   ★注意：currentStoreSlug() は「予約・顧客」タブの resvStore セレクタ依存で、
-     集客タブを開いてる時は DOM に無く 'kurume' フォールバックする＝ここでは使えない。
-     代わりに STORE_MAP（選択中テナントの stores キャッシュ）の最初のキーを採用する。
-     1テナント1店舗運用なので一意。複数店ある owner/admin は STORE_MAP[0] を代表値に。 */
+   （patch-47で根絶、patch-47.1で STORE_MAP 参照、patch-47.2で public_slug に統一）。
+   ★patch-47.2：STORE_MAP[code].public_slug を使う。
+     理由：予約ページ index.html の resolveStoreConfig() は public_store_resolve(p_slug) で
+     stores.public_slug を引いて店を解決する設計。code は (tenant_id,code) でしか一意でないため、
+     code と public_slug が異なる店舗が将来できると集客リンクが解決できずエラーになる。
+     現状の久留米・小倉は code=public_slug で一致しており、この修正前後で出力URLは不変。
+   ★フォールバック：public_slug が未設定なら code を使い、それも無ければ resvStore セレクタ。 */
 function acqTenantSlug(){
   if (STORE_MAP){
     var keys = Object.keys(STORE_MAP);
-    if (keys.length) return keys[0];
+    if (keys.length){
+      var entry = STORE_MAP[keys[0]];
+      if (entry && entry.public_slug) return entry.public_slug;  // ★本来の経路
+      return keys[0];  // フォールバック：public_slug 未設定なら code を返す
+    }
   }
   // 二段目フォールバック：resvStore があり 'all' でなければそれ
   if (typeof currentStoreSlug === 'function'){
