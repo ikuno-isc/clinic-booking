@@ -855,7 +855,14 @@
     「施術日」は<b>その月に施術された件数</b>＝来店や売上の実績を見る用。
     「友達追加日」は<b>その月にLINE友達追加された人数</b>＝Instagram等からの集客の効きを見る用（LIFFリンクで来た人だけ流入元が分かります）。
   </div>
+  <!-- ★patch-52：表示モード切替（合計表示／日別表示）。日別では基準別タブを使わず、
+       1行＝1日に「友達追加・申込・来店・売上」が同時に並ぶ。 -->
   <div class="acq-tabs">
+    <button type="button" class="acq-tab active" data-am="summary" onclick="setAcqMode('summary')">📊 合計表示</button>
+    <button type="button" class="acq-tab" data-am="daily" onclick="setAcqMode('daily')">📅 日別表示</button>
+  </div>
+  <!-- 合計表示時のみ「ベース別タブ」を出す（日別では非表示） -->
+  <div class="acq-tabs" id="acqBasisTabs">
     <button type="button" class="acq-tab active" data-ab="created" onclick="setAcqBasis('created')">📥 申込日ベース</button>
     <button type="button" class="acq-tab" data-ab="start" onclick="setAcqBasis('start')">📅 施術日ベース</button>
     <button type="button" class="acq-tab" data-ab="friend_added" onclick="setAcqBasis('friend_added')">💚 友達追加日ベース</button>
@@ -5356,8 +5363,10 @@ function setMsg(id, text, ok){
 /* 予約ページのベースURL（?ref=タグ を付けて配布する） */
 var BOOKING_URL = 'https://ikuno-isc.github.io/clinic-booking/new.html';
 var ACQ_PERIOD = 'this_month';
-/* 集計の基準軸：'created'＝申込日（マーケ視点・既定）／'start'＝施術日（実績視点） */
+/* 集計の基準軸：'created'＝申込日（マーケ視点・既定）／'start'＝施術日（実績視点）／'friend_added'＝友達追加日（patch-51） */
 var ACQ_BASIS  = 'created';
+/* ★patch-52：表示モード。'summary'＝既存の合計表示、'daily'＝日別1行ずつ */
+var ACQ_MODE   = 'summary';
 
 /* ===== 表示切替（必須パターン）。hideAllViews → setActiveNav → 表示 → 読込 ===== */
 function showAcq(el){
@@ -5988,17 +5997,101 @@ function setAcqBasis(b){
   loadAcqStats();
 }
 
+/* ★patch-52：表示モード切替（合計／日別） */
+function setAcqMode(m){
+  if (m !== 'summary' && m !== 'daily') return;
+  ACQ_MODE = m;
+  var ts = document.querySelectorAll('#acqView .acq-tab[data-am]');
+  for(var i=0;i<ts.length;i++){ ts[i].classList.toggle('active', ts[i].getAttribute('data-am') === m); }
+  // 日別モードでは「ベース別タブ」を隠す（日別は4軸を同時に出すので基準別は不要）
+  var basisTabs = document.getElementById('acqBasisTabs');
+  if (basisTabs) basisTabs.style.display = (m === 'daily') ? 'none' : '';
+  loadAcqStats();
+}
+
 function loadAcqStats(){
   var box = document.getElementById('acqStats');
   if(!box) return;
   box.innerHTML = '<div class="placeholder">読み込み中…</div>';
   var r = acqRange(ACQ_PERIOD);
+  // ★patch-52：日別モードは ref_stats_daily を叩く（日付配列を返す）
+  if (ACQ_MODE === 'daily'){
+    sbRpc('ref_stats_daily', { p_from: r[0], p_to: r[1], p_tenant: TENANT_ID })
+      .then(function(rows){ renderAcqDaily(Array.isArray(rows) ? rows : [], ACQ_PERIOD); })
+      .catch(function(err){
+        if(acqNeedsLogin()) return;
+        box.innerHTML = '<div class="placeholder">取得に失敗しました<br>'+esc(acqReason(err))+'</div>';
+      });
+    return;
+  }
+  // 既存：合計表示（ベース別）
   sbRpc('ref_stats', { p_from: r[0], p_to: r[1], p_tenant: TENANT_ID, p_basis: ACQ_BASIS })
     .then(function(rows){ renderAcqStats(Array.isArray(rows) ? rows : [], ACQ_PERIOD, ACQ_BASIS); })
     .catch(function(err){
       if(acqNeedsLogin()) return;
       box.innerHTML = '<div class="placeholder">取得に失敗しました<br>'+esc(acqReason(err))+'</div>';
     });
+}
+
+/* ★patch-52：日別表の描画。RPC からの返りは
+   [{ date:'YYYY-MM-DD', friendAdded, reservations, cancelled, visited, sales }, ...]（date降順）
+   1行＝1日。「友達追加・申込・キャンセル・来店・売上」を同時に並べる。
+   行数が多い時は新しい日が上＝スクロールせずに最近の動きが分かる。
+   全部0の日も行として出す（「動きが無かった日」も把握できるように）。 */
+function renderAcqDaily(rows, period){
+  var box = document.getElementById('acqStats');
+  if(!box) return;
+  var label = acqPeriodLabel(period);
+  if(!rows.length){
+    box.innerHTML = '<div class="placeholder">'+esc(label)+'：データがありません。</div>';
+    return;
+  }
+  // 合計（フッター用）
+  var totFriend=0, totResv=0, totCanc=0, totVisited=0, totSales=0;
+  rows.forEach(function(r){
+    totFriend  += (Number(r.friendAdded)  || 0);
+    totResv    += (Number(r.reservations) || 0);
+    totCanc    += (Number(r.cancelled)    || 0);
+    totVisited += (Number(r.visited)      || 0);
+    totSales   += (Number(r.sales)        || 0);
+  });
+
+  // 'YYYY-MM-DD' → '6/10（火）' へ整形（曜日付き・JST固定）
+  function dlbl(ymd){
+    var s = String(ymd || '');
+    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if(!m) return s;
+    var y=+m[1], mo=+m[2], d=+m[3];
+    // 端末TZに依らず曜日を出すため UTC 正午で Date を作って曜日取得（DST無しの日本では問題なし）
+    var w = ['日','月','火','水','木','金','土'][new Date(Date.UTC(y, mo-1, d, 12)).getUTCDay()];
+    return mo + '/' + d + '（' + w + '）';
+  }
+
+  var h = '<div class="acq-hint" style="margin:0 4px 8px">'
+        + esc(label) + '（日別表示）— 1行＝1日'
+        + '</div>';
+  h += '<table class="acq-tbl">'
+     + '<tr><th>日付</th><th>💚追加</th><th>📥申込</th><th>❌キャンセル</th><th>✅来店</th><th>💰売上</th></tr>';
+  h += rows.map(function(r){
+    return '<tr>'
+      + '<td>'+esc(dlbl(r.date))+'</td>'
+      + '<td>'+esc(Number(r.friendAdded)  || 0)+'</td>'
+      + '<td>'+esc(Number(r.reservations) || 0)+'</td>'
+      + '<td>'+esc(Number(r.cancelled)    || 0)+'</td>'
+      + '<td>'+esc(Number(r.visited)      || 0)+'</td>'
+      + '<td>'+esc(acqYen(r.sales))+'</td>'
+      + '</tr>';
+  }).join('');
+  h += '<tr class="tot">'
+     + '<td>合計</td>'
+     + '<td>'+esc(totFriend)+'</td>'
+     + '<td>'+esc(totResv)+'</td>'
+     + '<td>'+esc(totCanc)+'</td>'
+     + '<td>'+esc(totVisited)+'</td>'
+     + '<td>'+esc(acqYen(totSales))+'</td>'
+     + '</tr>';
+  h += '</table>';
+  box.innerHTML = h;
 }
 
 /* 数値を「¥1,234」表記に（null/NaN は ¥0） */
