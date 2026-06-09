@@ -1028,6 +1028,25 @@ function profileDone(){ bootProfDone=true; updHeader(); showWizardIfReady();
   if(MODE==='cancel') loadCancelList();   // ★LINE UID 確定後に「自分の予約一覧」を取得
   if(MODE==='consent') loadConsentForm(); // ★LINE UID 確定後に同意書フォームを描画（氏名・UIDを使う）
   if(MODE==='questionnaire') qLoad();     // ★LINE UID 確定後に事前問診フォームを描画
+  recordRefIfAny();                       // ★patch-51：?ref= 付きLIFFで来た人の流入元を初回1回だけ記録
+}
+
+// ===== patch-51：友達追加ベース流入分析のための「初回 ref 記録」 =====
+//   ?ref=タグ 付きでLIFFが開かれ、LINEログインで line_uid が取れた瞬間に、
+//   record_customer_ref RPC を 1回だけ叩いて customers.ref を初回セットする。
+//   ・予約しなくても流入元が記録される（友達追加ベース集計の土台）。
+//   ・customers.ref が既に入っている人は サーバ側で上書きしない（初回起点で固定）。
+//   ・通信失敗・テナント不在等は黙って無視（fire-and-forget＝ユーザー体験を壊さない）。
+//   ・同一ページ遷移内での二重呼び出しは refRecorded フラグで抑止（無駄通信を1回に抑える）。
+var refRecorded = false;
+function recordRefIfAny(){
+  if(refRecorded) return;
+  if(!REF || !st.uid || !TENANT_ID) return;
+  refRecorded = true;
+  try{
+    sbRpc('record_customer_ref', { p_tenant: TENANT_ID, p_line_uid: st.uid, p_ref: REF })
+      .catch(function(){ /* fire-and-forget */ });
+  }catch(e){ /* noop */ }
 }
 
 // ===== お客様によるキャンセル（公開キャンセルRPC my_reservations / cancel_my_reservation）=====
