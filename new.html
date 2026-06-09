@@ -319,19 +319,18 @@ var STORE = STORE_RAW || 'kurume';              // 店舗slug（既定 kurume）
 var MODE  = getQueryParam('mode')  || 'book';   // 'book'（予約）/ 'cancel'（実装済み）/ 'consent'（準備中）
 var REF   = getQueryParam('ref')   || '';       // 流入元タグ（集客：?ref= で来た予約に記録）
 
-// ★メニュー名に「モニター」が含まれていればモニター扱い（patch-48）。
-//   このシステムはクーポンUIを廃止し、メニュー名で価格区分を一意に決める。
-//   含む例：「【モニター割】眉アートメイク」「モニターコース」など。
-//   含まない例：「【リタッチ】眉アートメイク」「他院修正」など。
-function isMonitorMenu(name){ return !!(name && String(name).indexOf('モニター') >= 0); }
-
 // コース選択はイベント委譲（data-* から取得）。onclick に名前を文字列連結しない＝XSS/壊れ防止。
+// ★メニュー名で価格区分を決める運用(patch-48前期)は撤回（メニュー名管理が煩雑になる）。
+//   patch-48後期：お客様が STEP6 確認画面で「モニターあり／無し」を選ぶ運用に変更。
+//   ・monitor_price < normal_price のメニューだけ「ご予約形態」を選ばせる（同額・未設定は通常扱い）。
+//   ・選択結果は st.monitorChoice ∈ {null,'yes','no'}。未選択（null）では予約ボタンが押せない。
 document.addEventListener('click', function(e){
   var it = (e.target && e.target.closest) ? e.target.closest('.ac-item') : null;
   if(!it) return;
   pickCourse(it.getAttribute('data-nid'), it.getAttribute('data-nm'),
              it.getAttribute('data-mid'), it.getAttribute('data-mn'),
-             parseInt(it.getAttribute('data-pr'),10)||0, parseInt(it.getAttribute('data-du'),10)||0);
+             parseInt(it.getAttribute('data-pr'),10)||0, parseInt(it.getAttribute('data-du'),10)||0,
+             parseInt(it.getAttribute('data-prm'),10)||0);  // ★モニター価格
 });
 
 // 営業時間／刻みのフォールバック（stores が取れない場合のみ使用）
@@ -372,7 +371,8 @@ var st = {
   step:1, uid:'', displayName:'', idToken:'', options:null,
   openArtist:null,
   nurseId:null, nurseName:null,
-  menuId:null,  menuName:null,  menuPrice:null, menuDur:null, menuType:'new',
+  menuId:null,  menuName:null,  menuPrice:null, menuPriceMonitor:null, menuDur:null, menuType:'new',
+  monitorChoice:null,  // ★STEP6で「モニターあり/無し」をお客様が選ぶ。null=未選択（予約ボタンOFF）
   date:null,    time:null,
   calYear:new Date().getFullYear(), calMonth:new Date().getMonth()+1,
   availDates:null,  // null=未取得、Set=取得済み
@@ -464,10 +464,13 @@ function s1(){
     var cm={}; cert.forEach(function(c){cm[String(c.menu_id)]=c;});
     var menus=sortCourses((st.options.menus||[]).filter(function(m){return cm[String(m.menu_id)];}));
     // ヘッダーの「〜」価格は全コース中の最安値。
-    //   ★メニュー名に「モニター」が含まれるコースは monitor_price を採用（patch-48）。
+    //   ★monitor_price < normal_price なら monitor 側を最安候補に入れる（patch-48）。
+    //     お客様視点で「ここから始まる最安値」を見せたいので、設定があれば安い方を使う。
     var minP=null;
     menus.forEach(function(m){
-      var p=parseInt(isMonitorMenu(m.menu_name)?m.monitor_price:m.normal_price,10);
+      var pn=parseInt(m.normal_price,10);
+      var pm=parseInt(m.monitor_price,10);
+      var p=(!isNaN(pm)&&pm>0&&pm<pn)?pm:pn;
       if(!isNaN(p)&&p>0&&(minP===null||p<minP))minP=p;
     });
     var av=n.profile_photo_url
@@ -489,11 +492,18 @@ function s1(){
         var isRet=m.menu_name&&m.menu_name.indexOf('再来')>=0;
         var dm=c?parseInt(isRet?c.duration_retouch_min:c.duration_new_min,10):0;
         var dt=dm>0?Math.floor(dm/60)+'時間'+(dm%60>0?dm%60+'分':''):'';
-        // ★メニュー名に「モニター」を含むなら monitor_price、含まないなら normal_price（patch-48）。
-        //   メニュー名で価格区分が一意に決まる＝お客様はメニューを選ぶだけで料金確定（クーポン質問不要）。
-        var p=parseInt(isMonitorMenu(m.menu_name)?m.monitor_price:m.normal_price,10);
-        var pt=(!isNaN(p)&&p>0)?'¥'+p.toLocaleString()+'（税込）':'';
-        h+='<div class="ac-item" data-nid="'+esc(n.nurse_id)+'" data-nm="'+esc(n.name)+'" data-mid="'+esc(m.menu_id)+'" data-mn="'+esc(m.menu_name)+'" data-pr="'+(p||0)+'" data-du="'+(dm||0)+'">';
+        // ★patch-48：STEP1は「通常 ¥◯ ／ モニター ¥◯」併記。お客様が両方の価格を一目で把握できる。
+        //   monitor_price が未設定 or normal_price と同額なら従来通り単独表示（混乱回避）。
+        var p=parseInt(m.normal_price,10);
+        var pm=parseInt(m.monitor_price,10);
+        var hasMon=(!isNaN(pm)&&pm>0&&pm<p);
+        var pt;
+        if(hasMon){
+          pt='通常 ¥'+p.toLocaleString()+' ／ モニター ¥'+pm.toLocaleString()+'（税込）';
+        } else {
+          pt=(!isNaN(p)&&p>0)?'¥'+p.toLocaleString()+'（税込）':'';
+        }
+        h+='<div class="ac-item" data-nid="'+esc(n.nurse_id)+'" data-nm="'+esc(n.name)+'" data-mid="'+esc(m.menu_id)+'" data-mn="'+esc(m.menu_name)+'" data-pr="'+(p||0)+'" data-prm="'+(hasMon?pm:0)+'" data-du="'+(dm||0)+'">';
         h+='<div class="ac-top"><div class="c-nm">'+esc(m.menu_name)+'</div>';
         if(pt)h+='<div class="c-pr">'+pt+'</div>';
         if(dt)h+='<div class="c-dur">施術時間：'+dt+'</div>';
@@ -513,9 +523,10 @@ function toggleArt(id){
   s1();
 }
 // コース確定：アーティスト＋コースを一度に確定し、日付選択（STEP2）へ直行する。
-function pickCourse(nid,nname,mid,mname,price,dur){
+function pickCourse(nid,nname,mid,mname,price,dur,priceMonitor){
   st.nurseId=nid; st.nurseName=nname;
-  st.menuId=mid; st.menuName=mname; st.menuPrice=price; st.menuDur=dur;
+  st.menuId=mid; st.menuName=mname; st.menuPrice=price; st.menuPriceMonitor=priceMonitor||0; st.menuDur=dur;
+  st.monitorChoice=null;  // ★コース選択時は「モニター有無」をリセット＝STEP6で必ず選び直してもらう
   st.menuType=(mname&&mname.indexOf('再来')>=0)?'retouch':'new';
   st.openArtist=nid;
   st.date=null; st.time=null; st.availDates=null; st.slots=null; st.adErr=false; st.slErr=false;
@@ -789,8 +800,24 @@ function s6(){
   h+=sr('アーティスト',esc(st.nurseName));
   h+=sr('コース',esc(st.menuName));
   h+=sr('日時',esc(dtl));
-  // ★料金は STEP1 でメニュー名判定済み（モニター含む→モニター価格）。クーポン行は patch-48 で廃止。
-  if(st.menuPrice&&parseInt(st.menuPrice)>0) h+=sr('料金','¥'+parseInt(st.menuPrice).toLocaleString()+'（税込）');
+  // ★patch-48：モニター価格が設定されているなら、お客様がここで「ご予約形態」を選ぶ。
+  //   monitor_price < normal_price のときのみ選択肢を出す（同額・未設定なら通常価格で確定）。
+  var hasMon=(st.menuPriceMonitor>0 && st.menuPriceMonitor<st.menuPrice);
+  if(hasMon){
+    var sel=st.monitorChoice;  // null/'yes'/'no'
+    var rad='<div class="radios-v">'
+      +'<label><input type="radio" name="mc" value="yes"'+(sel==='yes'?' checked':'')+' onchange="st.monitorChoice=this.value;s6();"><span>モニターあり ¥'+st.menuPriceMonitor.toLocaleString()+'（症例写真の撮影に協力）</span></label>'
+      +'<label><input type="radio" name="mc" value="no"'+(sel==='no'?' checked':'')+' onchange="st.monitorChoice=this.value;s6();"><span>通常 ¥'+st.menuPrice.toLocaleString()+'</span></label>'
+      +'</div>';
+    h+=sr('ご予約形態<span class="req">*</span>',rad);
+    // 選択済みなら確定した料金を表示、未選択なら案内文。
+    if(sel==='yes')      h+=sr('料金','¥'+st.menuPriceMonitor.toLocaleString()+'（税込）');
+    else if(sel==='no')  h+=sr('料金','¥'+st.menuPrice.toLocaleString()+'（税込）');
+    else                 h+=sr('料金','<span style="color:#c2410c">↑ご予約形態をお選びください</span>');
+  } else {
+    // モニター価格未設定 or 同額 → 通常価格1本で確定。
+    if(st.menuPrice&&parseInt(st.menuPrice)>0) h+=sr('料金','¥'+parseInt(st.menuPrice).toLocaleString()+'（税込）');
+  }
   h+=sr('お名前',esc(st.custName)+'（'+esc(st.furigana)+'）');
   h+=sr('電話番号',esc(st.phone));
   h+='</div>';
@@ -800,12 +827,19 @@ function s6(){
   h+='<div class="agree-row"><input type="checkbox" id="agc"'+(st.agreed?' checked':'')+' onchange="st.agreed=this.checked;updSub()"><span>上記の利用規約・注意事項・キャンセルポリシーをすべて確認しました。</span></div>';
   h+='<div id="serr" style="margin-top:12px"></div>';
   document.getElementById('sc').innerHTML=h;
-  document.getElementById('sn').innerHTML='<button class="btn btn-bk" onclick="go(4)">戻る</button><button class="btn btn-p" id="bsub" onclick="doSub()" '+(st.agreed?'':'disabled')+'>この内容で予約する</button>';
+  document.getElementById('sn').innerHTML='<button class="btn btn-bk" onclick="go(4)">戻る</button><button class="btn btn-p" id="bsub" onclick="doSub()" '+(canSub()?'':'disabled')+'>この内容で予約する</button>';
 }
 function sr(k,v){ return '<div class="s-row"><div class="s-key">'+k+'</div><div class="s-val">'+v+'</div></div>'; }
-function updSub(){ var b=document.getElementById('bsub'); if(b)b.disabled=!st.agreed; }
+// ★予約ボタンの有効化＝同意 ＋（モニター選択可なら選択済み）。patch-48でモニター選択を必須条件に追加。
+function canSub(){
+  if (!st.agreed) return false;
+  var hasMon=(st.menuPriceMonitor>0 && st.menuPriceMonitor<st.menuPrice);
+  if (hasMon && !st.monitorChoice) return false;
+  return true;
+}
+function updSub(){ var b=document.getElementById('bsub'); if(b)b.disabled=!canSub(); }
 function doSub(){
-  if(!st.agreed)return;
+  if(!canSub())return;  // ★同意＋（モニター選択可なら選択済み）の両方が揃わないと送らない（patch-48）
   // ★日付・時間が未選択なら送信しない（満席で枠を捨てた後などに null:00 で送るのを防止）。時間選択へ戻す。
   if(!st.date || !st.time){
     var e0=document.getElementById('serr'); if(e0){e0.className='msg-err';e0.textContent='日付と時間をもう一度お選びください。';}
@@ -816,10 +850,11 @@ function doSub(){
   // 予約確定は create_public_reservation RPC に集約（店舗・担当・メニューの正当性／席数／重複をDB側で検証）。
   var startISO=st.date+'T'+st.time+':00+09:00';
   var treatmentType=(st.menuName&&st.menuName.indexOf('再来')>=0)?'retouch':'new';
-  // ★クーポンUI廃止に伴い、reservation_type はメニュー名で判定する（patch-48）。
-  //   モニター予約＝メニュー名に「モニター」を含む、通常予約＝含まない。
-  //   DB側 create_public_reservation はこの値で price_monitor/price_normal を切り替えて記録。
-  var reservationType=isMonitorMenu(st.menuName)?'monitor':'normal';
+  // ★reservation_type は STEP6 でお客様が選んだ「モニター有無」で決定（patch-48 改）。
+  //   モニター選択肢が無い（monitor_price 未設定 or 同額）メニューは normal 固定。
+  //   DB側 create_public_reservation がこの値で price_monitor/price_normal を切替記録する。
+  var hasMon=(st.menuPriceMonitor>0 && st.menuPriceMonitor<st.menuPrice);
+  var reservationType=(hasMon && st.monitorChoice==='yes')?'monitor':'normal';
   // メモにクーポン種別・施術経験も残す（GAS版の補足情報を引き継ぐ）。
   var memo=buildMemo();
   sbRpc('create_public_reservation',{
