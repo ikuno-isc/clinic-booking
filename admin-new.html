@@ -5679,9 +5679,16 @@ function acqRandToken(n){
   return out;
 }
 
-/* 1つの ref_sources 行から ?ref=タグ 付きの予約リンクを組み立てる */
+/* 1つの ref_sources 行から「現在の店の予約ページ」へのリンクを組み立てる。
+   ?store=<slug>&ref=<tag>。store を明示しないと予約ページが既定（久留米）にフォールバックし、
+   小倉で発行したリンクからのお客様が全員久留米として予約される越境バグになる（patch-47で根絶）。
+   currentStoreSlug() は管理画面の店セレクタを参照。'all'（全店表示）時は store を省略。 */
 function acqBookingUrl(tag){
-  return BOOKING_URL + '?ref=' + encodeURIComponent(tag || '');
+  var slug = (typeof currentStoreSlug === 'function') ? currentStoreSlug() : '';
+  var qs = [];
+  if (slug && slug !== 'all') qs.push('store=' + encodeURIComponent(slug));
+  if (tag) qs.push('ref=' + encodeURIComponent(tag));
+  return BOOKING_URL + (qs.length ? '?' + qs.join('&') : '');
 }
 
 /* ===== ① 流入元リンク一覧 ===== */
