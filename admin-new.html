@@ -5679,14 +5679,30 @@ function acqRandToken(n){
   return out;
 }
 
-/* 1つの ref_sources 行から「現在の店の予約ページ」へのリンクを組み立てる。
+/* 1つの ref_sources 行から「現在のテナントの予約ページ」へのリンクを組み立てる。
    ?store=<slug>&ref=<tag>。store を明示しないと予約ページが既定（久留米）にフォールバックし、
-   小倉で発行したリンクからのお客様が全員久留米として予約される越境バグになる（patch-47で根絶）。
-   currentStoreSlug() は管理画面の店セレクタを参照。'all'（全店表示）時は store を省略。 */
+   小倉テナントで発行したリンクからのお客様が全員久留米として予約される越境バグになる
+   （patch-47で根絶、patch-47.1で STORE_MAP 参照に修正）。
+   ★注意：currentStoreSlug() は「予約・顧客」タブの resvStore セレクタ依存で、
+     集客タブを開いてる時は DOM に無く 'kurume' フォールバックする＝ここでは使えない。
+     代わりに STORE_MAP（選択中テナントの stores キャッシュ）の最初のキーを採用する。
+     1テナント1店舗運用なので一意。複数店ある owner/admin は STORE_MAP[0] を代表値に。 */
+function acqTenantSlug(){
+  if (STORE_MAP){
+    var keys = Object.keys(STORE_MAP);
+    if (keys.length) return keys[0];
+  }
+  // 二段目フォールバック：resvStore があり 'all' でなければそれ
+  if (typeof currentStoreSlug === 'function'){
+    var s = currentStoreSlug();
+    if (s && s !== 'all') return s;
+  }
+  return '';
+}
 function acqBookingUrl(tag){
-  var slug = (typeof currentStoreSlug === 'function') ? currentStoreSlug() : '';
+  var slug = acqTenantSlug();
   var qs = [];
-  if (slug && slug !== 'all') qs.push('store=' + encodeURIComponent(slug));
+  if (slug) qs.push('store=' + encodeURIComponent(slug));
   if (tag) qs.push('ref=' + encodeURIComponent(tag));
   return BOOKING_URL + (qs.length ? '?' + qs.join('&') : '');
 }
@@ -5696,7 +5712,13 @@ function loadAcqList(){
   var box = document.getElementById('acqList');
   if(!box) return;
   box.innerHTML = '<div class="placeholder">読み込み中…</div>';
-  sbGet('ref_sources?select=id,label,tag,is_shown,created_at&order=created_at.desc')
+  // ★STORE_MAP を先にロード＝acqBookingUrl が現テナントの slug を取れるようにする。
+  //   これが無いと小倉テナントでも URL が ?ref=... 単独で発行され、予約ページが
+  //   既定の久留米にフォールバック＝越境バグになる（patch-47.1）。
+  var prep = (typeof ensureStoreMap === 'function') ? ensureStoreMap() : Promise.resolve();
+  prep.then(function(){
+    return sbGet('ref_sources?select=id,label,tag,is_shown,created_at&order=created_at.desc');
+  })
     .then(function(rows){ renderAcqList(rows || []); })
     .catch(function(err){
       if(acqNeedsLogin()) return;
