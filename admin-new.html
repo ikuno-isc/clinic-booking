@@ -853,10 +853,12 @@
   <div class="acq-hint" style="margin:0 4px 6px">
     集計の基準を選べます。「申込日」は<b>その月に予約申込が入った件数</b>＝集客の効き目を見る用。
     「施術日」は<b>その月に施術された件数</b>＝来店や売上の実績を見る用。
+    「友達追加日」は<b>その月にLINE友達追加された人数</b>＝Instagram等からの集客の効きを見る用（LIFFリンクで来た人だけ流入元が分かります）。
   </div>
   <div class="acq-tabs">
     <button type="button" class="acq-tab active" data-ab="created" onclick="setAcqBasis('created')">📥 申込日ベース</button>
     <button type="button" class="acq-tab" data-ab="start" onclick="setAcqBasis('start')">📅 施術日ベース</button>
+    <button type="button" class="acq-tab" data-ab="friend_added" onclick="setAcqBasis('friend_added')">💚 友達追加日ベース</button>
   </div>
   <div class="acq-tabs">
     <button type="button" class="acq-tab active" data-ap="this_month" onclick="setAcqPeriod('this_month')">今月</button>
@@ -2320,10 +2322,11 @@ function ensureStoreMap(){
   //   public_slug を使う必要がある（予約ページ index.html の resolveStoreConfig が
   //   public_store_resolve RPC で public_slug を引いて店を解決する設計）。
   //   code は (tenant_id,code) でしか一意でないため、テナント横断の公開リンクには使えない。
-  return sbGet('stores?select=id,name,code,public_slug&order=name').then(function(rows){
+  // ★patch-51：liff_id も同時取得。集客タブの「Instagram用LIFFリンク」発行に使う。
+  return sbGet('stores?select=id,name,code,public_slug,liff_id&order=name').then(function(rows){
     STORE_MAP = {};
     (rows||[]).forEach(function(s){
-      if(s.code) STORE_MAP[s.code] = { id:s.id, name:s.name, public_slug:s.public_slug||null };
+      if(s.code) STORE_MAP[s.code] = { id:s.id, name:s.name, public_slug:s.public_slug||null, liff_id:s.liff_id||null };
     });
     // ★店舗セレクタを「選択中テナントの店」で作り直す（多テナント対応）。
     //   固定の久留米/博多ではなく、実データの店だけを並べる。先頭は常に「全店まとめ」。
@@ -5774,6 +5777,29 @@ function acqBookingUrl(tag){
   return BOOKING_URL + (qs.length ? '?' + qs.join('&') : '');
 }
 
+/* patch-51：Instagram プロフィール等に貼る「LIFFリンク」を発行する。
+   形：https://liff.line.me/<LIFF_ID>?store=<slug>&ref=<tag>
+   ・LINEアプリで開く＝LINE Loginが即時走り、line_uid 取得 → record_customer_ref で
+     refが customers.ref に初回1回だけ保存される＝予約しなくても流入元が分かる。
+   ・LIFF_ID は STORE_MAP の先頭店から取る（複数店があるテナントでは要見直し）。
+     ※今のところ 1テナント＝1店舗運用のため先頭採用で問題なし。
+   ・LIFF_ID が未設定なら null を返す（呼び出し側でボタン表示を消す）。 */
+function acqLiffUrl(tag){
+  var liffId = null, slug = null;
+  if (STORE_MAP){
+    var keys = Object.keys(STORE_MAP);
+    for (var i = 0; i < keys.length; i++){
+      var e = STORE_MAP[keys[i]];
+      if (e && e.liff_id){ liffId = e.liff_id; slug = e.public_slug || keys[i]; break; }
+    }
+  }
+  if (!liffId) return null;
+  var qs = [];
+  if (slug) qs.push('store=' + encodeURIComponent(slug));
+  if (tag)  qs.push('ref='   + encodeURIComponent(tag));
+  return 'https://liff.line.me/' + encodeURIComponent(liffId) + (qs.length ? '?' + qs.join('&') : '');
+}
+
 /* ===== ① 流入元リンク一覧 ===== */
 function loadAcqList(){
   var box = document.getElementById('acqList');
@@ -5805,12 +5831,22 @@ function renderAcqList(rows){
     var shown = (s.is_shown !== false);
     var id  = esc(s.id);
     var url = acqBookingUrl(s.tag);
+    var liffUrl = acqLiffUrl(s.tag);   // ★patch-51：LIFFリンク（Instagram用）
+    var liffBlock = liffUrl
+      ? ('<div class="acq-url">'
+          + '<input type="text" readonly value="'+esc(liffUrl)+'" onclick="this.select()" title="Instagram等プロフィール用（LINEで開く・友達追加ベース集計に反映）">'
+          + '<button type="button" class="acq-btn copy" data-aq="copy" data-url="'+esc(liffUrl)+'">📱 LINE用コピー</button>'
+        + '</div>')
+      : '';
     return '<div class="acq-card'+(shown?'':' off')+'">'
       + '<div><span class="ac-label">'+esc(s.label)+'</span><span class="ac-tag">'+esc(s.tag)+'</span></div>'
+      + '<div class="acq-hint" style="margin:6px 4px 2px;font-size:11px">🔗 予約ページ直リンク（チラシ・Web広告向け）</div>'
       + '<div class="acq-url">'
         + '<input type="text" readonly value="'+esc(url)+'" onclick="this.select()">'
         + '<button type="button" class="acq-btn copy" data-aq="copy" data-url="'+esc(url)+'">コピー</button>'
       + '</div>'
+      + (liffUrl ? '<div class="acq-hint" style="margin:8px 4px 2px;font-size:11px">📱 LINEで開くリンク（Instagram等プロフィール向け・友達追加ベース集計に反映）</div>' : '')
+      + liffBlock
       + '<div class="acq-actions">'
         + '<button type="button" class="acq-btn ghost" data-aq="'+(shown?'hide':'show')+'" data-id="'+id+'">'+(shown?'⏸ 非表示にする':'▶️ 表示する')+'</button>'
         + '<button type="button" class="acq-btn ghost" data-aq="del" data-id="'+id+'">🗑 削除</button>'
@@ -5943,9 +5979,9 @@ function setAcqPeriod(p){
   loadAcqStats();
 }
 
-/* 集計の基準（申込日/施術日）切替 */
+/* 集計の基準（申込日/施術日/友達追加日）切替 ※patch-51で friend_added 追加 */
 function setAcqBasis(b){
-  if (b !== 'created' && b !== 'start') return;
+  if (b !== 'created' && b !== 'start' && b !== 'friend_added') return;
   ACQ_BASIS = b;
   var ts = document.querySelectorAll('#acqView .acq-tab[data-ab]');
   for(var i=0;i<ts.length;i++){ ts[i].classList.toggle('active', ts[i].getAttribute('data-ab') === b); }
@@ -5979,55 +6015,66 @@ function renderAcqStats(rows, period, basis){
   var box = document.getElementById('acqStats');
   if(!box) return;
   var label = acqPeriodLabel(period);
-  var basisLabel = (basis === 'start') ? '施術日' : '申込日';
-  var emptyHint = (basis === 'start')
-    ? esc(label) + '：その月に施術された予約はまだありません。'
-    : esc(label) + '：その月に申込みが入った予約はまだありません。';
+  var isFriend = (basis === 'friend_added');
+  var basisLabel = isFriend ? '友達追加日' : (basis === 'start' ? '施術日' : '申込日');
+  var emptyHint = isFriend
+    ? esc(label) + '：その月にLINE友達追加された人はまだいません。'
+    : (basis === 'start'
+      ? esc(label) + '：その月に施術された予約はまだありません。'
+      : esc(label) + '：その月に申込みが入った予約はまだありません。');
   if(!rows.length){
     box.innerHTML = '<div class="placeholder">'+emptyHint+'<br>追跡リンクから予約が入ると、ここに流入元別の集計が出ます。</div>';
     return;
   }
 
-  // バー（予約件数）の最大値で正規化
-  var maxResv = 0, totResv = 0, totCanc = 0, totVisited = 0, totSales = 0;
+  // バー値：友達追加日ベースは friendAdded 件数、それ以外は予約件数で正規化
+  var maxBar = 0, totFriend = 0, totResv = 0, totCanc = 0, totVisited = 0, totSales = 0;
   rows.forEach(function(r){
     var rv = Number(r.reservations) || 0;
-    if(rv > maxResv) maxResv = rv;
+    var fa = Number(r.friendAdded)  || 0;
+    var bar = isFriend ? fa : rv;
+    if(bar > maxBar) maxBar = bar;
+    totFriend  += fa;
     totResv    += rv;
     totCanc    += (Number(r.cancelled) || 0);
     totVisited += (Number(r.visited)   || 0);
     totSales   += (Number(r.sales)     || 0);
   });
-  if(maxResv <= 0) maxResv = 1;
+  if(maxBar <= 0) maxBar = 1;
 
   var h = '<div class="acq-hint" style="margin:0 4px 8px">'
         + esc(label) + '（' + esc(basisLabel) + 'ベース）'
         + '</div>';
 
-  // 予約件数バー
+  // バー（友達追加ベース＝友達追加人数、その他＝予約件数）
   h += rows.map(function(r){
-    var rv = Number(r.reservations) || 0;
-    var pct = Math.max(2, Math.round(rv / maxResv * 100));
+    var val = isFriend ? (Number(r.friendAdded) || 0) : (Number(r.reservations) || 0);
+    var pct = Math.max(2, Math.round(val / maxBar * 100));
     return '<div class="acq-bar-wrap">'
       + '<span class="acq-bar-name">'+esc(r.ref)+'</span>'
       + '<span class="acq-bar-track"><span class="acq-bar-fill" style="width:'+pct+'%"></span></span>'
-      + '<span class="acq-bar-val">'+esc(rv)+'件</span>'
+      + '<span class="acq-bar-val">'+esc(val)+(isFriend?'人':'件')+'</span>'
       + '</div>';
   }).join('');
 
-  // 明細表
+  // 明細表：友達追加日ベースは先頭に「友達追加」列を追加
   h += '<table class="acq-tbl" style="margin-top:10px">'
-    + '<tr><th>流入元</th><th>予約</th><th>キャンセル</th><th>来店</th><th>売上</th></tr>';
+    + '<tr><th>流入元</th>'
+    + (isFriend ? '<th>友達追加</th>' : '')
+    + '<th>予約</th><th>キャンセル</th><th>来店</th><th>売上</th></tr>';
   h += rows.map(function(r){
     return '<tr>'
       + '<td>'+esc(r.ref)+'</td>'
+      + (isFriend ? '<td>'+esc(Number(r.friendAdded) || 0)+'</td>' : '')
       + '<td>'+esc(Number(r.reservations) || 0)+'</td>'
       + '<td>'+esc(Number(r.cancelled)    || 0)+'</td>'
       + '<td>'+esc(Number(r.visited)      || 0)+'</td>'
       + '<td>'+esc(acqYen(r.sales))+'</td>'
       + '</tr>';
   }).join('');
-  h += '<tr class="tot"><td>合計</td><td>'+esc(totResv)+'</td><td>'+esc(totCanc)+'</td><td>'+esc(totVisited)+'</td><td>'+esc(acqYen(totSales))+'</td></tr>';
+  h += '<tr class="tot"><td>合計</td>'
+    + (isFriend ? '<td>'+esc(totFriend)+'</td>' : '')
+    + '<td>'+esc(totResv)+'</td><td>'+esc(totCanc)+'</td><td>'+esc(totVisited)+'</td><td>'+esc(acqYen(totSales))+'</td></tr>';
   h += '</table>';
 
   box.innerHTML = h;
