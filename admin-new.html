@@ -846,7 +846,7 @@
     <input type="text" id="acqLabel" maxlength="40" placeholder="表示名を入力" autocomplete="off">
     <button type="button" class="save" id="acqAddBtn" onclick="addRefSource()">＋ 追加してリンク発行</button>
     <div class="acq-msg" id="acqMsg"></div>
-    <div class="acq-hint">表示名から英数字のタグを自動生成し、予約リンクに <b>?ref=タグ</b> を付けます。お客様がそのリンクから予約すると流入元が記録されます。</div>
+    <div class="acq-hint">表示名から英数字のタグを自動生成し、集客リンク（LINEで開く）に <b>?ref=タグ</b> を付けます。お客様がリンクをタップした時点で流入元が記録されます（友達追加されればリストに残ります）。</div>
   </div>
 
   <h3>📊 流入分析（どこから予約が来たか）</h3>
@@ -5836,26 +5836,23 @@ function renderAcqList(rows){
     box.innerHTML = '<div class="placeholder">まだ流入元がありません。下の「流入元を追加」で作成してください。</div>';
     return;
   }
+  // ★方針：集客リンクは「LINEで開く（LIFF）」一本に統一。
+  //   理由：全集客をLINE友達追加導線にまとめ、友達リスト＝資産化＋流入元100%トラッキング。
+  //   ・liff_id 未設定の店舗は集客リンクが発行できない旨を表示（セットアップ⑤で要設定）。
   box.innerHTML = rows.map(function(s){
     var shown = (s.is_shown !== false);
     var id  = esc(s.id);
-    var url = acqBookingUrl(s.tag);
-    var liffUrl = acqLiffUrl(s.tag);   // ★patch-51：LIFFリンク（Instagram用）
-    var liffBlock = liffUrl
-      ? ('<div class="acq-url">'
-          + '<input type="text" readonly value="'+esc(liffUrl)+'" onclick="this.select()" title="Instagram等プロフィール用（LINEで開く・友達追加ベース集計に反映）">'
-          + '<button type="button" class="acq-btn copy" data-aq="copy" data-url="'+esc(liffUrl)+'">📱 LINE用コピー</button>'
+    var liffUrl = acqLiffUrl(s.tag);
+    var linkBlock = liffUrl
+      ? ('<div class="acq-hint" style="margin:6px 4px 2px;font-size:11px">📱 集客リンク（LINEで開く・タップで友達追加導線へ）</div>'
+        + '<div class="acq-url">'
+          + '<input type="text" readonly value="'+esc(liffUrl)+'" onclick="this.select()" title="Instagram・YouTube・X等のプロフィールに貼る">'
+          + '<button type="button" class="acq-btn copy" data-aq="copy" data-url="'+esc(liffUrl)+'">📋 コピー</button>'
         + '</div>')
-      : '';
+      : ('<div class="acq-hint" style="margin:6px 4px 2px;color:#b00">⚠️ この店舗のLINE設定（LIFF）が未完了のため、集客リンクを発行できません。設定タブ→セットアップから LIFF を登録してください。</div>');
     return '<div class="acq-card'+(shown?'':' off')+'">'
       + '<div><span class="ac-label">'+esc(s.label)+'</span><span class="ac-tag">'+esc(s.tag)+'</span></div>'
-      + '<div class="acq-hint" style="margin:6px 4px 2px;font-size:11px">🔗 予約ページ直リンク（チラシ・Web広告向け）</div>'
-      + '<div class="acq-url">'
-        + '<input type="text" readonly value="'+esc(url)+'" onclick="this.select()">'
-        + '<button type="button" class="acq-btn copy" data-aq="copy" data-url="'+esc(url)+'">コピー</button>'
-      + '</div>'
-      + (liffUrl ? '<div class="acq-hint" style="margin:8px 4px 2px;font-size:11px">📱 LINEで開くリンク（Instagram等プロフィール向け・友達追加ベース集計に反映）</div>' : '')
-      + liffBlock
+      + linkBlock
       + '<div class="acq-actions">'
         + '<button type="button" class="acq-btn ghost" data-aq="'+(shown?'hide':'show')+'" data-id="'+id+'">'+(shown?'⏸ 非表示にする':'▶️ 表示する')+'</button>'
         + '<button type="button" class="acq-btn ghost" data-aq="del" data-id="'+id+'">🗑 削除</button>'
