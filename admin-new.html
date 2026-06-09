@@ -591,6 +591,15 @@
     #tenantHeader .th-back{margin-left:auto;background:rgba(255,255,255,.16);color:#fff;border:0;
       border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer}
     #tenantHeader .th-back:hover{background:rgba(255,255,255,.28)}
+    /* ★多院対応：ヘッダのログアウトボタン。別アカウントで入り直す導線を残す。 */
+    #tenantHeader .th-logout{background:rgba(255,255,255,.16);color:#fff;border:0;
+      border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer}
+    #tenantHeader .th-logout:hover{background:rgba(255,255,255,.28)}
+    /* 単店ユーザー（コンソール非表示）にもログアウト導線を必ず出すための常設バー。 */
+    #headerLogoutBar{display:none;background:#0b5c55;color:#fff;padding:7px 14px;font-size:13px;text-align:right}
+    #headerLogoutBar .th-logout{background:rgba(255,255,255,.16);color:#fff;border:0;
+      border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer}
+    #headerLogoutBar .th-logout:hover{background:rgba(255,255,255,.28)}
   </style>
   <div id="consoleView" style="display:none">
     <div class="console-wrap">
@@ -604,6 +613,11 @@
   <div id="tenantHeader">
     <span>店：</span><span class="th-name" id="tenantHeaderName"></span>
     <button class="th-back" onclick="showConsole()">← コンソールに戻る</button>
+    <button class="th-logout" onclick="doLogout()">🚪 ログアウト</button>
+  </div>
+  <!-- ★単店ユーザー（コンソール非表示）向けのログアウト常設バー。多テナント時は #tenantHeader 側で出す。 -->
+  <div id="headerLogoutBar">
+    <button class="th-logout" onclick="doLogout()">🚪 ログアウト</button>
   </div>
 
   <!-- 2階層ナビ。第1段=グループ(#nav)・第2段=小タブ(#subnav)。中身は renderGroupNav()/showGroup() がJSで生成。
@@ -1899,6 +1913,36 @@ function lsecClear(kind){
 // ===== ログイン画面の再表示（各タブのエラーフックから呼ばれる）=====
 function showLogin(msg){ var ov=document.getElementById("login"); if(ov) ov.style.display="flex"; var e=document.getElementById("lerr"); if(e&&msg) e.textContent=msg; }
 
+/* ★ログアウト：Supabase Auth の signout → ローカルセッション破棄 → 画面を初期化してログイン表示。
+   ・多院所属者が「別アカウントで入り直す」導線。単店ユーザーにも常設バーから提供。
+   ・トークンを捨てれば次回 sbRpc/fetch は 401 で弾かれる安全側。 */
+function doLogout(){
+  if (!window.confirm('ログアウトしますか？\n（保存していない入力は失われます）')) return;
+  try {
+    // 1) Supabase に signout を投げる（リフレッシュトークンの撤回。失敗してもクライアント側のクリアは続行）。
+    if (TOKEN){
+      fetch(SB_URL + '/auth/v1/logout', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type':'application/json' }, hdr())
+      }).catch(function(){});
+    }
+  } catch (e) {}
+  // 2) トークン／ローカルセッションをクライアント側でも完全破棄。
+  TOKEN = '';
+  try { clearSession(); } catch (e) {}
+  // 3) 画面初期化＝ヘッダ・ナビ・各ビューを隠す。
+  try {
+    var th = document.getElementById('tenantHeader'); if (th) th.style.display='none';
+    var hl = document.getElementById('headerLogoutBar'); if (hl) hl.style.display='none';
+    var nv = document.getElementById('nav'); if (nv) nv.style.display='none';
+    var sn = document.getElementById('subnav'); if (sn) sn.style.display='none';
+    var cv = document.getElementById('consoleView'); if (cv) cv.style.display='none';
+    if (typeof hideAllViews === 'function') hideAllViews();
+  } catch (e) {}
+  // 4) ログイン画面を表示。
+  showLogin('ログアウトしました。再度ログインしてください。');
+}
+
 // ===== スタッフ ログイン（Supabase Auth）。成功でナビを出し予約管理を表示 =====
 function login(){
   var email=(document.getElementById("le").value||"").trim(), pw=document.getElementById("lp").value||"";
@@ -2190,13 +2234,24 @@ function provExec(){
     .then(function(){ if (btn) btn.disabled = false; });
 }
 
-/* ヘッダーの「現在の店名」と「コンソールに戻る」を出す（複数テナントを扱える人だけ）。 */
+/* ヘッダーの店名／導線を出す。
+   ・多テナント所属者：#tenantHeader（店名＋コンソールに戻る＋ログアウト）を表示、#headerLogoutBar は非表示。
+   ・単店ユーザー：#tenantHeader は非表示、#headerLogoutBar（ログアウトのみ）を表示。
+   ※単店ユーザーにもログアウト導線を必ず確保する。 */
 function renderTenantHeader(){
-  var wrap=document.getElementById('tenantHeader'); if(!wrap) return;
-  if(MY_TENANTS.length < 2){ wrap.style.display='none'; return; }
-  var cur=null; for(var i=0;i<MY_TENANTS.length;i++){ if(MY_TENANTS[i].tenant_id===TENANT_ID){ cur=MY_TENANTS[i]; break; } }
-  var nameEl=document.getElementById('tenantHeaderName'); if(nameEl) nameEl.textContent = cur ? cur.tenant_name : '';
-  wrap.style.display='flex';   // ★CSSの display:none を上書き（'' だと none が復活して出ない）
+  var wrap=document.getElementById('tenantHeader');
+  var bar =document.getElementById('headerLogoutBar');
+  var isMulti = MY_TENANTS.length >= 2;
+  if (wrap){
+    if (isMulti){
+      var cur=null; for(var i=0;i<MY_TENANTS.length;i++){ if(MY_TENANTS[i].tenant_id===TENANT_ID){ cur=MY_TENANTS[i]; break; } }
+      var nameEl=document.getElementById('tenantHeaderName'); if(nameEl) nameEl.textContent = cur ? cur.tenant_name : '';
+      wrap.style.display='flex';   // ★CSSの display:none を上書き（'' だと none が復活して出ない）
+    } else {
+      wrap.style.display='none';
+    }
+  }
+  if (bar){ bar.style.display = isMulti ? 'none' : 'block'; }
 }
 
 /* ===== 予約管理 タブ JS ===== */
@@ -6055,6 +6110,8 @@ function usrReason(err){
   if (/target_not_found/i.test(r))          return '対象スタッフが見つかりません（削除済みの可能性）';
   if (/cross_tenant/i.test(r))              return '他テナントのスタッフは操作できません';
   if (/update_failed/i.test(r))             return 'パスワードの更新に失敗しました。少し時間をおいてお試しください';
+  if (/multi_tenant_reset_forbidden/i.test(r)) return 'このスタッフは複数の店舗に所属しているため、パスワード再発行は運営（platform_admin）のみが行えます';
+  if (/lookup_failed/i.test(r))             return '既存ユーザーの情報を取得できませんでした';
   // 権限・RLS（broad な catch-all）。具体トークンの後に判定する。
   if (/forbidden_manager|forbidden|permission denied|row-level security|violates row-level|RLS|42501|not authorized/i.test(r)) return 'オーナー／管理者のみ利用できます';
   if (/JWT|token|expired|invalid_grant|401|invalid_token|no_auth/i.test(r)) return 'もう一度ログインしてください';
@@ -6283,7 +6340,8 @@ function usrSaveRow(card, id, btn, opt){
   var label = btn.textContent; btn.textContent = '保存中…';
   usrRowMsg(id, '保存中…', true);
 
-  sbRpc('update_staff', { p_id: id, p_role: role, p_store: storeId, p_active: pActive })
+  // ★多院所属対応：選択中テナントを明示（多院所属の管理者が「今開いている店」の権限で評価される）。
+  sbRpc('update_staff', { p_id: id, p_role: role, p_store: storeId, p_active: pActive, p_tenant: TENANT_ID || null })
     .then(function(){
       usrRowMsg(id, '✅ 保存しました', true);
       loadStaff();   // 一覧を再読込（バッジ・状態を最新化）
@@ -6333,7 +6391,7 @@ function usrResetPassword(card, id, btn){
   fetch(SB_URL + '/functions/v1/manage-staff', {
     method: 'POST',
     headers: Object.assign({ 'Content-Type':'application/json' }, hdr()),
-    body: JSON.stringify({ action: 'reset_password', target_staff_id: id, new_password: pw })
+    body: JSON.stringify({ action: 'reset_password', target_staff_id: id, new_password: pw, tenant_id: TENANT_ID || null })
   })
   .then(function(res){
     return res.text().then(function(t){
@@ -6418,12 +6476,21 @@ function usrAddStaff(){
   // ★一般スタッフは担当店舗が必須（全店だと予約が見えない）。DB/Edge Function 側も同じ制約。
   if (role === 'staff' && !storeId){ usrAddSetMsg('一般スタッフは担当店舗（全店以外）を選んでください。'); return; }
 
+  usrAddStaffCall(email, name, role, storeId, pass, false);
+}
+
+/* 実際の発行リクエスト。allowExisting=true なら、既存メアドに「この店の所属」を追加する分岐。
+   ・初回（allowExisting=false）で email_exists が返ったら確認モーダルを出し、OKならこの関数を allowExisting=true で再呼び出し。 */
+function usrAddStaffCall(email, name, role, storeId, pass, allowExisting){
   var payload = {
     email: email,
     password: pass,
     role: role,
     store_id: storeId,                 // null = 全店
-    display_name: name || null
+    display_name: name || null,
+    allow_existing_user: !!allowExisting,
+    // ★多院対応：選択中テナント。多院所属の管理者が「今開いている店」への追加であることを明示。
+    tenant_id: TENANT_ID || null
   };
 
   var btn = document.getElementById('usrAddBtn');
@@ -6451,12 +6518,27 @@ function usrAddStaff(){
     btn.disabled = false; btn.textContent = label;
     var b = r.body || {};
     if (r.ok && b.ok && b.user_id){
-      usrAddSetMsg('✅ 発行しました。メールアドレスと暗証番号（パスワード）を本人にお伝えください。', true);
-      usrShowPass(pass);                 // 発行値を確認用に表示（パスワードは保存しない）
+      // ★既存ユーザーへの所属追加 vs 新規発行 で文言・パスワード表示を切替。
+      if (b.existing_user){
+        usrAddSetMsg('✅ 既存のアカウントにこの店の所属を追加しました。\n本人は今のメールアドレス／暗証番号でこの店にログインできます（暗証番号は変えていません）。', true);
+        usrHidePass();   // 既存ユーザーは暗証番号を変えていないので表示しない
+      } else {
+        usrAddSetMsg('✅ 発行しました。メールアドレスと暗証番号（パスワード）を本人にお伝えください。', true);
+        usrShowPass(pass);                 // 発行値を確認用に表示（パスワードは保存しない）
+      }
       document.getElementById('usrEmail').value = '';
       document.getElementById('usrName').value  = '';
       document.getElementById('usrPass').value  = '';   // 入力欄はクリア（表示ボックスだけ残す）
       loadStaff();
+      return;
+    }
+    // ★既存メアド（email_exists）：allow_existing_user=false の初回呼びでだけ確認モーダルを出す。
+    if (b.reason === 'email_exists' && !allowExisting){
+      if (window.confirm('このメールアドレスは既存ユーザーです。\nこのテナント（今開いている店）にも追加しますか？\n（本人の暗証番号は変えません＝今のパスワードのままでこの店にもログインできます）')){
+        usrAddStaffCall(email, name, role, storeId, pass, true);   // 既存ユーザー所属追加でリトライ
+        return;
+      }
+      usrAddSetMsg('追加を取り消しました。');
       return;
     }
     // 失敗：reason を日本語化
