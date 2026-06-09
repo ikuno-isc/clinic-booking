@@ -1280,7 +1280,9 @@ function loadConsentForm(){
   // 写真項目は毎回リセット（再表示時の取り違え防止）。
   consentPhoto={ tv_full:'no', tv_part:'no', sns_full:'no', sns_part:'no' };
 
-  var greet = st.displayName ? (esc(st.displayName)+' 様') : 'お客様';
+  // 名前は「予約時に手入力された本名」を優先。無ければLINE名（フォールバック）。
+  var _cnm = (st.bookingName && String(st.bookingName).trim()) ? String(st.bookingName).trim() : (st.displayName||'');
+  var greet = _cnm ? (esc(_cnm)+' 様') : 'お客様';
   var h='<div class="cs-greet">'+greet+'</div>';
   h+='<div class="cs-meta">版：'+esc(CONSENT_VERSION)+'　／　署名日：'+esc(consentToday())+'</div>';
   // 本文（固定HTML＝安全）。スクロールして全文を読む。
@@ -1308,6 +1310,22 @@ function loadConsentForm(){
   ensureConsentNav();
   setupConsentCanvas();
   updateConsentSubmit();
+
+  // 本人の予約から本名（予約時の手入力名）を一度だけ取得し、挨拶を本名に差し替える。
+  //   取得できなければ（予約が無い/サーバ未対応）LINE名のまま。署名フォームは作り直さない（挨拶だけ更新）。
+  if (st.bookingName === undefined){
+    st.bookingName = '';
+    sbEdge('list',{}).then(function(r){
+      if (r && r.ok && Array.isArray(r.data)){
+        for (var i=0;i<r.data.length;i++){
+          if (r.data[i] && r.data[i].customer_name){ st.bookingName = String(r.data[i].customer_name); break; }
+        }
+      }
+      var g = document.querySelector('#s-consent .cs-greet');
+      var nn = (st.bookingName || st.displayName || '').trim();
+      if (g && nn) g.textContent = nn + ' 様';
+    }).catch(function(){});
+  }
 }
 
 // s-consent 用の固定フッター（送信ボタン）を一度だけ用意。
@@ -1430,7 +1448,7 @@ function submitConsentForm(){
   if(!dataUrl || dataUrl.length > 2000000){ if(err){ err.className='msg-err'; err.textContent='署名のデータが大きすぎます。「書き直す」でやり直してから送信してください。'; } return; }
   if(btn){ btn.disabled=true; btn.textContent='送信中…'; }
   sbEdge('consent',{
-    p_customer_name: (st.displayName||''),
+    p_customer_name: ((st.bookingName && String(st.bookingName).trim()) || st.displayName || ''),
     p_tv_full: consentPhoto.tv_full,
     p_tv_part: consentPhoto.tv_part,
     p_sns_full: consentPhoto.sns_full,
