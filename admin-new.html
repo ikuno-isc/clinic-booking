@@ -2899,6 +2899,15 @@ function crmLoadList(){
      hasCustomerRow（customers 台帳行が存在するか）
    }
    ・store_id 指定時はクライアントでも「store 一致 or NULL」を許容（多層防御）。 */
+/* 表示名の合成：本名（予約入力）と LINE名（プロフィール）を「本名（LINE名）」にまとめる。
+   片方だけ→その名前／同一→重複させない／両方空→''。入り口がLINEのみでも安全に動く。 */
+function composeName(realName, lineName){
+  var r = String(realName || '').trim();
+  var l = String(lineName || '').trim();
+  if (r && l && r !== l) return r + '（' + l + '）';
+  return r || l || '';
+}
+
 function crmBuildPeople(resvs, custs, storeId){
   var byKey = {};
   var order = [];   // 初出順を保持（同点時の安定化）
@@ -2906,7 +2915,7 @@ function crmBuildPeople(resvs, custs, storeId){
   function bucket(ckey){
     if (!byKey[ckey]){
       byKey[ckey] = {
-        ckey: ckey, name:'', line_uid:'', phone:'', store_id:null,
+        ckey: ckey, name:'', realName:'', lineName:'', line_uid:'', phone:'', store_id:null,
         visit_count:0, last_visit_at:null, resv_count:0, has_active:false,
         resvs:[], _newestAt:null,
         customer_type:'', human_status:'', human_reason:'', background_memo:'',
@@ -2937,10 +2946,10 @@ function crmBuildPeople(resvs, custs, storeId){
     var at = r.start_at ? new Date(r.start_at).getTime() : NaN;
     if (!p._newestAt || (isFinite(at) && at > p._newestAt)){
       p._newestAt = isFinite(at) ? at : p._newestAt;
-      if (nm) p.name = nm;
+      if (nm) p.realName = nm;
       if (r.store_id) p.store_id = r.store_id;
     }
-    if (!p.name && nm) p.name = nm;
+    if (!p.realName && nm) p.realName = nm;
 
     // 来店回数・最終来店（outcome==='visited' 基準）
     if (r.outcome === 'visited'){
@@ -2973,7 +2982,7 @@ function crmBuildPeople(resvs, custs, storeId){
     if (c.human_reason)    p.human_reason = c.human_reason;
     if (c.background_memo) p.background_memo = c.background_memo;
     // 表示名・来店情報は台帳値があれば優先（台帳の方が整備されている前提）
-    if (c.line_display_name) p.name = c.line_display_name;
+    if (c.line_display_name) p.lineName = c.line_display_name;
     if (typeof c.visit_count === 'number') p.visit_count = c.visit_count;
     if (c.last_visit_at) p.last_visit_at = c.last_visit_at;
   });
@@ -2981,7 +2990,7 @@ function crmBuildPeople(resvs, custs, storeId){
   // 配列化（来店回数→最終来店→予約件数の優先で降順）
   var people = order.map(function(k){
     var p = byKey[k];
-    if (!p.name) p.name = '（名前なし）';
+    p.name = composeName(p.realName, p.lineName) || '（名前なし）';
     // 予約は新しい順に整える（取得が desc でも安全側で再ソート）
     p.resvs.sort(function(a,b){
       var ta = a.start_at ? new Date(a.start_at).getTime() : 0;
@@ -3008,7 +3017,7 @@ function crmVisiblePeople(){
   return CRM_PEOPLE.filter(function(p){
     // 検索：名前（表示名）の部分一致（クライアント側 includes）
     if (kw){
-      var hay = String(p.name||'').toLowerCase();
+      var hay = (String(p.realName||'') + ' ' + String(p.lineName||'') + ' ' + String(p.name||'')).toLowerCase();
       if (hay.indexOf(kw) < 0) return false;
     }
     // チップ：区分/有人
@@ -3230,8 +3239,12 @@ function crmRenderLocalDetail(p){
 function crmRenderDetail(uid, res){
   res = res || {};
   var c = res.customer || null;                       // customers 行 or null（台帳未登録）
-  var name = res.display_name || (c && c.line_display_name) || '（名前なし）';
   var resvs = Array.isArray(res.reservations) ? res.reservations : [];
+  // 名前は一覧カードと同じ「本名（LINE名）」に統一する。
+  //   本名＝予約に手入力された名前（生予約行 customer_name）／LINE名＝customers.line_display_name。
+  var bookingNm = '';
+  for (var _bi = 0; _bi < resvs.length; _bi++){ if (resvs[_bi] && resvs[_bi].customer_name){ bookingNm = resvs[_bi].customer_name; break; } }
+  var name = composeName(bookingNm, c && c.line_display_name) || res.display_name || '（名前なし）';
   var ltv = res.ltv || 0;
   var next = res.next_reservation || null;
   var q = res.questionnaire || null;                  // { answers:jsonb, submitted_at, ... }
