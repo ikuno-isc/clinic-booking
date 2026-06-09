@@ -6050,6 +6050,11 @@ function usrReason(err){
   if (/weak_password/i.test(r))             return 'パスワードは8文字以上にしてください';
   if (/bad_email/i.test(r))                 return 'メールアドレスの形式が正しくありません';
   if (/staff_insert_failed|create_failed/i.test(r)) return '作成に失敗しました。入力をご確認ください';
+  // patch-49 reset_password 用
+  if (/bad_target/i.test(r))                return '対象スタッフの指定が正しくありません';
+  if (/target_not_found/i.test(r))          return '対象スタッフが見つかりません（削除済みの可能性）';
+  if (/cross_tenant/i.test(r))              return '他テナントのスタッフは操作できません';
+  if (/update_failed/i.test(r))             return 'パスワードの更新に失敗しました。少し時間をおいてお試しください';
   // 権限・RLS（broad な catch-all）。具体トークンの後に判定する。
   if (/forbidden_manager|forbidden|permission denied|row-level security|violates row-level|RLS|42501|not authorized/i.test(r)) return 'オーナー／管理者のみ利用できます';
   if (/JWT|token|expired|invalid_grant|401|invalid_token|no_auth/i.test(r)) return 'もう一度ログインしてください';
@@ -6165,10 +6170,24 @@ function renderStaff(rows){
       + '</div>'
       + '<div class="usr-acts">'
         + '<button type="button" class="usr-btn usr-primary" data-usr-act="save" data-usr-id="' + id + '">保存</button>'
+        + '<button type="button" class="usr-btn usr-ghost" data-usr-act="resetpw" data-usr-id="' + id + '">🔑 暗証番号を再発行</button>'
         + (isSelf
             ? '<button type="button" class="usr-btn usr-ghost" disabled>自分は無効化できません</button>'
             : '<button type="button" class="usr-btn ' + (active ? 'usr-danger' : 'usr-ghost') + '" data-usr-act="toggle" data-usr-id="' + id + '" data-usr-active="' + (active ? '1' : '0') + '">'
               + (active ? '無効にする' : '有効にする') + '</button>')
+      + '</div>'
+      // ★パスワード再発行UI（patch-49）：通常は隠す。ボタン押下で展開して入力＋🎲＋確定。
+      + '<div class="usr-reset" id="usr-reset-' + id + '" style="display:none;margin-top:8px;padding:10px;background:#f0fdf9;border:1px solid #b9e8da;border-radius:8px">'
+        + '<label style="font-weight:700;font-size:13px;color:#0b5c55;display:block;margin-bottom:6px">🔑 このスタッフの新しい暗証番号（8文字以上）</label>'
+        + '<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">'
+          + '<input type="text" class="usr-reset-pw" placeholder="新しい暗証番号" autocomplete="new-password" style="flex:1;padding:8px;border:1px solid #cdd6d4;border-radius:6px;font-size:14px">'
+          + '<button type="button" class="usr-btn usr-ghost" data-usr-act="resetgen" data-usr-id="' + id + '" style="flex:0 0 auto;min-width:80px">🎲 サイコロ</button>'
+        + '</div>'
+        + '<div style="display:flex;gap:6px">'
+          + '<button type="button" class="usr-btn usr-primary" data-usr-act="resetsave" data-usr-id="' + id + '">再発行する</button>'
+          + '<button type="button" class="usr-btn usr-ghost" data-usr-act="resetcancel" data-usr-id="' + id + '">やめる</button>'
+        + '</div>'
+        + '<div class="usr-reset-shown" style="display:none;margin-top:8px;padding:8px;background:#fff;border:1px dashed #0b5c55;border-radius:6px;font-size:13px;color:#0b5c55"></div>'
       + '</div>'
       + '<div class="usr-rowmsg" data-usr-rowmsg="' + id + '"></div>'
     + '</div>';
@@ -6207,6 +6226,22 @@ function usrRowMsg(id, t, ok){
 
     if (act === 'save'){
       usrSaveRow(card, id, btn);
+    } else if (act === 'resetpw'){
+      // ★パスワード再発行UIを展開。既に開いていれば閉じる。
+      var panel = document.getElementById('usr-reset-' + id);
+      if (panel){
+        panel.style.display = (panel.style.display === 'none' ? '' : 'none');
+        var input = panel.querySelector('.usr-reset-pw'); if (input){ input.value = ''; input.focus(); }
+        var shown = panel.querySelector('.usr-reset-shown'); if (shown){ shown.style.display = 'none'; shown.textContent = ''; }
+      }
+    } else if (act === 'resetgen'){
+      // ★🎲：強めのパスワードを自動生成。既存の usrGenPass と同じ文字種・長さ。
+      usrGenResetPassword(id);
+    } else if (act === 'resetcancel'){
+      var p2 = document.getElementById('usr-reset-' + id);
+      if (p2){ p2.style.display = 'none'; var i2 = p2.querySelector('.usr-reset-pw'); if (i2) i2.value = ''; }
+    } else if (act === 'resetsave'){
+      usrResetPassword(card, id, btn);
     } else if (act === 'toggle'){
       var toActive = btn.getAttribute('data-usr-active') !== '1';  // 今が有効なら無効化
       var q = toActive ? 'このスタッフを「有効」にしますか？' : 'このスタッフを「無効」にしますか？\n（ログインできなくなります）';
@@ -6258,6 +6293,75 @@ function usrSaveRow(card, id, btn, opt){
       if (!TOKEN){ if (typeof showLogin === 'function') showLogin('もう一度ログインしてください。'); return; }
       usrRowMsg(id, '保存できませんでした（' + usrReason(err) + '）');
     });
+}
+
+/* ============================================================================
+   パスワード再発行（patch-49）— 既存スタッフの暗証番号を管理者が再設定する
+   ・スタッフ一覧の「🔑 暗証番号を再発行」ボタンから呼ばれる。
+   ・サーバ(manage-staff: action=reset_password)が認可と Auth admin API 経由の更新を担当。
+   ・新パスワードは画面に1回だけ表示してコピーしてもらう＝サーバはレスポンスに含めない。
+   ============================================================================ */
+function usrGenResetPassword(staffId){
+  // 既存の usrGenPass と同じ文字種・長さ（紛らわしい I, l, 0, O, 1 を除外）
+  var cs = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%&*?';
+  var n = 12, out = '';
+  if (window.crypto && crypto.getRandomValues){
+    var rnd = crypto.getRandomValues(new Uint32Array(n));
+    for (var i=0;i<n;i++) out += cs.charAt(rnd[i] % cs.length);
+  } else {
+    for (var j=0;j<n;j++) out += cs.charAt(Math.floor(Math.random() * cs.length));
+  }
+  var panel = document.getElementById('usr-reset-' + staffId);
+  if (!panel) return;
+  var input = panel.querySelector('.usr-reset-pw');
+  if (input){ input.value = out; input.focus(); }
+}
+
+function usrResetPassword(card, id, btn){
+  var panel = document.getElementById('usr-reset-' + id);
+  if (!panel) return;
+  var input = panel.querySelector('.usr-reset-pw');
+  var pw = (input && input.value || '').trim();
+  if (pw.length < 8){ usrRowMsg(id, '暗証番号は8文字以上にしてください（🎲サイコロが安全です）。', false); return; }
+  if (!window.confirm('このスタッフの暗証番号を再発行します。\n本人に新しい暗証番号を必ず伝えてください。\n進めてよろしいですか？')) return;
+  if (!TOKEN){ if (typeof showLogin === 'function') showLogin('もう一度ログインしてください。'); return; }
+
+  btn.disabled = true;
+  var label = btn.textContent; btn.textContent = '再発行中…';
+  usrRowMsg(id, '再発行中…', true);
+
+  fetch(SB_URL + '/functions/v1/manage-staff', {
+    method: 'POST',
+    headers: Object.assign({ 'Content-Type':'application/json' }, hdr()),
+    body: JSON.stringify({ action: 'reset_password', target_staff_id: id, new_password: pw })
+  })
+  .then(function(res){
+    return res.text().then(function(t){
+      var j = null; try { j = t ? JSON.parse(t) : null; } catch (e) {}
+      return { ok: res.ok, status: res.status, body: j };
+    });
+  })
+  .then(function(r){
+    btn.disabled = false; btn.textContent = label;
+    if (r.ok && r.body && r.body.ok){
+      // ★成功：新パスワードを行内に1回だけ表示。コピーして本人に伝える。
+      var shown = panel.querySelector('.usr-reset-shown');
+      if (shown){
+        shown.textContent = '✅ 新しい暗証番号：' + pw + '（コピーして本人に安全にお伝えください。この画面以外には保存されません）';
+        shown.style.display = '';
+      }
+      if (input) input.value = '';   // 入力欄はクリア（誤コピー防止）
+      usrRowMsg(id, '✅ 暗証番号を再発行しました', true);
+    } else {
+      // ★usrReason は err.message か文字列を読む実装。reason 文字列を直接渡す（[object Object]化を防ぐ）。
+      var reason = r.body && r.body.reason;
+      usrRowMsg(id, '再発行できませんでした（' + (usrReason(reason) || (r.status + ' ' + (reason||''))) + '）', false);
+    }
+  })
+  .catch(function(e){
+    btn.disabled = false; btn.textContent = label;
+    usrRowMsg(id, '通信エラー：' + (e && e.message || e), false);
+  });
 }
 
 /* ============================================================================
