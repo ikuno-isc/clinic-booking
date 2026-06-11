@@ -8,10 +8,23 @@
      既存のインラインJS/CSS/onclickは 'unsafe-inline' で許容（Phase2でnonce化等）。
      ・外部script無し / eval無し / Function無し（grep確認済）→ 'unsafe-eval' 不要
      ・全fetchはSupabaseのみ → connect-srcで縛り、想定外の外部送信を即遮断
-     ・img-srcは https: 全許可（Supabase Storage の署名URL等のドメイン非依存）
+     ・img-src（H5 Phase2小粒で https: 全許可から限定に変更）：実画像の出所は
+       Supabase Storage 公開URL（artist-photos/case-photos/step-images。署名URLも同一ドメイン）＋
+       data:（同意書署名PNG・FileReaderプレビュー・旧形式アイコン）のみ（監査済・LINE系画像なし）
      ・object-src 'none' で Flash等を遮断、base/form-action は 'self' 固定
-     ・frame-ancestors / report-uri は meta では効かない（必要なら前段で別途） -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https://stgarheuldubyrzdqzaq.supabase.co; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+     ・frame-ancestors / report-uri は meta では効かない → クリックジャッキングは下のJSフレームバスティングで代替 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://stgarheuldubyrzdqzaq.supabase.co; connect-src 'self' https://stgarheuldubyrzdqzaq.supabase.co; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<style id="fbGuard">body{display:none !important}</style>
+<script>
+// クリックジャッキング対策（GitHub PagesはX-Frame-Options等のHTTPヘッダ不可のためJSで代替）。
+// OWASP推奨方式：通常表示なら上の隠しstyleを外す／枠(iframe)内なら本文を隠したまま離脱を試みる。
+// sandbox属性で離脱(top.location)を封じられても本文が見えないため、クリックの騙し取りが成立しない。
+if(self===top){var fbg=document.getElementById('fbGuard');if(fbg)fbg.parentNode.removeChild(fbg);}
+else{top.location=self.location;}
+// CSP違反の観測（consoleに記録するだけ。外部送信はしない）
+document.addEventListener('securitypolicyviolation',function(e){console.warn('CSP違反:',e.violatedDirective,e.blockedURI)});
+</script>
 <title>管理ダッシュボード（Supabase版）</title>
 <style>
 
