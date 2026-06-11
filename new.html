@@ -18,6 +18,26 @@
   <base target="_top">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <!-- H5 Phase2小粒：CSP（enforcing）。GitHub Pagesは独自HTTPヘッダ不可のためmetaで設定。
+       実リソース監査（2026-06-11）に基づく許可リスト：
+       ・script-src : 外部scriptは LIFF SDK（static.line-scdn.net）のみ。インラインJSは 'unsafe-inline' で許容（撤去はPhase2本丸）
+       ・connect-src: fetchは Supabase（REST/RPC/Edge Function）のみ。LIFF SDK内部通信（api.line.me等）は
+                      公式に固定の一覧が無いため https://*.line.me https://*.line-scdn.net で安全側に許可
+       ・img-src    : アーティスト写真＝Supabase Storage 公開URL。LINEプロフィール画像CDN（profile.line-scdn.net）は
+                      現状未使用だが LIFFページのため安全側に許可
+       ・frame-ancestors / report-uri は meta では効かない → クリックジャッキングは下のJSフレームバスティングで代替 -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.line-scdn.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://stgarheuldubyrzdqzaq.supabase.co https://profile.line-scdn.net; connect-src 'self' https://stgarheuldubyrzdqzaq.supabase.co https://*.line.me https://*.line-scdn.net; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <style id="fbGuard">body{display:none !important}</style>
+  <script>
+  // クリックジャッキング対策（GitHub PagesはX-Frame-Options等のHTTPヘッダ不可のためJSで代替）。
+  // OWASP推奨方式：通常表示なら上の隠しstyleを外す／枠(iframe)内なら本文を隠したまま離脱を試みる。
+  // sandbox属性で離脱(top.location)を封じられても本文が見えないため、クリックの騙し取りが成立しない。
+  if(self===top){var fbg=document.getElementById('fbGuard');if(fbg)fbg.parentNode.removeChild(fbg);}
+  else{top.location=self.location;}
+  // CSP違反の観測（consoleに記録するだけ。外部送信はしない）
+  document.addEventListener('securitypolicyviolation',function(e){console.warn('CSP違反:',e.violatedDirective,e.blockedURI)});
+  </script>
   <title>ご予約</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
