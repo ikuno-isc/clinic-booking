@@ -1124,7 +1124,7 @@ function qLoad(){
   var dz=['高血圧','糖尿病','心臓の病気','アレルギー体質','ケロイド体質','皮膚の病気','感染症（肝炎等）','その他'];
   var h=''
     +'<div class="cl-intro">ご来店前に、下記の事前問診をご記入ください。<br><span class="cl-sub">※未記入の場合、当日施術ができないことがあります。</span></div>'
-    +'<div class="q-f"><label class="q-l">お名前<span class="q-req">必須</span></label><input id="q_name" class="q-in" type="text" value="'+esc(st.displayName||'')+'"></div>'
+    +'<div class="q-f"><label class="q-l">お名前<span class="q-req">必須</span></label><input id="q_name" class="q-in" type="text" value="'+esc((st.bookingName||st.displayName)||'')+'"></div>'
     +'<div class="q-f"><label class="q-l">電話番号<span class="q-req">必須</span></label><input id="q_phone" class="q-in" type="tel" inputmode="numeric" placeholder="09012345678"></div>'
     +'<div class="q-f"><label class="q-l">生年月日</label><input id="q_birth" class="q-in" type="date"></div>'
     +'<div class="q-f"><label class="q-l">性別</label>'+qRadio('q_gender',['女性','男性','その他'])+'</div>'
@@ -1137,6 +1137,20 @@ function qLoad(){
     +'<button class="btn btn-p" id="q_submit" onclick="qSubmit()" style="width:100%;margin-top:8px;">この内容で送信する</button>'
     +'<div class="cl-note">送信後、内容はクリニックのカルテに反映されます。</div>';
   body.innerHTML=h;
+  // 本名（予約の手入力名）を一度だけ取得し、お名前欄を本名でプリフィル（同意書と同じ出どころに統一）。
+  // 取得できなければLINE名のまま。お客様が手で書き換え始めていたら上書きしない。
+  if (st.bookingName === undefined){
+    st.bookingName = '';
+    sbEdge('list',{}).then(function(r){
+      if (r && r.ok && Array.isArray(r.data)){
+        for (var i=0;i<r.data.length;i++){
+          if (r.data[i] && r.data[i].customer_name){ st.bookingName = String(r.data[i].customer_name); break; }
+        }
+      }
+      var el = document.getElementById('q_name');
+      if (el && st.bookingName && (!el.value || el.value === (st.displayName||''))) el.value = st.bookingName;
+    }).catch(function(){});
+  }
 }
 function qSubmit(){
   var nameEl=document.getElementById('q_name'), phoneEl=document.getElementById('q_phone'), err=document.getElementById('q_err');
