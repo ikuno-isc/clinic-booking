@@ -5564,13 +5564,15 @@ function stpBuildStepCard(st, i){
   var head=document.createElement('div'); head.className='stp-msghead';
   var no=document.createElement('div'); no.className='stp-msgno'; no.textContent=(i+1); head.appendChild(no);
   var delay=document.createElement('div'); delay.className='stp-delay';
-  var lbl=document.createElement('span'); lbl.textContent=(i===0?'登録から':'前の通から'); delay.appendChild(lbl);
+  // 予約リマインド(reservation)はディレイの意味が「来店日時からの逆算」になる（migration 20260612000001）。
+  var isResv = !!(STP.draft && STP.draft.trigger_type==='reservation');
+  var lbl=document.createElement('span'); lbl.textContent=(isResv?'来店の':(i===0?'登録から':'前の通から')); delay.appendChild(lbl);
   var di=document.createElement('input'); di.type='number'; di.min='0'; di.value=(st.days||0);
   di.oninput=function(){ st.days=Math.max(0, parseInt(di.value||'0',10)||0); };
   delay.appendChild(di); var ds=document.createElement('span'); ds.textContent='日'; delay.appendChild(ds);
   var hi=document.createElement('input'); hi.type='number'; hi.min='0'; hi.max='23'; hi.value=(st.hours||0);
   hi.oninput=function(){ st.hours=Math.max(0, parseInt(hi.value||'0',10)||0); };
-  delay.appendChild(hi); var hs=document.createElement('span'); hs.textContent='時間後'; delay.appendChild(hs);
+  delay.appendChild(hi); var hs=document.createElement('span'); hs.textContent=(isResv?'時間前':'時間後'); delay.appendChild(hs);
   head.appendChild(delay); card.appendChild(head);
   var ta=document.createElement('textarea'); ta.value=st.content||''; ta.placeholder='メッセージ本文（空にして画像だけ送ることもできます）';
   ta.oninput=function(){ st.content=ta.value; }; card.appendChild(ta);
@@ -5616,7 +5618,7 @@ function stpBuildEditor(){
   var d=STP.draft; var w=document.createElement('div'); w.className='stp-editor';
   w.appendChild(stpFieldText('シナリオ名', d.name, function(v){ d.name=v; }));
   var g=document.createElement('div'); g.className='stp-grid2';
-  g.appendChild(stpFieldSelect('きっかけ', [['friend_add','友だち追加したとき'],['manual','手動で登録した人だけ']], d.trigger_type, function(v){ d.trigger_type=v; }));
+  g.appendChild(stpFieldSelect('きっかけ', [['friend_add','友だち追加したとき'],['reservation','予約が入ったとき（来店リマインド）'],['manual','手動で登録した人だけ']], d.trigger_type, function(v){ d.trigger_type=v; stpRenderList(); }));
   g.appendChild(stpFieldHours(d));
   w.appendChild(g);
   // A/Bの組（任意）：同じ言葉を2つのシナリオに入れると、友だち追加した人が半分ずつどちらかに振り分けられる。
@@ -5630,23 +5632,39 @@ function stpBuildEditor(){
   tagBox.innerHTML='本文に次のタグを書くと、送信時にお店の実際の値へ自動で置き換わります（価格は手入力せずタグ推奨）：<br>'
     +'<code>{{店名}}</code> <code>{{予約URL}}</code> <code>{{眉通常価格}}</code> <code>{{眉モニター価格}}</code> '
     +'<code>{{セット価格}}</code> <code>{{所要時間}}</code> <code>{{最終受付}}</code> <code>{{支払い}}</code>';
+  if(d.trigger_type==='reservation'){
+    tagBox.innerHTML+='<br>予約リマインド専用：<code>{{予約日時}}</code> <code>{{担当}}</code> <code>{{メニュー}}</code>（その予約の日時・担当・コース名に置き換わります）';
+  }
   w.appendChild(tagBox);
   d.steps.forEach(function(st,i){ w.appendChild(stpBuildStepCard(st,i)); });
   var row=document.createElement('div'); row.className='stp-row'; row.style.margin='10px 0';
   var bAdd=document.createElement('button'); bAdd.className='stp-btn ghost sm'; bAdd.textContent='＋ メッセージを追加';
   bAdd.onclick=function(){ d.steps.push({ days:(d.steps.length?1:0), hours:0, content:'', image_urls:[] }); stpRenderList(); };
   row.appendChild(bAdd);
-  var bTplStd=document.createElement('button'); bTplStd.className='stp-btn ghost sm'; bTplStd.textContent='💡 標準版7通を入れる';
-  bTplStd.onclick=function(){ stpApplyTemplate('std'); };
-  row.appendChild(bTplStd);
-  var bTplLite=document.createElement('button'); bTplLite.className='stp-btn ghost sm'; bTplLite.textContent='💡 軽め版2通を入れる';
-  bTplLite.onclick=function(){ stpApplyTemplate('lite'); };
-  row.appendChild(bTplLite);
+  if(d.trigger_type==='reservation'){
+    var bTplResv=document.createElement('button'); bTplResv.className='stp-btn ghost sm'; bTplResv.textContent='💡 リマインド2通を入れる';
+    bTplResv.onclick=function(){ stpApplyTemplate('resv'); };
+    row.appendChild(bTplResv);
+  } else {
+    var bTplStd=document.createElement('button'); bTplStd.className='stp-btn ghost sm'; bTplStd.textContent='💡 標準版7通を入れる';
+    bTplStd.onclick=function(){ stpApplyTemplate('std'); };
+    row.appendChild(bTplStd);
+    var bTplLite=document.createElement('button'); bTplLite.className='stp-btn ghost sm'; bTplLite.textContent='💡 軽め版2通を入れる';
+    bTplLite.onclick=function(){ stpApplyTemplate('lite'); };
+    row.appendChild(bTplLite);
+  }
   w.appendChild(row);
   var save=document.createElement('button'); save.className='stp-btn primary'; save.textContent='💾 保存する';
   save.onclick=function(){ stpSaveDraft(); };
   w.appendChild(save);
-  w.appendChild(stpBuildEnroll(d));
+  if(d.trigger_type==='reservation'){
+    // 予約リマインドは予約INSERTのDBトリガで自動登録（manage-steps も手動enrollを拒否する）。
+    var auto=document.createElement('div'); auto.className='stp-note'; auto.style.marginTop='10px';
+    auto.textContent='このシナリオは、Web予約（LINEからの予約）が入ると自動で登録されます。来店日時から逆算して送り、キャンセルで自動停止・来店日時を過ぎたら自動終了します（手動登録はありません。電話予約はLINEが分からないため対象外です）。';
+    w.appendChild(auto);
+  } else {
+    w.appendChild(stpBuildEnroll(d));
+  }
   return w;
 }
 
@@ -5720,11 +5738,19 @@ var STP_TPL_STD = [
 ];
 // 軽め版＝標準版の①即時 と ③翌日 の2通だけ（A/Bのもう片側）。
 var STP_TPL_LITE = [ STP_TPL_STD[0], STP_TPL_STD[2] ];
-var STP_TPL = { std: STP_TPL_STD, lite: STP_TPL_LITE };
+/* 予約リマインド2通（trigger_type=reservation 用。日・時間は「来店の何日何時間前」＝来店日時から逆算）：
+   ①前日（来店26時間前）＝予約内容の確認とご挨拶 ②当日（来店4時間前）＝朝のご案内。
+   配信時間帯(9〜21時)の外なら自動で持ち越し。{{予約日時}}{{担当}}{{メニュー}}は migration 20260612000001 の
+   render_reservation_tags が送信時にその予約の実値へ置換する。 */
+var STP_TPL_RESV = [
+  { days:1, hours:2, content:'{{店名}}です🤍\nいよいよ明日、{{予約日時}} よりご予約を承っております🗓️\n・コース：{{メニュー}}（所要 {{所要時間}}ほど）\n・担当：{{担当}}\n・お支払い：{{支払い}}\nご不安な点やご質問は、このトークにそのままお送りください💬\nお会いできるのを楽しみにしております☺️' },
+  { days:0, hours:4, content:'{{店名}}です🤍\n本日 {{予約日時}} にお待ちしております☺️\nお気をつけてお越しください。お困りのことがあれば、このトークにご連絡ください💬' }
+];
+var STP_TPL = { std: STP_TPL_STD, lite: STP_TPL_LITE, resv: STP_TPL_RESV };
 function stpApplyTemplate(kind){
   if(!STP.draft) return;
   var tpl = STP_TPL[kind] || STP_TPL.std;
-  var label = (kind==='lite') ? '軽め版2通' : '標準版7通';
+  var label = (kind==='lite') ? '軽め版2通' : (kind==='resv') ? 'リマインド2通' : '標準版7通';
   if(STP.draft.steps.length && !window.confirm('いまのメッセージを、'+label+'で置きかえます。よろしいですか？')) return;
   STP.draft.steps = tpl.map(function(t){ return { days:t.days, hours:t.hours, content:t.content, image_urls:[] }; });
   stpRenderList();
