@@ -265,6 +265,21 @@ document.addEventListener('securitypolicyviolation',function(e){console.warn('CS
 .ai-faq-c{color:#0b5c55;font-weight:700;margin-left:6px}
 .ai-faq-empty{color:#889;font-size:13px;padding:6px 0}
 .ai-faq-note{font-size:12px;color:#778;margin-top:8px}
+.ai-health{border:1px solid #d7e6e3;border-radius:12px;padding:10px 12px;margin:8px 0 10px;background:#f4faf8}
+.ai-health.ai-health-warning{background:#fff8ed;border-color:#fed7aa}
+.ai-health.ai-health-danger{background:#fff1f2;border-color:#fecdd3}
+.ai-health-top{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.ai-health-title{font-size:13px;font-weight:800;color:#0b5c55}
+.ai-health-badge{font-size:12px;font-weight:800;border-radius:999px;padding:3px 10px;background:#0b5c55;color:#fff}
+.ai-health-warning .ai-health-badge{background:#c47a13}
+.ai-health-danger .ai-health-badge{background:#c2410c}
+.ai-health-reasons{font-size:12px;color:#556;margin:7px 0 0;padding-left:18px;line-height:1.55}
+.ai-sect-h{font-size:13px;font-weight:800;color:#0b5c55;margin:12px 0 6px}
+.ai-actions{background:#f7faf9;border:1px solid #e3ecea;border-radius:10px;margin:8px 0 12px;padding:9px 12px}
+.ai-actions ul{margin:4px 0 0;padding-left:20px}
+.ai-actions li{font-size:12.5px;color:#345;line-height:1.6}
+.ai-recent{margin:0;padding-left:18px}
+.ai-recent li{font-size:12.5px;color:#345;line-height:1.55;padding:2px 0}
 
 /* ===== reviews タブ CSS ===== */
 /* ===== 口コミ管理タブ（接頭辞 .rev- 専用。既存 .resv-/.rtab/.rcard/.rc-/.rb-/.mb-/.rbtn と非衝突）===== */
@@ -3778,6 +3793,13 @@ function renderAiReport(s){
   var hours = Math.round((Number(s.savedMinutes) || 0) / 60 * 10) / 10;
   var open = Number(s.openHuman) || 0;
   var perMin = Number(s.perMinute) || 3;
+  var guardBlocked = Number(s.guardBlocked) || 0;
+  var systemErrors = Number(s.systemErrors) || 0;
+  var staffNotifyFailed = Number(s.staffNotifyFailed) || 0;
+  var oldestOpenMinutes = Number(s.oldestOpenMinutes);
+  var health = String(s.health || 'normal');
+  if (health !== 'warning' && health !== 'danger') health = 'normal';
+  var healthLabel = String(s.healthLabel || (health === 'danger' ? '危険' : health === 'warning' ? '注意' : '正常'));
   function card(label, val, warn, note){
     return '<div class="ai-card' + (warn ? ' ai-warn' : '') + '">'
          + '<div class="ai-num">' + val + '</div>'
@@ -3785,7 +3807,24 @@ function renderAiReport(s){
          + (note ? '<div class="ai-formula">' + note + '</div>' : '')
          + '</div>';
   }
-  var html = '<div class="ai-grid">';
+  function minLabel(n){
+    if (!Number.isFinite(n) || n <= 0) return 'なし';
+    if (n < 60) return '約 ' + Math.round(n) + ' 分';
+    return '約 ' + (Math.round(n / 60 * 10) / 10) + ' 時間';
+  }
+  function reasonList(items){
+    if (!Array.isArray(items) || !items.length) return '<li>通常どおり運用できます</li>';
+    var out = '';
+    for (var i = 0; i < Math.min(items.length, 3); i++) out += '<li>' + esc(items[i]) + '</li>';
+    return out;
+  }
+  var html = '<div class="ai-health ai-health-' + health + '">'
+    + '<div class="ai-health-top"><div class="ai-health-title">AI運用状態</div>'
+    + '<div class="ai-health-badge">' + esc(healthLabel) + '</div></div>'
+    + '<ul class="ai-health-reasons">' + reasonList(s.healthReasons || []) + '</ul>'
+    + '</div>';
+
+  html += '<div class="ai-sect-h">稼働状況</div><div class="ai-grid">';
   html += card('AI自動返信', (s.aiChat || 0) + ' 件');
   html += card('有人対応', (s.needsHuman || 0) + ' 件');
   html += card('有人対応率', (s.humanRate || 0) + ' %', false,
@@ -3795,10 +3834,26 @@ function renderAiReport(s){
                '（AI自動返信＋キャンセル/変更）× ' + perMin + '分');
   html += card('要対応の未完了', open + ' 件' + (open > 0 ? ' ⚠️' : ''), open > 0);
   html += '</div>';
+
+  html += '<div class="ai-sect-h">安全状況</div><div class="ai-grid">';
+  html += card('ガード発動', guardBlocked + ' 件', guardBlocked > 0);
+  html += card('システムエラー', systemErrors + ' 件', systemErrors > 0);
+  html += card('通知失敗', staffNotifyFailed + ' 件', staffNotifyFailed > 0);
+  html += card('未対応の最古', minLabel(oldestOpenMinutes), open > 0 && Number.isFinite(oldestOpenMinutes) && oldestOpenMinutes >= 60);
+  html += '</div>';
+
+  var actions = [];
+  if (staffNotifyFailed > 0) actions.push('スタッフ通知失敗を最優先で確認してください。');
+  if (systemErrors > 0) actions.push('システムエラーの種類を確認してください。');
+  if (open > 0) actions.push('要対応の未完了を確認してください。');
+  if (guardBlocked > 0) actions.push('ガード理由を見て、料金設定またはプロンプトを見直してください。');
+  if (!actions.length) actions.push('通常どおり運用できます。');
+  html += '<div class="ai-actions"><b>次にやること</b><ul>' + actions.slice(0, 3).map(function(a){ return '<li>' + esc(a) + '</li>'; }).join('') + '</ul></div>';
+
   html += '<div class="ai-sub">スタッフ通知 ' + (s.notify || 0) + ' 件 ／ キャンセル・変更をAIが処理 '
         + (s.cancelChange || 0) + ' 件 ／ AIと会話した人数 ' + (s.talkers || 0) + ' 人</div>';
 
-  var faq = s.faqCandidates || [];
+  var faq = (Array.isArray(s.reasonRanking) && s.reasonRanking.length) ? s.reasonRanking : (s.faqCandidates || []);
   html += '<div class="ai-faq-h">▼ FAQ化候補（AIが答えられず有人に回った理由・上位）</div>';
   if (!faq.length){
     html += '<div class="ai-faq-empty">まだ候補はありません。</div>';
@@ -3809,6 +3864,14 @@ function renderAiReport(s){
     }
     html += '</ol>';
     html += '<div class="ai-faq-note">→ よくある質問はテンプレ返信やプロンプト強化の候補です。</div>';
+  }
+  var recent = Array.isArray(s.recentHumanEvents) ? s.recentHumanEvents : [];
+  if (recent.length){
+    html += '<div class="ai-faq-h">▼ 最近の有人対応・ガード</div><ol class="ai-recent">';
+    for (var j = 0; j < Math.min(recent.length, 5); j++){
+      html += '<li>' + esc(recent[j].reason || recent[j].category || '') + '</li>';
+    }
+    html += '</ol>';
   }
   body.innerHTML = html;
 }
