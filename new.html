@@ -357,6 +357,7 @@ var STORE_RAW = getQueryParam('store');         // 明示指定された店舗sl
 var STORE = STORE_RAW || 'kurume';              // 店舗slug（既定 kurume）。resolveStoreConfig() で店設定を解決。
 var MODE  = getQueryParam('mode')  || 'book';   // 'book'（予約）/ 'cancel'（実装済み）/ 'consent'（準備中）
 var REF   = getQueryParam('ref')   || '';       // 流入元タグ（集客：?ref= で来た予約に記録）
+var INIT_ARTIST = getQueryParam('artist') || ''; // 症例写真ページから来た時に最初から開くアーティストID。
 
 // コース選択はイベント委譲（data-* から取得）。onclick に名前を文字列連結しない＝XSS/壊れ防止。
 // ★メニュー名で価格区分を決める運用(patch-48前期)は撤回（メニュー名管理が煩雑になる）。
@@ -558,6 +559,16 @@ function s1(){
   h+='</div>';
   document.getElementById('sc').innerHTML=h;
   document.getElementById('sn').innerHTML='<div class="s1-hint">アーティストとコースをお選びください</div>';
+}
+function applyInitialArtist(){
+  if(!INIT_ARTIST || st.openArtist || !st.options) return;
+  var ns=st.options.nurses||[];
+  for(var i=0;i<ns.length;i++){
+    if(isT(ns[i].is_active) && String(ns[i].nurse_id)===String(INIT_ARTIST)){
+      st.openArtist=INIT_ARTIST;
+      return;
+    }
+  }
 }
 // アコーディオンの開閉（同時に開くのは1人だけ）
 function toggleArt(id){
@@ -1061,7 +1072,7 @@ function showWizardIfReady(){
     document.getElementById('s-loading').innerHTML='<div class="msg-err" style="margin:40px 24px">情報の取得に失敗しました。<br>時間をおいて再度お試しください。</div>';
     return;
   }
-  st.options=bootOpt; wizardShown=true; updHeader(); showScr('s-wizard'); render();
+  st.options=bootOpt; applyInitialArtist(); wizardShown=true; updHeader(); showScr('s-wizard'); render();
 }
 function profileDone(){ bootProfDone=true; updHeader(); showWizardIfReady();
   if(MODE==='cancel') loadCancelList();   // ★LINE UID 確定後に「自分の予約一覧」を取得
@@ -1587,7 +1598,7 @@ function loadOptions(){
       closed:parseClosed(store&&store.closed_days)
     };
     bootOptDone=true;
-    if(wizardShown){ st.options=bootOpt; updHeader(); if(MODE==='book'&&st.step===1) render(); }
+    if(wizardShown){ st.options=bootOpt; applyInitialArtist(); updHeader(); if(MODE==='book'&&st.step===1) render(); }
     else showWizardIfReady();
   }).catch(function(){
     bootOptDone=true; if(!wizardShown) showWizardIfReady();
