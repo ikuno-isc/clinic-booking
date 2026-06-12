@@ -1276,11 +1276,14 @@ function loadHomeReservations(){
   }).catch(function(){ var te=document.getElementById('home-today'); if(te) te.textContent='—'; var ne=document.getElementById('home-next'); if(ne) ne.textContent='次の予約：取得できませんでした'; });
 }
 
-// 要対応の人数（顧客カルテの「要対応」バッジと同条件＝human_status が空でも done でもない）
+// 要対応の人数（顧客カルテの「要対応」バッジと同条件＝humanNeedsAttention）。
+// サーバ側では粗く絞り（空とdone以外）、語彙の最終判定はクライアントの humanNeedsAttention に一元化
+// （AI側が書く「対応完了」「返信済み」を要対応として数え続けるバグを防ぐ）。
 function loadHomeAttention(){
   if(typeof sbGet!=='function') return;
-  sbGet('customers?select=id&human_status=not.in.("",done)').then(function(rows){
-    var el=document.getElementById('home-attn'); if(el) el.textContent=Array.isArray(rows)?rows.length:0;
+  sbGet('customers?select=id,human_status&human_status=not.in.("",done)').then(function(rows){
+    var n = Array.isArray(rows) ? rows.filter(function(r){ return humanNeedsAttention(r && r.human_status); }).length : 0;
+    var el=document.getElementById('home-attn'); if(el) el.textContent=n;
   }).catch(function(){ var el=document.getElementById('home-attn'); if(el) el.textContent='—'; });
 }
 
@@ -2832,10 +2835,23 @@ function crmEnsureNameMaps(){
 function crmMenuName(id){ return (id && CRM_MENU_MAP && CRM_MENU_MAP[id]) ? CRM_MENU_MAP[id] : ''; }
 function crmArtistName(id){ return (id && CRM_ARTIST_MAP && CRM_ARTIST_MAP[id]) ? CRM_ARTIST_MAP[id] : ''; }
 
+/* 有人対応ステータスの語彙（AI側 chat-webhook/_pure.ts の HUMAN_STATUS と同一に保つ）。
+   保存は必ずこの新語彙で行う。旧語彙 'open'/'done' はDBに残っている可能性があるため「読み取りだけ」互換。
+   「要対応」＝AIの自動返信が停止（スタッフ対応中） / 「対応完了」＝AI再開（スタッフの「完了 N」コマンドと同じ語彙）。 */
+var HUMAN_STATUS_ATT  = '要対応';
+var HUMAN_STATUS_DONE = '対応完了';
+/* 対応が「締まっている」値か（空・旧done・対応完了・返信済み）。
+   これ以外の非空値（要対応・旧open・未知の値）はすべて要対応扱い＝安全側に倒す。 */
+function humanIsClosed(s){
+  s = String(s == null ? '' : s);
+  return s === '' || s === 'done' || s === HUMAN_STATUS_DONE || s === '返信済み';
+}
+function humanNeedsAttention(s){ return !humanIsClosed(s); }
+
 /* 来店ステータスの区分（新規/常連/要対応/VIP）。human_status があれば最優先で「要対応」。
    c は customers 行 または 集約 person（visit_count を持つ）。 */
 function crmStatusOf(c){
-  if (c && c.human_status && String(c.human_status) !== '' && String(c.human_status) !== 'done') return 'att';
+  if (c && humanNeedsAttention(c.human_status)) return 'att';
   var vt = c && (c.customer_type||'');
   if (vt === 'vip') return 'vip';
   var vc = (c && typeof c.visit_count === 'number') ? c.visit_count : 0;
@@ -3389,7 +3405,7 @@ function crmRenderDetail(uid, res){
       (c && c.chief_complaint ? '<br>主訴：'+esc(c.chief_complaint) : '') +
       (c && c.interest_menus ? '<br>興味メニュー：'+esc(c.interest_menus) : '') +
       (c && c.line_joined_at ? '<br>LINE登録日：'+esc(crmDate(c.line_joined_at)) : '') +
-      (curHuman && curHuman !== 'done' && curHuman !== '' ? '<br><b style="color:#c2410c">⚠️ 有人対応中：'+esc(curHuman)+(curReason?'（'+esc(curReason)+'）':'')+'</b>' : '') +
+      (humanNeedsAttention(curHuman) ? '<br><b style="color:#c2410c">⚠️ 有人対応中（AI停止中）：'+esc(curHuman)+(curReason?'（'+esc(curReason)+'）':'')+'</b>' : '') +
     '</div></div>' +
     qSect +
     '<div class="crm-sect"><h3>背景メモ</h3><div class="crm-memo">'+memo+'</div></div>' +
@@ -3419,13 +3435,14 @@ function crmFooterHtml(uid, curType, curHuman, hasUid, c){
       'この全店共通のお客様は、オーナー／管理者のみ編集できます。</div></div>';
   }
   function opt(val, label, cur){ return '<option value="'+esc(val)+'"'+(cur===val?' selected':'')+'>'+esc(label)+'</option>'; }
-  // 有人対応：空＝対応不要、値あり＝対応中、'done'＝対応済み（human_done_at をセット）
-  var humanCur = (curHuman === 'done') ? 'done' : (curHuman ? 'open' : '');
+  // 有人対応：空＝対応不要、「要対応」＝AI停止中、「対応完了」＝AI再開（human_done_at をセット）。
+  // 旧語彙（open/done/返信済み）がDBに残っていても、新語彙のどちらかに読み替えて表示する。
+  var humanCur = humanIsClosed(curHuman) ? (curHuman ? HUMAN_STATUS_DONE : '') : HUMAN_STATUS_ATT;
   var typeCur = curType || '';
   return '<div class="crm-foot">' +
     '<div class="crm-edit">' +
       '<h3>✏️ メモ・区分・有人対応の更新</h3>' +
-      '<div class="help-hint">💡 <b>有人対応を「対応済み」に変えて保存すると、AIの自動返信が再開します。</b>対応が終わったら必ずその日のうちに切り替えてください。</div>' +
+      '<div class="help-hint">💡 <b>有人対応を「対応完了」に変えて保存すると、AIの自動返信が再開します。</b>「要対応」の間はAIが止まったままなので、対応が終わったら必ずその日のうちに切り替えてください。</div>' +
       '<label class="crm-el">背景メモに追記</label>' +
       '<textarea id="crmMemoAdd" rows="2" placeholder="このお客様への申し送り・対応メモを追記…"></textarea>' +
       '<div class="crm-row2">' +
@@ -3444,8 +3461,8 @@ function crmFooterHtml(uid, curType, curHuman, hasUid, c){
           '<label class="crm-el">有人対応</label>' +
           '<select id="crmHumanSel">' +
             opt('', '対応不要', humanCur) +
-            opt('open', '対応中（要フォロー）', humanCur) +
-            opt('done', '対応済み', humanCur) +
+            opt(HUMAN_STATUS_ATT, '要対応（AI停止・スタッフ対応中）', humanCur) +
+            opt(HUMAN_STATUS_DONE, '対応完了（AI再開）', humanCur) +
           '</select>' +
         '</div>' +
       '</div>' +
@@ -3466,7 +3483,8 @@ function crmEditMsg(t, ok){
 
 /* フッタ：customers を line_uid で更新（自店・authenticated）。失敗時は日本語で理由表示。
    ・メモは「追記」（既存 background_memo の末尾に日付つきで足す）。
-   ・有人対応 done のときは human_done_at=now、open のときは null、対応不要は status/理由クリア。 */
+   ・有人対応「対応完了」のときは human_done_at=now、「要対応」のときは null、対応不要は status/理由クリア。
+   ・保存はAI側(chat-webhook)と同じ新語彙のみ（旧 open/done はもう書かない）。 */
 function crmSaveEdits(uid){
   if (!uid) return;
   var card = CRM_CARDS[uid] || {};
@@ -3474,7 +3492,7 @@ function crmSaveEdits(uid){
 
   var memoAdd = (document.getElementById('crmMemoAdd').value || '').trim();
   var typeVal = document.getElementById('crmTypeSel').value;       // '' / new / repeat / vip ...
-  var humanSel = document.getElementById('crmHumanSel').value;     // '' / open / done
+  var humanSel = document.getElementById('crmHumanSel').value;     // '' / 要対応 / 対応完了
   var reasonVal = (document.getElementById('crmHumanReason').value || '').trim();
 
   var patch = {};
@@ -3489,13 +3507,13 @@ function crmSaveEdits(uid){
     patch.background_memo = (prev ? prev + '\n' : '') + '[' + stamp + '] ' + memoAdd;
   }
 
-  // 有人対応
-  if (humanSel === ''){            // 対応不要：クリア
+  // 有人対応（語彙はAI側 HUMAN_STATUS と統一。「要対応」=AI停止 / 「対応完了」=AI再開）
+  if (humanSel === ''){                          // 対応不要：クリア
     patch.human_status = null; patch.human_reason = null; patch.human_done_at = null;
-  } else if (humanSel === 'open'){ // 対応中
-    patch.human_status = 'open'; patch.human_reason = reasonVal || null; patch.human_done_at = null;
-  } else if (humanSel === 'done'){ // 対応済み
-    patch.human_status = 'done'; patch.human_reason = reasonVal || null;
+  } else if (humanSel === HUMAN_STATUS_ATT){     // 要対応（AI停止・スタッフ対応中）
+    patch.human_status = HUMAN_STATUS_ATT; patch.human_reason = reasonVal || null; patch.human_done_at = null;
+  } else if (humanSel === HUMAN_STATUS_DONE){    // 対応完了（AI再開）
+    patch.human_status = HUMAN_STATUS_DONE; patch.human_reason = reasonVal || null;
     patch.human_done_at = new Date().toISOString();
   }
 
