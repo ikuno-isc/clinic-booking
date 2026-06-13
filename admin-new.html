@@ -286,6 +286,7 @@ document.addEventListener('securitypolicyviolation',function(e){console.warn('CS
 .ai-cand-meta{font-size:11px;color:#667;margin-top:4px;display:flex;gap:6px;flex-wrap:wrap}
 .ai-cand-reason{font-size:12.5px;color:#345;margin-top:7px;line-height:1.55}
 .ai-cand-proposal{font-size:12px;color:#334;background:#f7faf9;border:1px solid #edf3f1;border-radius:8px;padding:8px;margin-top:7px;white-space:pre-wrap;line-height:1.5}
+.ai-cand-textarea{width:100%;box-sizing:border-box;font-size:12px;color:#334;border:1px solid #cbd5cf;border-radius:8px;padding:8px;margin-top:6px;line-height:1.5;font-family:inherit;resize:vertical}
 .ai-cand-tests{font-size:12px;color:#556;margin-top:7px}
 .ai-cand-tests ul{margin:4px 0 0;padding-left:18px}
 .ai-cand-tests li{line-height:1.5}
@@ -3808,10 +3809,38 @@ function bindAiCandidateActions(){
     }
     var cid = btn.getAttribute('data-cid');
     if (!cid) return;
+    if (act === 'savetext'){
+      var ta = document.getElementById('aicand-text-' + cid);
+      var newText = ta ? String(ta.value || '').trim() : '';
+      if (!newText){ window.alert('提案文が空です。内容を入力してください。'); return; }
+      if (!window.confirm('この提案文を保存しますか？\n（承認済み・有効の候補は、内容を変えて保存すると「承認待ち」に戻り、もう一度承認・反映が必要になります）')) return;
+      btn.disabled = true;
+      sbRpc('ai_reply_improvement_candidate_update_text', { p_id: Number(cid), p_proposed_text: newText, p_tenant: TENANT_ID })
+        .then(function(){ loadAiReport(); })
+        .catch(function(err){ btn.disabled = false; window.alert('提案文の保存に失敗しました（' + ((err && err.message) || err) + '）。'); });
+      return;
+    }
     var statusMap = { approve: 'approved', reject: 'rejected', apply: 'active', rollback: 'rolled_back' };
     var labelMap = { approve: '承認', reject: '却下', apply: '反映（有効化）', rollback: '戻す' };
     var ns = statusMap[act];
     if (!ns) return;
+    // 反映・承認の前に、提案文の未保存編集を検出して止める（編集したのに保存し忘れ→古い汎用ひな型が
+    // そのまま反映される事故を防ぐ）。textarea.defaultValue（初期値）と現在値を比べる。
+    if (act === 'apply' || act === 'approve'){
+      var taEdit = document.getElementById('aicand-text-' + cid);
+      if (taEdit){
+        var curText = taEdit.value.trim();
+        if (curText !== taEdit.defaultValue.trim()){
+          window.alert('提案文に未保存の変更があります。先に「💾 提案文を保存」を押してから操作してください。');
+          return;
+        }
+        // ひな型（下書き）のまま承認・反映すると、汎用文がそのまま本番返信に入る。具体化を促す。
+        if (curText.indexOf('（下書き）') !== -1){
+          window.alert('提案文がひな型（下書き）のままです。具体的な内容に書き換えて「💾 提案文を保存」してから、承認・反映してください。');
+          return;
+        }
+      }
+    }
     if (!window.confirm('この候補を「' + (labelMap[act] || act) + '」しますか？')) return;
     btn.disabled = true;
     sbRpc('ai_reply_improvement_candidate_set_status', { p_id: Number(cid), p_status: ns, p_tenant: TENANT_ID })
@@ -3910,9 +3939,18 @@ function renderAiImprovementCandidates(items){
       + '<span class="ai-cand-chip ai-risk-' + esc(risk) + '">リスク ' + esc(aiCandidateRiskLabel(risk)) + '</span>'
       + '<span>分類: ' + esc(c.category || '') + '</span>'
       + '</div>'
-      + '<div class="ai-cand-reason"><b>改善理由</b><br>' + esc(c.reason || c.evidenceSummary || '') + '</div>'
-      + '<div class="ai-cand-proposal"><b>提案文</b><br>' + esc(c.proposedText || '') + '</div>';
+      + '<div class="ai-cand-reason"><b>改善理由</b><br>' + esc(c.reason || c.evidenceSummary || '') + '</div>';
     var st = String(c.status || '');
+    // 提案文：却下/戻し済み以外は、反映前に具体的な内容へ書き換えられる編集欄にする。
+    // 生成RPCが入れる初期文は汎用ひな型のため、人が整えてから承認・反映する運用を支える。
+    if (st === 'rejected' || st === 'rolled_back'){
+      html += '<div class="ai-cand-proposal"><b>提案文</b><br>' + esc(c.proposedText || '') + '</div>';
+    } else {
+      html += '<div class="ai-cand-proposal"><b>提案文</b>（反映前に具体的な内容へ編集できます）'
+        + '<textarea class="ai-cand-textarea" id="aicand-text-' + esc(c.id) + '" rows="3">' + esc(c.proposedText || '') + '</textarea>'
+        + '<div><button class="ai-cand-btn" data-act="savetext" data-cid="' + esc(c.id) + '">💾 提案文を保存</button></div>'
+        + '</div>';
+    }
     html += '<div class="ai-cand-actions">';
     if (st === 'pending_review'){
       html += '<button class="ai-cand-btn" data-act="approve" data-cid="' + esc(c.id) + '">承認</button>';
