@@ -293,6 +293,10 @@ document.addEventListener('securitypolicyviolation',function(e){console.warn('CS
 .ai-cand-chip.ai-risk-high{background:#fee2e2;color:#b91c1c}
 .ai-cand-chip.ai-risk-medium{background:#ffedd5;color:#9a3412}
 .ai-cand-chip.ai-risk-low{background:#dcfce7;color:#15803d}
+.ai-cand-actions{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 2px}
+.ai-cand-btn{font-size:12.5px;font-weight:700;border:1px solid #0b5c55;background:#0b5c55;color:#fff;border-radius:8px;padding:5px 12px;cursor:pointer}
+.ai-cand-btn:disabled{opacity:.5;cursor:default}
+.ai-cand-btn-no{background:#fff;color:#b91c1c;border-color:#f0c8c8}
 .ai-recent{margin:0;padding-left:18px}
 .ai-recent li{font-size:12.5px;color:#345;line-height:1.55;padding:2px 0}
 
@@ -3784,13 +3788,46 @@ document.addEventListener('click', function(e){
   loadAiReport();
 });
 
+// AI改善候補の生成/承認/却下/反映ボタンをイベント委譲で1回だけ束ねる。
+// 操作はすべてmanager権限チェック付きRPC経由（直接テーブルは更新しない）。
+function bindAiCandidateActions(){
+  var body = document.getElementById('aiBody');
+  if (!body || body._aiCandBound) return;
+  body._aiCandBound = true;
+  body.addEventListener('click', function(e){
+    var btn = e.target.closest('[data-act]');
+    if (!btn || !body.contains(btn)) return;
+    var act = btn.getAttribute('data-act');
+    if (act === 'generate'){
+      var rng = dashRangeFor(AI_PERIOD);
+      btn.disabled = true;
+      sbRpc('ai_reply_improvement_candidates_generate', { p_from: rng.from, p_to: rng.to, p_tenant: TENANT_ID, p_limit: 5 })
+        .then(function(){ loadAiReport(); })
+        .catch(function(err){ btn.disabled = false; window.alert('候補生成に失敗しました（' + ((err && err.message) || err) + '）。'); });
+      return;
+    }
+    var cid = btn.getAttribute('data-cid');
+    if (!cid) return;
+    var statusMap = { approve: 'approved', reject: 'rejected', apply: 'active', rollback: 'rolled_back' };
+    var labelMap = { approve: '承認', reject: '却下', apply: '反映（有効化）', rollback: '戻す' };
+    var ns = statusMap[act];
+    if (!ns) return;
+    if (!window.confirm('この候補を「' + (labelMap[act] || act) + '」しますか？')) return;
+    btn.disabled = true;
+    sbRpc('ai_reply_improvement_candidate_set_status', { p_id: Number(cid), p_status: ns, p_tenant: TENANT_ID })
+      .then(function(){ loadAiReport(); })
+      .catch(function(err){ btn.disabled = false; window.alert('変更に失敗しました（' + ((err && err.message) || err) + '）。'); });
+  });
+}
+
 function loadAiReport(){
   var body = document.getElementById('aiBody');
+  bindAiCandidateActions();
   body.innerHTML = '<div class="dash-placeholder">読み込み中…</div>';
   var r = dashRangeFor(AI_PERIOD);
   document.getElementById('aiPeriod').textContent = r.label + ' のAI活用状況';
   var candidatesReq = sbRpc('ai_reply_improvement_candidates_list', {
-    p_statuses: ['pending_review', 'approved'],
+    p_statuses: ['pending_review', 'approved', 'active'],
     p_limit: 10,
     p_tenant: TENANT_ID
   }).catch(function(err){
@@ -3847,15 +3884,18 @@ function aiCandidateTestText(t){
 }
 
 function renderAiImprovementCandidates(items){
+  var genBtn = '<button class="ai-cand-btn" data-act="generate">候補を生成</button>';
+  var hdr = '<div class="ai-faq-h">▼ AI改善候補 ' + genBtn + '</div>';
+  var note = '<div class="ai-faq-note">承認・却下・反映はこの画面（店長権限）で行えます。反映後もテストと送信直前ガードで守ります。</div>';
   if (items && items._error){
-    return '<div class="ai-faq-h">▼ AI改善候補</div>'
+    return hdr
       + '<div class="ai-faq-empty">改善候補の取得に失敗しました。AI活用レポート本体は表示できます。</div>';
   }
   var arr = Array.isArray(items) ? items : [];
-  var html = '<div class="ai-faq-h">▼ AI改善候補</div>';
+  var html = hdr;
   if (!arr.length){
     html += '<div class="ai-faq-empty">まだ候補はありません。</div>';
-    html += '<div class="ai-faq-note">承認・反映は次段階です。ここでは候補を見るだけです。</div>';
+    html += note;
     return html;
   }
   html += '<div class="ai-candidates">';
@@ -3872,6 +3912,18 @@ function renderAiImprovementCandidates(items){
       + '</div>'
       + '<div class="ai-cand-reason"><b>改善理由</b><br>' + esc(c.reason || c.evidenceSummary || '') + '</div>'
       + '<div class="ai-cand-proposal"><b>提案文</b><br>' + esc(c.proposedText || '') + '</div>';
+    var st = String(c.status || '');
+    html += '<div class="ai-cand-actions">';
+    if (st === 'pending_review'){
+      html += '<button class="ai-cand-btn" data-act="approve" data-cid="' + esc(c.id) + '">承認</button>';
+      html += '<button class="ai-cand-btn ai-cand-btn-no" data-act="reject" data-cid="' + esc(c.id) + '">却下</button>';
+    } else if (st === 'approved'){
+      html += '<button class="ai-cand-btn" data-act="apply" data-cid="' + esc(c.id) + '">反映（有効化）</button>';
+      html += '<button class="ai-cand-btn ai-cand-btn-no" data-act="reject" data-cid="' + esc(c.id) + '">却下</button>';
+    } else if (st === 'active'){
+      html += '<button class="ai-cand-btn ai-cand-btn-no" data-act="rollback" data-cid="' + esc(c.id) + '">戻す</button>';
+    }
+    html += '</div>';
     if (tests.length){
       html += '<div class="ai-cand-tests"><b>テスト例</b><ul>';
       for (var j = 0; j < Math.min(tests.length, 3); j++){
@@ -3883,7 +3935,7 @@ function renderAiImprovementCandidates(items){
     }
     html += '</div>';
   }
-  html += '</div><div class="ai-faq-note">承認・反映は次段階です。ここでは候補を見るだけです。</div>';
+  html += '</div>' + note;
   return html;
 }
 
