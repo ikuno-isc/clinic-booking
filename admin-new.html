@@ -287,6 +287,7 @@ document.addEventListener('securitypolicyviolation',function(e){console.warn('CS
 .ai-cand-reason{font-size:12.5px;color:#345;margin-top:7px;line-height:1.55}
 .ai-cand-proposal{font-size:12px;color:#334;background:#f7faf9;border:1px solid #edf3f1;border-radius:8px;padding:8px;margin-top:7px;white-space:pre-wrap;line-height:1.5}
 .ai-cand-textarea{width:100%;box-sizing:border-box;font-size:12px;color:#334;border:1px solid #cbd5cf;border-radius:8px;padding:8px;margin-top:6px;line-height:1.5;font-family:inherit;resize:vertical}
+.ai-cand-note-inline{font-size:11px;color:#8a7a6a;align-self:center}
 .ai-cand-tests{font-size:12px;color:#556;margin-top:7px}
 .ai-cand-tests ul{margin:4px 0 0;padding-left:18px}
 .ai-cand-tests li{line-height:1.5}
@@ -3855,10 +3856,19 @@ function loadAiReport(){
   body.innerHTML = '<div class="dash-placeholder">読み込み中…</div>';
   var r = dashRangeFor(AI_PERIOD);
   document.getElementById('aiPeriod').textContent = r.label + ' のAI活用状況';
-  var candidatesReq = sbRpc('ai_reply_improvement_candidates_list', {
-    p_statuses: ['pending_review', 'approved', 'active'],
-    p_limit: 10,
-    p_tenant: TENANT_ID
+  // 反映済み(active)は別枠で必ず取得して先頭に合流する。pending+approvedが10件あると
+  // active が一覧から押し出され「戻す」ボタンに到達できなくなるため（反映後ほど戻せる必要がある）。
+  var candidatesReq = Promise.all([
+    // active(反映済み)は全件が「戻す」対象。本番プロンプトは10件上限だが、運用ミスで増えても直近反映が
+    // 必ず拾えるよう多め(50)に取得する（作成日順でも50件内なら全active＝戻す導線を確保・Codex P2）。
+    sbRpc('ai_reply_improvement_candidates_list', { p_statuses: ['active'], p_limit: 50, p_tenant: TENANT_ID }),
+    sbRpc('ai_reply_improvement_candidates_list', { p_statuses: ['pending_review', 'approved'], p_limit: 10, p_tenant: TENANT_ID })
+  ]).then(function(res){
+    var active = Array.isArray(res[0]) ? res[0] : [];
+    var others = Array.isArray(res[1]) ? res[1] : [];
+    var seen = {}, merged = [];
+    active.concat(others).forEach(function(c){ var k = String(c && c.id); if (k && !seen[k]){ seen[k] = 1; merged.push(c); } });
+    return merged;
   }).catch(function(err){
     return { _error: String((err && err.message) || err || '') };
   });
@@ -3928,7 +3938,8 @@ function renderAiImprovementCandidates(items){
     return html;
   }
   html += '<div class="ai-candidates">';
-  for (var i = 0; i < Math.min(arr.length, 10); i++){
+  // active(先頭に合流・最大50)＋pending/approved を両方見せるため上限を広げる（反映済みが隠れず戻せる）。
+  for (var i = 0; i < Math.min(arr.length, 60); i++){
     var c = arr[i] || {};
     var risk = String(c.riskLevel || 'medium');
     var tests = Array.isArray(c.testExamples) ? c.testExamples : [];
@@ -3956,7 +3967,13 @@ function renderAiImprovementCandidates(items){
       html += '<button class="ai-cand-btn" data-act="approve" data-cid="' + esc(c.id) + '">承認</button>';
       html += '<button class="ai-cand-btn ai-cand-btn-no" data-act="reject" data-cid="' + esc(c.id) + '">却下</button>';
     } else if (st === 'approved'){
-      html += '<button class="ai-cand-btn" data-act="apply" data-cid="' + esc(c.id) + '">反映（有効化）</button>';
+      // 本番返信に入るのは active かつ kind=faq だけ（chat-webhook の取得条件と一致）。
+      // faq 以外を「反映」しても返信は変わらないため、反映ボタンは faq のときだけ出す（効いたつもり防止）。
+      if (c.kind === 'faq'){
+        html += '<button class="ai-cand-btn" data-act="apply" data-cid="' + esc(c.id) + '">反映（有効化）</button>';
+      } else {
+        html += '<span class="ai-cand-note-inline">※この種別は本番返信には反映されません（反映対象はFAQのみ）</span>';
+      }
       html += '<button class="ai-cand-btn ai-cand-btn-no" data-act="reject" data-cid="' + esc(c.id) + '">却下</button>';
     } else if (st === 'active'){
       html += '<button class="ai-cand-btn ai-cand-btn-no" data-act="rollback" data-cid="' + esc(c.id) + '">戻す</button>';
