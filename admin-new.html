@@ -280,6 +280,19 @@ document.addEventListener('securitypolicyviolation',function(e){console.warn('CS
 .ai-actions{background:#f7faf9;border:1px solid #e3ecea;border-radius:10px;margin:8px 0 12px;padding:9px 12px}
 .ai-actions ul{margin:4px 0 0;padding-left:20px}
 .ai-actions li{font-size:12.5px;color:#345;line-height:1.6}
+.ai-candidates{margin:8px 0 12px}
+.ai-cand{border:1px solid #e3ecea;border-radius:10px;background:#fff;padding:10px 12px;margin-bottom:8px}
+.ai-cand-title{font-size:13px;font-weight:800;color:#0b5c55;line-height:1.4}
+.ai-cand-meta{font-size:11px;color:#667;margin-top:4px;display:flex;gap:6px;flex-wrap:wrap}
+.ai-cand-reason{font-size:12.5px;color:#345;margin-top:7px;line-height:1.55}
+.ai-cand-proposal{font-size:12px;color:#334;background:#f7faf9;border:1px solid #edf3f1;border-radius:8px;padding:8px;margin-top:7px;white-space:pre-wrap;line-height:1.5}
+.ai-cand-tests{font-size:12px;color:#556;margin-top:7px}
+.ai-cand-tests ul{margin:4px 0 0;padding-left:18px}
+.ai-cand-tests li{line-height:1.5}
+.ai-cand-chip{display:inline-block;border-radius:999px;background:#eef2f1;color:#445;padding:2px 8px;font-weight:800}
+.ai-cand-chip.ai-risk-high{background:#fee2e2;color:#b91c1c}
+.ai-cand-chip.ai-risk-medium{background:#ffedd5;color:#9a3412}
+.ai-cand-chip.ai-risk-low{background:#dcfce7;color:#15803d}
 .ai-recent{margin:0;padding-left:18px}
 .ai-recent li{font-size:12.5px;color:#345;line-height:1.55;padding:2px 0}
 
@@ -3776,8 +3789,18 @@ function loadAiReport(){
   body.innerHTML = '<div class="dash-placeholder">読み込み中…</div>';
   var r = dashRangeFor(AI_PERIOD);
   document.getElementById('aiPeriod').textContent = r.label + ' のAI活用状況';
-  sbRpc('ai_report_stats', { p_from: r.from, p_to: r.to, p_tenant: TENANT_ID })
-    .then(function(s){ renderAiReport(s || {}); })
+  var candidatesReq = sbRpc('ai_reply_improvement_candidates_list', {
+    p_statuses: ['pending_review', 'approved'],
+    p_limit: 10,
+    p_tenant: TENANT_ID
+  }).catch(function(err){
+    return { _error: String((err && err.message) || err || '') };
+  });
+  Promise.all([
+    sbRpc('ai_report_stats', { p_from: r.from, p_to: r.to, p_tenant: TENANT_ID }),
+    candidatesReq
+  ])
+    .then(function(res){ renderAiReport(res[0] || {}, res[1] || []); })
     .catch(function(err){
       if (!TOKEN){ if (typeof showLogin === 'function') showLogin('もう一度ログインしてください。'); return; }
       var msg = String((err && err.message) || err || '');
@@ -3789,8 +3812,83 @@ function loadAiReport(){
     });
 }
 
+function aiCandidateStatusLabel(v){
+  v = String(v || '');
+  if (v === 'pending_review') return '承認待ち';
+  if (v === 'approved') return '承認済み';
+  if (v === 'draft') return '下書き';
+  if (v === 'active') return '有効';
+  if (v === 'rolled_back') return '戻し済み';
+  if (v === 'rejected') return '却下';
+  return v || '不明';
+}
+
+function aiCandidateRiskLabel(v){
+  v = String(v || '');
+  if (v === 'high') return '高';
+  if (v === 'medium') return '中';
+  if (v === 'low') return '低';
+  return v || '不明';
+}
+
+function aiCandidateTestText(t){
+  if (t == null) return '';
+  if (typeof t === 'string') return t;
+  if (typeof t === 'object'){
+    var a = [];
+    if (t.input) a.push('質問: ' + t.input);
+    if (t.expected) a.push('期待: ' + t.expected);
+    if (t.must) a.push('必須: ' + t.must);
+    if (t.mustNot) a.push('禁止: ' + t.mustNot);
+    if (a.length) return a.join(' / ');
+    try { return JSON.stringify(t); } catch(e) { return ''; }
+  }
+  return String(t);
+}
+
+function renderAiImprovementCandidates(items){
+  if (items && items._error){
+    return '<div class="ai-faq-h">▼ AI改善候補</div>'
+      + '<div class="ai-faq-empty">改善候補の取得に失敗しました。AI活用レポート本体は表示できます。</div>';
+  }
+  var arr = Array.isArray(items) ? items : [];
+  var html = '<div class="ai-faq-h">▼ AI改善候補</div>';
+  if (!arr.length){
+    html += '<div class="ai-faq-empty">まだ候補はありません。</div>';
+    html += '<div class="ai-faq-note">承認・反映は次段階です。ここでは候補を見るだけです。</div>';
+    return html;
+  }
+  html += '<div class="ai-candidates">';
+  for (var i = 0; i < Math.min(arr.length, 10); i++){
+    var c = arr[i] || {};
+    var risk = String(c.riskLevel || 'medium');
+    var tests = Array.isArray(c.testExamples) ? c.testExamples : [];
+    html += '<div class="ai-cand">'
+      + '<div class="ai-cand-title">' + esc(c.title || '') + '</div>'
+      + '<div class="ai-cand-meta">'
+      + '<span class="ai-cand-chip">' + esc(aiCandidateStatusLabel(c.status)) + '</span>'
+      + '<span class="ai-cand-chip ai-risk-' + esc(risk) + '">リスク ' + esc(aiCandidateRiskLabel(risk)) + '</span>'
+      + '<span>分類: ' + esc(c.category || '') + '</span>'
+      + '</div>'
+      + '<div class="ai-cand-reason"><b>改善理由</b><br>' + esc(c.reason || c.evidenceSummary || '') + '</div>'
+      + '<div class="ai-cand-proposal"><b>提案文</b><br>' + esc(c.proposedText || '') + '</div>';
+    if (tests.length){
+      html += '<div class="ai-cand-tests"><b>テスト例</b><ul>';
+      for (var j = 0; j < Math.min(tests.length, 3); j++){
+        html += '<li>' + esc(aiCandidateTestText(tests[j])) + '</li>';
+      }
+      html += '</ul></div>';
+    } else {
+      html += '<div class="ai-cand-tests"><b>テスト例</b><br>未登録</div>';
+    }
+    html += '</div>';
+  }
+  html += '</div><div class="ai-faq-note">承認・反映は次段階です。ここでは候補を見るだけです。</div>';
+  return html;
+}
+
 /* ai_report_stats の戻りjsonb（存在キーのみ）を描画。 */
-function renderAiReport(s){
+function renderAiReport(s, improvementCandidates){
   var body = document.getElementById('aiBody');
   var hours = Math.round((Number(s.savedMinutes) || 0) / 60 * 10) / 10;
   var open = Number(s.openHuman) || 0;
@@ -3867,6 +3965,7 @@ function renderAiReport(s){
     html += '</ol>';
     html += '<div class="ai-faq-note">→ よくある質問はテンプレ返信やプロンプト強化の候補です。</div>';
   }
+  html += renderAiImprovementCandidates(improvementCandidates || []);
   var recent = Array.isArray(s.recentHumanEvents) ? s.recentHumanEvents : [];
   if (recent.length){
     html += '<div class="ai-faq-h">▼ 最近の有人対応・ガード</div><ol class="ai-recent">';
